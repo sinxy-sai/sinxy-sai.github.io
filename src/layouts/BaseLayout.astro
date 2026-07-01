@@ -613,14 +613,15 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
   }
 
   .brand-mark {
+    box-sizing: border-box;
     display: grid;
     width: 52px;
     height: 52px;
     flex: 0 0 auto;
     place-items: center;
-    border: 1px solid rgba(117, 201, 165, 0.38);
+    border: 1px solid rgba(117, 201, 165, 0.58);
     border-radius: 18px;
-    background: var(--surface-strong);
+    background: linear-gradient(145deg, var(--surface-strong), var(--bg-soft));
     box-shadow: 0 12px 32px rgba(74, 116, 98, 0.16);
     overflow: hidden;
   }

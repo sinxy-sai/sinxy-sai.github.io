@@ -8,10 +8,6 @@ const timeWidgetPosts = posts.map((post) => ({
   date: post.data.pubDate.toISOString().slice(0, 10),
   url: `/blog/${post.id}/`,
 }));
-const clockTicks = Array.from({ length: 24 }, (_, index) => ({
-  index,
-  major: index % 2 === 0,
-}));
 ---
 
 <aside class="time-widget" aria-label="Live clock and calendar">
@@ -21,32 +17,9 @@ const clockTicks = Array.from({ length: 24 }, (_, index) => ({
   </div>
 
   <div class="clock-stage" aria-hidden="true">
-    <div class="clock-face">
-      <div class="clock-aurora"></div>
-      <div class="clock-shadow-plane"></div>
-      <div class="clock-glass-shell">
-        <div class="clock-progress-ring"></div>
-        <div class="clock-depth-ring"></div>
-        <div class="clock-tick-layer">
-          {
-            clockTicks.map((tick) => (
-              <span
-                class:list={["clock-tick", { "is-major": tick.major }]}
-                style={`--tick-index: ${tick.index}`}
-              />
-            ))
-          }
-        </div>
-        <div class="clock-scanline"></div>
-        <div class="clock-orbit"></div>
-        <div class="clock-hand hour-hand"></div>
-        <div class="clock-hand minute-hand"></div>
-        <div class="clock-hand second-hand"></div>
-        <div class="clock-core">
-          <span class="clock-core-glow"></span>
-        </div>
-      </div>
-    </div>
+    <div class="clock-aurora"></div>
+    <div class="clock-shadow-plane"></div>
+    <canvas class="clock-canvas" data-clock-canvas></canvas>
   </div>
 
   <div class="time-readout">
@@ -98,10 +71,336 @@ const clockTicks = Array.from({ length: 24 }, (_, index) => ({
   <script type="application/json" data-time-widget-posts set:html={JSON.stringify(timeWidgetPosts)} />
 </aside>
 
-<script is:inline>
+<script>
+  import * as THREE from "three";
+
+  function createClockLabel(text) {
+    const textureCanvas = document.createElement("canvas");
+    const size = 128;
+    textureCanvas.width = size;
+    textureCanvas.height = size;
+
+    const context = textureCanvas.getContext("2d");
+    if (!context) return null;
+
+    context.clearRect(0, 0, size, size);
+    context.fillStyle = "rgba(48, 65, 83, 0.88)";
+    context.font = "700 40px Inter, ui-sans-serif, system-ui";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText(text, size / 2, size / 2);
+
+    const texture = new THREE.CanvasTexture(textureCanvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      opacity: 0.82,
+      depthWrite: false,
+    });
+
+    return new THREE.Sprite(material);
+  }
+
+  function createThreeClock(canvas) {
+    let renderer;
+
+    try {
+      renderer = new THREE.WebGLRenderer({
+        canvas,
+        alpha: true,
+        antialias: true,
+        powerPreference: "high-performance",
+      });
+    } catch {
+      canvas.closest(".clock-stage")?.classList.add("is-three-unavailable");
+      return null;
+    }
+
+    renderer.setClearColor(0x000000, 0);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.12;
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.OrthographicCamera(-1.75, 1.75, 1.75, -1.75, 0.1, 20);
+    camera.position.set(0, 0, 6);
+
+    const root = new THREE.Group();
+    const face = new THREE.Group();
+    root.add(face);
+    scene.add(root);
+
+    const glassMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xf9fdff,
+      roughness: 0.04,
+      metalness: 0,
+      transmission: 0.52,
+      thickness: 0.72,
+      ior: 1.48,
+      transparent: true,
+      opacity: 0.48,
+      clearcoat: 1,
+      clearcoatRoughness: 0.04,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+
+    const rimMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xdff8ff,
+      roughness: 0.12,
+      metalness: 0.06,
+      transparent: true,
+      opacity: 0.74,
+      clearcoat: 1,
+      clearcoatRoughness: 0.08,
+    });
+
+    const accentMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0x7fc5e8,
+      roughness: 0.22,
+      metalness: 0.2,
+      transparent: true,
+      opacity: 0.92,
+      clearcoat: 0.8,
+      clearcoatRoughness: 0.18,
+    });
+
+    const roseMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xf4a8bb,
+      roughness: 0.2,
+      metalness: 0.18,
+      transparent: true,
+      opacity: 0.9,
+      clearcoat: 0.8,
+    });
+
+    const inkMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0x304153,
+      roughness: 0.34,
+      metalness: 0.12,
+      clearcoat: 0.35,
+    });
+
+    const tickMaterial = new THREE.MeshBasicMaterial({
+      color: 0x486176,
+      transparent: true,
+      opacity: 0.42,
+    });
+
+    const majorTickMaterial = new THREE.MeshBasicMaterial({
+      color: 0x304153,
+      transparent: true,
+      opacity: 0.74,
+    });
+
+    const glassDisc = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.18, 1.24, 0.16, 128, 1, false),
+      glassMaterial,
+    );
+    glassDisc.rotation.x = Math.PI / 2;
+    glassDisc.position.z = 0;
+    face.add(glassDisc);
+
+    const outerRim = new THREE.Mesh(new THREE.TorusGeometry(1.25, 0.035, 18, 160), rimMaterial);
+    outerRim.position.z = 0.12;
+    face.add(outerRim);
+
+    const innerRim = new THREE.Mesh(new THREE.TorusGeometry(0.88, 0.01, 12, 128), rimMaterial);
+    innerRim.position.z = 0.18;
+    innerRim.material.opacity = 0.34;
+    face.add(innerRim);
+
+    const progressRing = new THREE.Mesh(
+      new THREE.TorusGeometry(1.08, 0.012, 10, 128),
+      accentMaterial,
+    );
+    progressRing.position.z = 0.2;
+    face.add(progressRing);
+
+    const tickGeometry = new THREE.BoxGeometry(0.012, 0.065, 0.012);
+    const majorTickGeometry = new THREE.BoxGeometry(0.02, 0.12, 0.018);
+
+    for (let index = 0; index < 60; index += 1) {
+      const isMajor = index % 5 === 0;
+      const angle = (index / 60) * Math.PI * 2;
+      const tick = new THREE.Mesh(
+        isMajor ? majorTickGeometry : tickGeometry,
+        isMajor ? majorTickMaterial : tickMaterial,
+      );
+
+      tick.position.set(Math.sin(angle) * 1.04, Math.cos(angle) * 1.04, 0.24);
+      tick.rotation.z = -angle;
+      face.add(tick);
+    }
+
+    [
+      ["12", 0],
+      ["3", 15],
+      ["6", 30],
+      ["9", 45],
+    ].forEach(([label, index]) => {
+      const numeral = createClockLabel(label);
+      if (!numeral) return;
+
+      const angle = (Number(index) / 60) * Math.PI * 2;
+      numeral.position.set(Math.sin(angle) * 0.76, Math.cos(angle) * 0.76, 0.27);
+      numeral.scale.set(0.48, 0.48, 0.48);
+      face.add(numeral);
+    });
+
+    function createHand(length, width, material, z) {
+      const handGroup = new THREE.Group();
+      const hand = new THREE.Mesh(new THREE.BoxGeometry(width, length, width), material);
+      hand.position.y = length / 2;
+      hand.position.z = z;
+      handGroup.add(hand);
+      face.add(handGroup);
+      return handGroup;
+    }
+
+    const hourHand = createHand(0.52, 0.055, inkMaterial, 0.35);
+    const minuteHand = createHand(0.78, 0.035, accentMaterial, 0.39);
+    const secondHand = createHand(0.92, 0.014, roseMaterial, 0.43);
+
+    const core = new THREE.Mesh(
+      new THREE.SphereGeometry(0.075, 32, 16),
+      new THREE.MeshPhysicalMaterial({
+        color: 0xffffff,
+        roughness: 0.06,
+        metalness: 0,
+        transmission: 0.4,
+        thickness: 0.28,
+        transparent: true,
+        opacity: 0.84,
+        clearcoat: 1,
+      }),
+    );
+    core.position.z = 0.52;
+    face.add(core);
+
+    const glareTextureCanvas = document.createElement("canvas");
+    glareTextureCanvas.width = 256;
+    glareTextureCanvas.height = 256;
+    const glareContext = glareTextureCanvas.getContext("2d");
+    if (glareContext) {
+      const gradient = glareContext.createLinearGradient(30, 10, 218, 190);
+      gradient.addColorStop(0, "rgba(255,255,255,0.82)");
+      gradient.addColorStop(0.28, "rgba(255,255,255,0.24)");
+      gradient.addColorStop(1, "rgba(255,255,255,0)");
+      glareContext.fillStyle = gradient;
+      glareContext.beginPath();
+      glareContext.ellipse(118, 82, 112, 40, -0.36, 0, Math.PI * 2);
+      glareContext.fill();
+    }
+
+    const glareTexture = new THREE.CanvasTexture(glareTextureCanvas);
+    glareTexture.colorSpace = THREE.SRGBColorSpace;
+    const glare = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.5, 1),
+      new THREE.MeshBasicMaterial({
+        map: glareTexture,
+        transparent: true,
+        opacity: 0.66,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    );
+    glare.position.set(-0.12, 0.32, 0.5);
+    glare.rotation.z = -0.18;
+    face.add(glare);
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xb5c8d8, 2.15));
+
+    const keyLight = new THREE.DirectionalLight(0xffffff, 3.4);
+    keyLight.position.set(-2.4, 3.2, 4.8);
+    scene.add(keyLight);
+
+    const rimLight = new THREE.PointLight(0xb4d7ff, 5.4, 8);
+    rimLight.position.set(2.2, -1.8, 3.4);
+    scene.add(rimLight);
+
+    const warmLight = new THREE.PointLight(0xffd38d, 2.8, 7);
+    warmLight.position.set(-2.2, -2, 2.8);
+    scene.add(warmLight);
+
+    let targetTiltX = 0;
+    let targetTiltY = 0;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    function resize() {
+      const rect = canvas.getBoundingClientRect();
+      const width = Math.max(1, Math.floor(rect.width));
+      const height = Math.max(1, Math.floor(rect.height));
+
+      renderer.setSize(width, height, false);
+
+      const aspect = width / height;
+      const frustum = 3.16;
+      camera.left = (-frustum * aspect) / 2;
+      camera.right = (frustum * aspect) / 2;
+      camera.top = frustum / 2;
+      camera.bottom = -frustum / 2;
+      camera.updateProjectionMatrix();
+    }
+
+    const resizeObserver = new ResizeObserver(resize);
+    resizeObserver.observe(canvas);
+    resize();
+
+    function applyTheme() {
+      const isDark = document.documentElement.dataset.theme === "dark";
+      glassMaterial.color.set(isDark ? 0xddeef8 : 0xf9fdff);
+      glassMaterial.opacity = isDark ? 0.28 : 0.48;
+      rimMaterial.color.set(isDark ? 0xbfe7f6 : 0xdff8ff);
+      rimMaterial.opacity = isDark ? 0.46 : 0.74;
+      accentMaterial.color.set(isDark ? 0x80d0f0 : 0x7fc5e8);
+      roseMaterial.color.set(isDark ? 0xf0a7bb : 0xf4a8bb);
+      inkMaterial.color.set(isDark ? 0xe9f4f0 : 0x304153);
+      tickMaterial.color.set(isDark ? 0xd3e4ee : 0x486176);
+      tickMaterial.opacity = isDark ? 0.36 : 0.42;
+      majorTickMaterial.color.set(isDark ? 0xf1f8f4 : 0x304153);
+      majorTickMaterial.opacity = isDark ? 0.66 : 0.74;
+    }
+
+    applyTheme();
+    new MutationObserver(applyTheme).observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+
+    return {
+      setTilt(rotateX, rotateY) {
+        targetTiltX = THREE.MathUtils.degToRad(rotateX);
+        targetTiltY = THREE.MathUtils.degToRad(rotateY);
+      },
+      update(now, smoothHours, smoothMinutes, smoothSeconds) {
+        hourHand.rotation.z = -THREE.MathUtils.degToRad(smoothHours * 30);
+        minuteHand.rotation.z = -THREE.MathUtils.degToRad(smoothMinutes * 6);
+        secondHand.rotation.z = -THREE.MathUtils.degToRad(smoothSeconds * 6);
+
+        if (!reducedMotion) {
+          root.rotation.x += (targetTiltX - root.rotation.x) * 0.08;
+          root.rotation.y += (targetTiltY - root.rotation.y) * 0.08;
+          face.rotation.z = Math.sin(now.getTime() * 0.00035) * 0.012;
+          glare.rotation.z = -0.18 + Math.sin(now.getTime() * 0.0006) * 0.025;
+          progressRing.rotation.z = -Math.PI / 2 + ((now.getHours() * 60 + now.getMinutes()) / 1440) * Math.PI * 2;
+        }
+
+        renderer.render(scene, camera);
+      },
+    };
+  }
+
   const widget = document.querySelector(".time-widget");
 
   if (widget) {
+    const clockCanvas = widget.querySelector("[data-clock-canvas]");
+    const threeClock = clockCanvas instanceof HTMLCanvasElement
+      ? createThreeClock(clockCanvas)
+      : null;
     const timeText = widget.querySelector("[data-time-text]");
     const dateText = widget.querySelector("[data-date-text]");
     const timeZone = widget.querySelector("[data-time-zone]");
@@ -167,7 +466,7 @@ const clockTicks = Array.from({ length: 24 }, (_, index) => ({
         `);
       }
 
-      monthLabel.textContent = monthFormatter.format(now);
+      monthLabel.textContent = monthFormatter.format(firstDay);
       yearLabel.textContent = String(year);
       calendarGrid.innerHTML = cells.join("");
     }
@@ -233,6 +532,7 @@ const clockTicks = Array.from({ length: 24 }, (_, index) => ({
       widget.style.setProperty("--minute-angle", `${smoothMinutes * 6}deg`);
       widget.style.setProperty("--second-angle", `${smoothSeconds * 6}deg`);
       widget.style.setProperty("--day-progress", `${(hours * 60 + minutes) / 14.4}deg`);
+      threeClock?.update(now, smoothHours, smoothMinutes, smoothSeconds);
 
       if (timeText) {
         timeText.textContent = [
@@ -285,6 +585,7 @@ const clockTicks = Array.from({ length: 24 }, (_, index) => ({
         widget.style.setProperty("--tilt-y", `${rotateY.toFixed(2)}deg`);
         widget.style.setProperty("--glare-x", `${(x * 100).toFixed(1)}%`);
         widget.style.setProperty("--glare-y", `${(y * 100).toFixed(1)}%`);
+        threeClock?.setTilt(rotateX, rotateY);
       });
     }
 
@@ -294,6 +595,7 @@ const clockTicks = Array.from({ length: 24 }, (_, index) => ({
       widget.style.setProperty("--tilt-y", "0deg");
       widget.style.setProperty("--glare-x", "35%");
       widget.style.setProperty("--glare-y", "24%");
+      threeClock?.setTilt(0, 0);
     });
 
     calendarGrid?.addEventListener("click", (event) => {
@@ -340,17 +642,19 @@ const clockTicks = Array.from({ length: 24 }, (_, index) => ({
     --tilt-y: 0deg;
     --glare-x: 35%;
     --glare-y: 24%;
-    --clock-center-bg: rgba(255, 255, 250, 0.48);
-    --clock-progress: rgba(70, 193, 171, 0.86);
-    --clock-rest: rgba(255, 255, 255, 0.38);
-    --clock-shadow: rgba(66, 103, 93, 0.16);
-    --clock-glass: rgba(255, 255, 250, 0.34);
-    --clock-glass-edge: rgba(255, 255, 255, 0.62);
-    --clock-engrave: rgba(47, 143, 112, 0.28);
-    --clock-prism: rgba(170, 214, 255, 0.38);
-    --clock-scan: rgba(255, 255, 255, 0.64);
-    --clock-coral: #f7a8bc;
-    --clock-lilac: #b9b5ff;
+    --clock-center-bg: rgba(255, 255, 255, 0.46);
+    --clock-progress: rgba(111, 196, 232, 0.86);
+    --clock-rest: rgba(255, 255, 255, 0.3);
+    --clock-shadow: rgba(84, 98, 122, 0.22);
+    --clock-glass: rgba(255, 255, 255, 0.3);
+    --clock-glass-edge: rgba(255, 255, 255, 0.84);
+    --clock-engrave: rgba(74, 91, 118, 0.32);
+    --clock-prism: rgba(172, 204, 255, 0.48);
+    --clock-scan: rgba(255, 255, 255, 0.72);
+    --clock-coral: #f7a9bf;
+    --clock-lilac: #ada8ff;
+    --clock-gold: #f8d48a;
+    --clock-ink: #304153;
     --calendar-soft-bg: rgba(255, 255, 250, 0.62);
     --calendar-post-text: #7d6070;
     --today-inner-ring: rgba(255, 255, 250, 0.74);
@@ -369,16 +673,18 @@ const clockTicks = Array.from({ length: 24 }, (_, index) => ({
 
   :global(html[data-theme="dark"]) .time-widget {
     --clock-center-bg: rgba(232, 241, 234, 0.08);
-    --clock-progress: rgba(130, 225, 210, 0.72);
-    --clock-rest: rgba(232, 241, 234, 0.14);
-    --clock-shadow: rgba(0, 0, 0, 0.24);
-    --clock-glass: rgba(232, 241, 234, 0.08);
-    --clock-glass-edge: rgba(232, 241, 234, 0.2);
-    --clock-engrave: rgba(171, 232, 213, 0.34);
-    --clock-prism: rgba(154, 177, 255, 0.16);
-    --clock-scan: rgba(232, 241, 234, 0.28);
+    --clock-progress: rgba(127, 197, 232, 0.74);
+    --clock-rest: rgba(232, 241, 234, 0.13);
+    --clock-shadow: rgba(0, 0, 0, 0.34);
+    --clock-glass: rgba(222, 238, 248, 0.07);
+    --clock-glass-edge: rgba(232, 241, 234, 0.24);
+    --clock-engrave: rgba(206, 226, 242, 0.38);
+    --clock-prism: rgba(154, 177, 255, 0.18);
+    --clock-scan: rgba(232, 241, 234, 0.32);
     --clock-coral: #f0a7bb;
     --clock-lilac: #aaa7ff;
+    --clock-gold: #f3c875;
+    --clock-ink: #edf7f2;
     --calendar-soft-bg: rgba(24, 35, 31, 0.72);
     --calendar-post-text: #efb5c6;
     --today-inner-ring: rgba(16, 24, 21, 0.78);
@@ -412,15 +718,62 @@ const clockTicks = Array.from({ length: 24 }, (_, index) => ({
   }
 
   .clock-stage {
-    --tick-radius: 94px;
+    --tick-radius: 102px;
     position: relative;
     display: grid;
-    width: min(236px, 100%);
+    width: min(252px, 100%);
     aspect-ratio: 1;
     place-items: center;
     justify-self: center;
     isolation: isolate;
-    perspective: 1100px;
+    perspective: 1200px;
+  }
+
+  .clock-stage::before,
+  .clock-stage::after {
+    content: "";
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+  }
+
+  .clock-stage::before {
+    inset: 6px;
+    z-index: 1;
+    border: 1px solid rgba(255, 255, 255, 0.52);
+    background:
+      radial-gradient(circle at var(--glare-x) var(--glare-y), rgba(255, 255, 255, 0.72), transparent 0 12%, transparent 42%),
+      linear-gradient(145deg, rgba(255, 255, 255, 0.24), transparent 34%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.72),
+      inset 0 -22px 44px rgba(127, 197, 232, 0.08),
+      0 24px 64px var(--clock-shadow);
+    opacity: 0.88;
+    transform: rotateX(var(--tilt-x)) rotateY(var(--tilt-y));
+    transition: transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .clock-stage::after {
+    inset: 22px 16px auto;
+    z-index: 3;
+    height: 76px;
+    background: linear-gradient(112deg, rgba(255, 255, 255, 0.74), transparent 72%);
+    filter: blur(0.2px);
+    opacity: 0.36;
+    transform: rotate(-10deg);
+  }
+
+  .clock-canvas {
+    position: relative;
+    z-index: 2;
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    filter:
+      drop-shadow(0 22px 36px var(--clock-shadow))
+      drop-shadow(0 0 18px rgba(172, 204, 255, 0.18));
+    touch-action: pan-y;
   }
 
   .clock-face {
@@ -429,15 +782,15 @@ const clockTicks = Array.from({ length: 24 }, (_, index) => ({
     width: 100%;
     aspect-ratio: 1;
     place-items: center;
-    transform: rotateX(var(--tilt-x)) rotateY(var(--tilt-y));
+    transform: rotateX(var(--tilt-x)) rotateY(var(--tilt-y)) translateZ(0);
     transform-style: preserve-3d;
     transition:
       filter 260ms ease,
-      transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+      transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 
   .clock-stage:hover .clock-face {
-    filter: saturate(1.1) contrast(1.02);
+    filter: saturate(1.08) contrast(1.04);
   }
 
   .clock-aurora,
@@ -446,6 +799,7 @@ const clockTicks = Array.from({ length: 24 }, (_, index) => ({
   .clock-progress-ring,
   .clock-depth-ring,
   .clock-tick-layer,
+  .clock-numeral-layer,
   .clock-scanline,
   .clock-orbit {
     position: absolute;
