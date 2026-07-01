@@ -1,0 +1,48 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { render } from "astro:content";
+import { estimateReadingMinutes, formatDate, getPublishedPosts } from "../../lib/posts";
+
+export async function getStaticPaths() {
+  const posts = await getPublishedPosts();
+
+  return posts.map((post) => ({
+    params: { slug: post.id },
+    props: { post },
+  }));
+}
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+const minutes = estimateReadingMinutes(post.body ?? "");
+---
+
+<BaseLayout title={post.data.title} description={post.data.description}>
+  <article class="article">
+    <header class="article-header">
+      <p class="section-kicker">Article</p>
+      <h1 class="article-title">{post.data.title}</h1>
+      <div class="meta">
+        <time datetime={post.data.pubDate.toISOString()}>{formatDate(post.data.pubDate)}</time>
+        <span>{minutes} 分钟阅读</span>
+        {
+          post.data.updatedDate && (
+            <span>更新于 {formatDate(post.data.updatedDate)}</span>
+          )
+        }
+      </div>
+      <div class="tag-list">
+        {
+          post.data.tags.map((tag) => (
+            <a class="tag" href={`/tags/${encodeURIComponent(tag)}/`}>
+              {tag}
+            </a>
+          ))
+        }
+      </div>
+    </header>
+    <div class="prose">
+      <Content />
+    </div>
+  </article>
+</BaseLayout>

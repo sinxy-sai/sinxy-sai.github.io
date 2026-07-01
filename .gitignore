@@ -1,1 +1,12 @@
-/let*
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Framework and package-manager cache
+.astro/
+.npm-cache/
+
+# Local AI/tooling workspace
+.agents/

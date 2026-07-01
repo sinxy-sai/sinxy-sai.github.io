@@ -1,0 +1,63 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { formatDate, getAllTags, getPublishedPosts } from "../lib/posts";
+
+const posts = await getPublishedPosts();
+const tags = getAllTags(posts);
+const featuredPosts = posts.slice(0, 5);
+---
+
+<BaseLayout
+  title="Sinxy Sai"
+  description="A personal blog about computer science, algorithms, and building things."
+>
+  <section>
+    <p class="section-kicker">Personal Blog</p>
+    <h1 class="page-title">写代码，也记录思考。</h1>
+    <p class="page-description">
+      这里会整理计算机科学、算法学习、项目实践和一些个人笔记。目标是把零散经验沉淀成以后还能读懂的文章。
+    </p>
+    <div class="button-row">
+      <a class="button primary" href="/archive/">浏览文章</a>
+      <a class="button" href="/about/">关于我</a>
+    </div>
+  </section>
+
+  <section class="content-grid" aria-label="Recent posts">
+    <div class="post-list">
+      {
+        featuredPosts.map((post) => (
+          <a class="post-card" href={`/blog/${post.id}/`}>
+            <div class="meta">
+              <time datetime={post.data.pubDate.toISOString()}>
+                {formatDate(post.data.pubDate)}
+              </time>
+              <span>{post.data.tags.slice(0, 2).join(" / ")}</span>
+            </div>
+            <h2>{post.data.title}</h2>
+            <p>{post.data.description}</p>
+            <div class="tag-list">
+              {post.data.tags.map((tag) => (
+                <span class="tag">{tag}</span>
+              ))}
+            </div>
+          </a>
+        ))
+      }
+    </div>
+
+    <aside class="sidebar-panel">
+      <h2>标签</h2>
+      <p>按主题快速找到文章。后续可以继续接入全文搜索和评论。</p>
+      <div class="tag-list">
+        {
+          tags.map(([tag, count]) => (
+            <a class="tag" href={`/tags/${encodeURIComponent(tag)}/`}>
+              {tag} · {count}
+            </a>
+          ))
+        }
+      </div>
+    </aside>
+  </section>
+</BaseLayout>
