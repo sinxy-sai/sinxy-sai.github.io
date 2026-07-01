@@ -1,30 +1,42 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
+import ProfileCard from "../components/ProfileCard.astro";
 import { formatDate, getAllTags, getPublishedPosts } from "../lib/posts";
 
 const posts = await getPublishedPosts();
 const tags = getAllTags(posts);
 const featuredPosts = posts.slice(0, 5);
+const totalTags = tags.length;
 ---
 
 <BaseLayout
-  title="Sinxy Sai"
+  title="首页"
   description="A personal blog about computer science, algorithms, and building things."
 >
-  <section>
-    <p class="section-kicker">Personal Blog</p>
-    <h1 class="page-title">写代码，也记录思考。</h1>
-    <p class="page-description">
-      这里会整理计算机科学、算法学习、项目实践和一些个人笔记。目标是把零散经验沉淀成以后还能读懂的文章。
-    </p>
-    <div class="button-row">
-      <a class="button primary" href="/archive/">浏览文章</a>
-      <a class="button" href="/about/">关于我</a>
+  <section class="hero">
+    <div>
+      <p class="section-kicker">Personal Blog / Computer Science</p>
+      <h1 class="page-title">把学过的东西，整理到能复用。</h1>
+      <p class="page-description">
+        这里记录算法、计算机科学、前端工程和项目实践。文章不追求热闹，重点是把当时的思路、踩坑和结论写清楚。
+      </p>
+      <div class="button-row">
+        <a class="button primary" href="/archive/">浏览文章</a>
+        <a class="button" href="/rss.xml">RSS 订阅</a>
+      </div>
     </div>
+
+    <aside class="hero-panel" aria-label="Blog statistics">
+      <strong>{posts.length}</strong>
+      <span>篇已发布文章</span>
+      <strong style="margin-top: 22px">{totalTags}</strong>
+      <span>个主题标签</span>
+    </aside>
   </section>
 
   <section class="content-grid" aria-label="Recent posts">
     <div class="post-list">
+      <p class="section-kicker">Latest Notes</p>
       {
         featuredPosts.map((post) => (
           <a class="post-card" href={`/blog/${post.id}/`}>
@@ -32,7 +44,7 @@ const featuredPosts = posts.slice(0, 5);
               <time datetime={post.data.pubDate.toISOString()}>
                 {formatDate(post.data.pubDate)}
               </time>
-              <span>{post.data.tags.slice(0, 2).join(" / ")}</span>
+              {post.data.tags.length > 0 && <span>{post.data.tags.slice(0, 2).join(" / ")}</span>}
             </div>
             <h2>{post.data.title}</h2>
             <p>{post.data.description}</p>
@@ -44,11 +56,19 @@ const featuredPosts = posts.slice(0, 5);
           </a>
         ))
       }
+      {
+        featuredPosts.length === 0 && (
+          <div class="post-card">
+            <div class="meta">Empty</div>
+            <h2>还没有文章</h2>
+            <p>在 src/content/blog 里新增 Markdown 文件后，这里会自动显示。</p>
+          </div>
+        )
+      }
     </div>
 
     <aside class="sidebar-panel">
-      <h2>标签</h2>
-      <p>按主题快速找到文章。后续可以继续接入全文搜索和评论。</p>
+      <ProfileCard />
       <div class="tag-list">
         {
           tags.map(([tag, count]) => (

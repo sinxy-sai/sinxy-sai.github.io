@@ -1,5 +1,8 @@
 ---
 import BaseLayout from "../../layouts/BaseLayout.astro";
+import ProfileCard from "../../components/ProfileCard.astro";
+import { Github, Mail } from "lucide-astro";
+import { socialLinks } from "../../lib/profile";
 ---
 
 <BaseLayout title="关于" description="About Sinxy Sai.">
@@ -15,15 +18,19 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     <div class="post-card">
       <h2>现在关注的内容</h2>
       <p>计算机科学基础、算法、前端工程、工具链，以及能帮助长期积累的写作流程。</p>
+      <div class="social-links about-links" aria-label="Contact links">
+        {
+          socialLinks.map((link) => (
+            <a href={link.href} target={link.icon === "github" ? "_blank" : undefined} rel={link.icon === "github" ? "noreferrer" : undefined}>
+              {link.icon === "github" ? <Github size={18} aria-hidden="true" /> : <Mail size={18} aria-hidden="true" />}
+              {link.label}
+            </a>
+          ))
+        }
+      </div>
     </div>
     <aside class="sidebar-panel">
-      <h2>链接</h2>
-      <p>
-        GitHub:
-        <a href="https://github.com/sinxy-sai" target="_blank" rel="noreferrer">
-          sinxy-sai
-        </a>
-      </p>
+      <ProfileCard />
     </aside>
   </section>
 </BaseLayout>

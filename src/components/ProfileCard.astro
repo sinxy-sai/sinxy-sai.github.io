@@ -1,0 +1,33 @@
+---
+import { Github, Mail, MapPin } from "lucide-astro";
+import { profile, socialLinks } from "../lib/profile";
+---
+
+<section class="profile-card" aria-label="Profile">
+  <div class="profile-head">
+    <img class="profile-avatar" src={profile.avatar} alt={`${profile.displayName} avatar`} />
+    <div>
+      <p class="section-kicker">Profile</p>
+      <h2>{profile.displayName}</h2>
+      <p>{profile.role}</p>
+    </div>
+  </div>
+
+  <p class="profile-bio">{profile.bio}</p>
+
+  <div class="profile-location">
+    <MapPin size={16} aria-hidden="true" />
+    <span>{profile.location}</span>
+  </div>
+
+  <div class="social-links" aria-label="Contact links">
+    {
+      socialLinks.map((link) => (
+        <a href={link.href} target={link.icon === "github" ? "_blank" : undefined} rel={link.icon === "github" ? "noreferrer" : undefined} aria-label={link.label} title={link.value}>
+          {link.icon === "github" ? <Github size={18} aria-hidden="true" /> : <Mail size={18} aria-hidden="true" />}
+          <span>{link.label}</span>
+        </a>
+      ))
+    }
+  </div>
+</section>
