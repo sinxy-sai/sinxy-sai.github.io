@@ -18,11 +18,11 @@ const posts = (await getPublishedPosts()).filter((post) =>
 );
 ---
 
-<BaseLayout title={`标签：${tag}`} description={`Posts tagged ${tag}.`}>
+<BaseLayout title={`标签：${tag}`} description={`与 ${tag} 相关的博客文章。`}>
   <section>
     <p class="section-kicker">Tag</p>
     <h1 class="page-title">{tag}</h1>
-    <p class="page-description">这个标签下共有 {posts.length} 篇文章。</p>
+    <p class="page-description">这里收录了 {posts.length} 篇与「{tag}」相关的文章。</p>
   </section>
 
   <section class="post-list" style="margin-top: 36px">

@@ -6,11 +6,13 @@ const posts = await getPublishedPosts();
 const tags = getAllTags(posts);
 ---
 
-<BaseLayout title="标签" description="Browse posts by tag.">
+<BaseLayout title="标签" description="按主题浏览 Sinxy Sai 的博客文章。">
   <section>
     <p class="section-kicker">Tags</p>
-    <h1 class="page-title">标签</h1>
-    <p class="page-description">把文章按主题归类，方便之后回看和补全知识线索。</p>
+    <h1 class="page-title">按主题阅读</h1>
+    <p class="page-description">
+      有些问题会在不同文章里反复出现。标签把这些线索放在一起，方便以后继续补充、修正和连接。
+    </p>
   </section>
 
   <section class="tag-list" style="margin-top: 36px">

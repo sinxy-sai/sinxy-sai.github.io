@@ -1,16 +1,29 @@
 ---
+import { Rss, Search } from "lucide-astro";
+import "katex/dist/katex.min.css";
+
 interface Props {
   title?: string;
   description?: string;
+  image?: string;
+  type?: "website" | "article";
+  publishedTime?: string;
+  tags?: string[];
 }
 
 const siteTitle = "Sinxy Sai's Blog";
 const {
   title = "首页",
   description = "Personal notes on computer science, algorithms, and building things.",
+  image = "/avatar.jpg",
+  type = "website",
+  publishedTime,
+  tags = [],
 } = Astro.props;
 
 const pageTitle = `${title} | ${siteTitle}`;
+const canonicalUrl = new URL(Astro.url.pathname, Astro.site ?? Astro.url).toString();
+const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
 ---
 
 <!doctype html>
@@ -20,10 +33,28 @@ const pageTitle = `${title} | ${siteTitle}`;
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content={description} />
     <meta name="generator" content={Astro.generator} />
+    <meta name="author" content="Sinxy Sai" />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#f6fbf5" />
+    <link rel="canonical" href={canonicalUrl} />
     <meta property="og:title" content={pageTitle} />
     <meta property="og:description" content={description} />
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content={Astro.url} />
+    <meta property="og:type" content={type} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:site_name" content={siteTitle} />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content={imageUrl} />
+    <meta property="og:image:alt" content="Sinxy Sai's Blog" />
+    {
+      type === "article" && publishedTime && (
+        <meta property="article:published_time" content={publishedTime} />
+      )
+    }
+    {tags.map((tag) => <meta property="article:tag" content={tag} />)}
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={pageTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={imageUrl} />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="alternate" type="application/rss+xml" title={siteTitle} href="/rss.xml" />
     <title>{pageTitle}</title>
@@ -45,6 +76,23 @@ const pageTitle = `${title} | ${siteTitle}`;
           <small>notes, code, and tiny discoveries</small>
         </span>
       </a>
+      <form class="header-search" role="search" data-pagefind-ignore>
+        <label class="header-search-label" for="site-search-input">搜索文章</label>
+        <div class="header-search-field">
+          <Search size={18} aria-hidden="true" />
+          <input
+            id="site-search-input"
+            class="header-search-input"
+            type="search"
+            placeholder="搜索 DCP、维纳滤波..."
+            autocomplete="off"
+          />
+        </div>
+        <div id="site-search-panel" class="header-search-panel" hidden>
+          <p id="site-search-status" class="header-search-status">输入关键词开始搜索。</p>
+          <div id="site-search-results" class="header-search-results" aria-live="polite"></div>
+        </div>
+      </form>
       <nav class="site-nav" aria-label="Primary navigation">
         <a href="/">首页</a>
         <a href="/archive/">归档</a>
@@ -58,9 +106,159 @@ const pageTitle = `${title} | ${siteTitle}`;
     </main>
 
     <footer class="site-footer">
-      <span>© {new Date().getFullYear()} sinxy-sai</span>
-      <span>Built with Astro</span>
+      <span>© {new Date().getFullYear()} Sinxy Sai. Content rights reserved.</span>
+      <span class="footer-links">
+        <a class="footer-rss" href="/rss.xml" aria-label="RSS 订阅">
+          <Rss size={16} aria-hidden="true" />
+          <span>RSS</span>
+        </a>
+        <span aria-hidden="true">·</span>
+        <a href="https://astro.build/" target="_blank" rel="noreferrer">Built with Astro</a>
+      </span>
     </footer>
+    <script is:inline>
+      const siteSearchForm = document.querySelector(".header-search");
+      const siteSearchInput = document.querySelector("#site-search-input");
+      const siteSearchPanel = document.querySelector("#site-search-panel");
+      const siteSearchStatus = document.querySelector("#site-search-status");
+      const siteSearchResults = document.querySelector("#site-search-results");
+
+      const escapeSearchHtml = (value) =>
+        value.replace(/[&<>"']/g, (char) => ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        })[char]);
+
+      let sitePagefind;
+      let siteSearchRequestId = 0;
+
+      async function loadSitePagefind() {
+        if (sitePagefind) return sitePagefind;
+        const importPagefind = new Function("path", "return import(path)");
+        const loadedPagefind = await importPagefind("/pagefind/pagefind.js");
+        sitePagefind = loadedPagefind.createInstance({
+          basePath: "/pagefind/",
+          noWorker: true,
+        });
+        await sitePagefind.init();
+        return sitePagefind;
+      }
+
+      function closeSiteSearch() {
+        if (siteSearchPanel) siteSearchPanel.hidden = true;
+      }
+
+      async function runSiteSearch(query) {
+        const currentRequest = ++siteSearchRequestId;
+        const trimmed = query.trim();
+
+        if (!trimmed) {
+          closeSiteSearch();
+          if (siteSearchResults) siteSearchResults.innerHTML = "";
+          return;
+        }
+
+        if (siteSearchPanel) siteSearchPanel.hidden = false;
+        if (siteSearchStatus) siteSearchStatus.textContent = "正在搜索...";
+
+        try {
+          const search = await (await loadSitePagefind()).search(trimmed);
+          if (currentRequest !== siteSearchRequestId) return;
+
+          const resultData = await Promise.all(
+            search.results.slice(0, 6).map((result) => result.data()),
+          );
+
+          if (siteSearchStatus) {
+            siteSearchStatus.textContent = resultData.length
+              ? `找到 ${search.results.length} 条结果`
+              : "没有找到匹配的文章";
+          }
+
+          if (siteSearchResults) {
+            siteSearchResults.innerHTML = resultData
+              .map((item) => `
+                <a class="header-search-result" href="${item.url}">
+                  <strong>${escapeSearchHtml(item.meta.title || "Untitled")}</strong>
+                  <span>${item.excerpt || ""}</span>
+                </a>
+              `)
+              .join("");
+          }
+        } catch (error) {
+          console.error("Pagefind search failed:", error);
+          if (siteSearchStatus) siteSearchStatus.textContent = "搜索暂时不可用，请先运行构建。";
+          if (siteSearchResults) siteSearchResults.innerHTML = "";
+        }
+      }
+
+      siteSearchInput?.addEventListener("input", (event) => {
+        runSiteSearch(event.target.value);
+      });
+
+      siteSearchForm?.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const firstResult = siteSearchResults?.querySelector("a");
+        if (firstResult instanceof HTMLAnchorElement) {
+          window.location.href = firstResult.href;
+        }
+      });
+
+      document.addEventListener("click", (event) => {
+        if (!siteSearchForm?.contains(event.target)) {
+          closeSiteSearch();
+        }
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          closeSiteSearch();
+          siteSearchInput?.blur();
+        }
+      });
+
+      const siteHeader = document.querySelector(".site-header");
+      let lastScrollY = window.scrollY;
+      let ticking = false;
+
+      function updateHeaderVisibility() {
+        const currentScrollY = window.scrollY;
+        const scrollingDown = currentScrollY > lastScrollY;
+        const searchIsActive =
+          siteSearchInput === document.activeElement ||
+          (siteSearchPanel && !siteSearchPanel.hidden);
+
+        if (!siteHeader) {
+          ticking = false;
+          return;
+        }
+
+        siteHeader.classList.toggle("is-floating", currentScrollY > 24 || searchIsActive);
+
+        if (currentScrollY < 80 || searchIsActive || currentScrollY < lastScrollY) {
+          siteHeader.classList.remove("is-hidden");
+        } else if (scrollingDown) {
+          siteHeader.classList.add("is-hidden");
+        }
+
+        lastScrollY = Math.max(currentScrollY, 0);
+        ticking = false;
+      }
+
+      window.addEventListener(
+        "scroll",
+        () => {
+          if (!ticking) {
+            window.requestAnimationFrame(updateHeaderVisibility);
+            ticking = true;
+          }
+        },
+        { passive: true },
+      );
+    </script>
   </body>
 </html>
 
@@ -176,13 +374,43 @@ const pageTitle = `${title} | ${siteTitle}`;
   }
 
   .site-header {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(220px, 0.92fr) minmax(260px, 1fr) auto;
     align-items: center;
-    justify-content: space-between;
-    gap: 24px;
+    gap: 18px;
     padding: 24px 0;
-    position: relative;
-    z-index: 1;
+    position: sticky;
+    top: 10px;
+    z-index: 10;
+    isolation: isolate;
+    transition:
+      transform 220ms ease,
+      opacity 220ms ease;
+    will-change: transform;
+  }
+
+  .site-header::before {
+    content: "";
+    position: absolute;
+    inset: 10px -14px;
+    z-index: -1;
+    border: 1px solid var(--line);
+    border-radius: 28px;
+    background: rgba(255, 255, 250, 0.96);
+    box-shadow: 0 18px 54px rgba(74, 116, 98, 0.16);
+    opacity: 0;
+    backdrop-filter: blur(18px);
+    transition: opacity 180ms ease;
+  }
+
+  .site-header.is-floating::before {
+    opacity: 1;
+  }
+
+  .site-header.is-hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(calc(-100% - 24px));
   }
 
   .brand {
@@ -229,6 +457,120 @@ const pageTitle = `${title} | ${siteTitle}`;
     font-size: 0.78rem;
   }
 
+  .header-search {
+    position: relative;
+    min-width: 0;
+  }
+
+  .header-search-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .header-search-field {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .header-search-field svg {
+    position: absolute;
+    left: 14px;
+    color: var(--muted);
+    pointer-events: none;
+  }
+
+  .header-search-input {
+    width: 100%;
+    min-height: 44px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: rgba(255, 255, 250, 0.78);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.92rem;
+    padding: 0 16px 0 42px;
+    box-shadow: 0 14px 38px rgba(74, 116, 98, 0.1);
+    backdrop-filter: blur(16px);
+    transition:
+      border-color 180ms ease,
+      background 180ms ease,
+      box-shadow 180ms ease;
+  }
+
+  .header-search-input::placeholder {
+    color: rgba(102, 117, 111, 0.78);
+  }
+
+  .header-search-input:focus {
+    border-color: rgba(117, 201, 165, 0.8);
+    background: rgba(255, 255, 250, 0.94);
+    outline: 3px solid rgba(117, 201, 165, 0.22);
+    box-shadow: 0 16px 44px rgba(74, 116, 98, 0.14);
+  }
+
+  .header-search-panel {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    left: 0;
+    z-index: 30;
+    max-height: min(520px, calc(100vh - 120px));
+    overflow: auto;
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    background: rgba(255, 255, 250, 0.96);
+    padding: 12px;
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(18px);
+  }
+
+  .header-search-status {
+    margin: 0 0 8px;
+    color: var(--muted);
+    font-size: 0.82rem;
+  }
+
+  .header-search-results {
+    display: grid;
+    gap: 8px;
+  }
+
+  .header-search-result {
+    display: grid;
+    gap: 5px;
+    border: 1px solid transparent;
+    border-radius: 16px;
+    padding: 10px;
+    transition:
+      background 180ms ease,
+      border-color 180ms ease;
+  }
+
+  .header-search-result:hover {
+    border-color: rgba(117, 201, 165, 0.48);
+    background: var(--accent-soft);
+  }
+
+  .header-search-result strong {
+    font-size: 0.92rem;
+    line-height: 1.35;
+  }
+
+  .header-search-result span {
+    display: -webkit-box;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 0.82rem;
+    line-height: 1.55;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
   .site-nav {
     display: flex;
     align-items: center;
@@ -268,6 +610,29 @@ const pageTitle = `${title} | ${siteTitle}`;
     border-top: 1px solid var(--line);
     color: var(--muted);
     font-size: 0.9rem;
+  }
+
+  .footer-links {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .footer-links a {
+    color: var(--accent-strong);
+    font-weight: 750;
+  }
+
+  .footer-rss {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .footer-links a:hover {
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
   }
 
   .section-kicker {
@@ -328,6 +693,37 @@ const pageTitle = `${title} | ${siteTitle}`;
     line-height: 1.6;
   }
 
+  .hero-panel h2 {
+    margin: 0;
+    font-size: 1.35rem;
+  }
+
+  .focus-list {
+    display: grid;
+    gap: 10px;
+    margin: 18px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .focus-list li {
+    position: relative;
+    padding-left: 18px;
+    color: var(--muted);
+    line-height: 1.55;
+  }
+
+  .focus-list li::before {
+    content: "";
+    position: absolute;
+    top: 0.72em;
+    left: 0;
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--accent);
+  }
+
   .button-row {
     display: flex;
     flex-wrap: wrap;
@@ -356,9 +752,10 @@ const pageTitle = `${title} | ${siteTitle}`;
   }
 
   .button.primary {
-    border-color: transparent;
-    background: linear-gradient(135deg, #8ddfba, #ffe29d);
-    color: #20372f;
+    border-color: rgba(47, 143, 112, 0.28);
+    background: var(--accent-strong);
+    color: #fffef8;
+    box-shadow: 0 14px 30px rgba(47, 143, 112, 0.22);
   }
 
   .button:hover {
@@ -469,6 +866,17 @@ const pageTitle = `${title} | ${siteTitle}`;
     line-height: 1.7;
   }
 
+  .side-section-title {
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+  }
+
+  .side-section-title h2 {
+    margin: 0;
+    font-size: 1.05rem;
+  }
+
   .profile-card {
     display: grid;
     gap: 16px;
@@ -490,6 +898,7 @@ const pageTitle = `${title} | ${siteTitle}`;
     height: 72px;
     border: 1px solid var(--line);
     border-radius: 24px;
+    object-fit: cover;
     box-shadow: 0 14px 34px rgba(74, 116, 98, 0.14);
   }
 
@@ -542,14 +951,70 @@ const pageTitle = `${title} | ${siteTitle}`;
   }
 
   .article {
+    width: 100%;
     max-width: 820px;
-    margin: 32px auto 0;
+    margin: 0;
     border: 1px solid var(--line);
     border-radius: 30px;
     background: var(--surface-strong);
     color: var(--text);
     padding: clamp(24px, 5vw, 56px);
     box-shadow: var(--shadow);
+  }
+
+  .article-layout {
+    display: grid;
+    grid-template-columns: 230px minmax(0, 820px);
+    gap: 24px;
+    align-items: start;
+    justify-content: center;
+    margin-top: 32px;
+  }
+
+  .article-layout.no-toc {
+    grid-template-columns: minmax(0, 820px);
+  }
+
+  .article-toc {
+    position: sticky;
+    top: 20px;
+    border: 1px solid var(--line);
+    border-radius: 24px;
+    background: var(--surface);
+    padding: 18px;
+    box-shadow: 0 16px 46px rgba(74, 116, 98, 0.1);
+    backdrop-filter: blur(18px);
+  }
+
+  .article-toc h2 {
+    margin: 0 0 12px;
+    font-size: 0.95rem;
+  }
+
+  .article-toc ol {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .article-toc a {
+    display: block;
+    border-radius: 12px;
+    color: var(--muted);
+    font-size: 0.88rem;
+    line-height: 1.45;
+    padding: 6px 8px;
+  }
+
+  .article-toc a:hover {
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+  }
+
+  .toc-depth-3 {
+    padding-left: 14px;
   }
 
   .article-header {
@@ -596,6 +1061,13 @@ const pageTitle = `${title} | ${siteTitle}`;
     background: var(--code-bg);
   }
 
+  .prose mjx-container,
+  .prose .katex-display {
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 4px 0;
+  }
+
   .prose code {
     font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
     font-size: 0.92em;
@@ -636,6 +1108,143 @@ const pageTitle = `${title} | ${siteTitle}`;
     border-bottom: 0;
   }
 
+  .post-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 36px;
+    padding-top: 24px;
+    border-top: 1px solid var(--line);
+  }
+
+  .post-nav a,
+  .post-nav span {
+    min-height: 88px;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: 14px;
+  }
+
+  .post-nav a {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    background: rgba(255, 255, 250, 0.58);
+    transition:
+      transform 180ms ease,
+      border-color 180ms ease,
+      background 180ms ease;
+  }
+
+  .post-nav a:hover {
+    transform: translateY(-2px);
+    border-color: rgba(117, 201, 165, 0.62);
+    background: var(--accent-soft);
+  }
+
+  .post-nav span {
+    color: var(--muted);
+  }
+
+  .post-nav small {
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 750;
+  }
+
+  .post-nav strong {
+    margin-top: 6px;
+    line-height: 1.35;
+  }
+
+  .search-box {
+    margin-top: 34px;
+    border: 1px solid var(--line);
+    border-radius: 28px;
+    background: var(--surface);
+    padding: 18px;
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(18px);
+  }
+
+  .search-input {
+    width: 100%;
+    min-height: 52px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface-strong);
+    color: var(--text);
+    font: inherit;
+    font-size: 1rem;
+    padding: 0 18px;
+  }
+
+  .search-label {
+    display: block;
+    margin: 0 0 10px;
+    color: var(--muted);
+    font-size: 0.9rem;
+    font-weight: 750;
+  }
+
+  .search-input-wrap {
+    position: relative;
+  }
+
+  .search-input-wrap svg {
+    position: absolute;
+    top: 50%;
+    left: 18px;
+    color: var(--muted);
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+
+  .search-input-wrap .search-input {
+    padding-left: 50px;
+  }
+
+  .search-input:focus {
+    border-color: rgba(117, 201, 165, 0.8);
+    outline: 3px solid rgba(117, 201, 165, 0.22);
+  }
+
+  .search-status {
+    margin: 14px 0 0;
+    color: var(--muted);
+    font-size: 0.92rem;
+  }
+
+  .search-results {
+    display: grid;
+    gap: 12px;
+    margin-top: 18px;
+  }
+
+  .search-result {
+    display: block;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    background: rgba(255, 255, 250, 0.58);
+    padding: 16px;
+  }
+
+  .search-result:hover {
+    border-color: rgba(117, 201, 165, 0.62);
+    background: var(--accent-soft);
+  }
+
+  .search-result h2 {
+    margin: 0 0 8px;
+    font-size: 1.1rem;
+  }
+
+  .search-result p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.65;
+  }
+
   @keyframes float-soft {
     0%,
     100% {
@@ -661,7 +1270,12 @@ const pageTitle = `${title} | ${siteTitle}`;
   @media (max-width: 760px) {
     .site-header {
       align-items: flex-start;
-      flex-direction: column;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .header-search {
+      width: 100%;
     }
 
     .site-nav {
@@ -680,6 +1294,15 @@ const pageTitle = `${title} | ${siteTitle}`;
       grid-template-columns: 1fr;
     }
 
+    .article-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .article-toc {
+      position: static;
+      order: 2;
+    }
+
     .sidebar-panel {
       position: static;
     }
@@ -691,6 +1314,10 @@ const pageTitle = `${title} | ${siteTitle}`;
     .archive-item {
       grid-template-columns: 1fr;
       gap: 6px;
+    }
+
+    .post-nav {
+      grid-template-columns: 1fr;
     }
   }
 </style>

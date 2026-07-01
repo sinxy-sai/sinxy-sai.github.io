@@ -6,31 +6,33 @@ import { formatDate, getAllTags, getPublishedPosts } from "../lib/posts";
 const posts = await getPublishedPosts();
 const tags = getAllTags(posts);
 const featuredPosts = posts.slice(0, 5);
-const totalTags = tags.length;
 ---
 
 <BaseLayout
   title="首页"
-  description="A personal blog about computer science, algorithms, and building things."
+  description="Sinxy Sai 的个人博客，记录计算机科学、算法学习和工程实践。"
 >
   <section class="hero">
     <div>
       <p class="section-kicker">Personal Blog / Computer Science</p>
-      <h1 class="page-title">把学过的东西，整理到能复用。</h1>
+      <h1 class="page-title">把问题写清楚，把答案留下来。</h1>
       <p class="page-description">
-        这里记录算法、计算机科学、前端工程和项目实践。文章不追求热闹，重点是把当时的思路、踩坑和结论写清楚。
+        这里保存我在算法、计算机基础和工程实践里的学习记录。文章会尽量写清楚问题从哪里来、我是怎么想的，以及最后留下了什么结论。
       </p>
       <div class="button-row">
         <a class="button primary" href="/archive/">浏览文章</a>
-        <a class="button" href="/rss.xml">RSS 订阅</a>
+        <a class="button" href="/about/">关于我</a>
       </div>
     </div>
 
-    <aside class="hero-panel" aria-label="Blog statistics">
-      <strong>{posts.length}</strong>
-      <span>篇已发布文章</span>
-      <strong style="margin-top: 22px">{totalTags}</strong>
-      <span>个主题标签</span>
+    <aside class="hero-panel" aria-label="Current focus">
+      <p class="section-kicker">Now</p>
+      <h2>最近在整理</h2>
+      <ul class="focus-list">
+        <li>算法学习笔记</li>
+        <li>计算机科学基础</li>
+        <li>前端工程实践</li>
+      </ul>
     </aside>
   </section>
 
@@ -69,6 +71,10 @@ const totalTags = tags.length;
 
     <aside class="sidebar-panel">
       <ProfileCard />
+      <div class="side-section-title">
+        <p class="section-kicker">Topics</p>
+        <h2>常写主题</h2>
+      </div>
       <div class="tag-list">
         {
           tags.map(([tag, count]) => (
