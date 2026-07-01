@@ -1,0 +1,962 @@
+---
+import { CalendarDays, ChevronLeft, ChevronRight, RotateCcw } from "lucide-astro";
+
+const { posts = [] } = Astro.props;
+const timeWidgetPosts = posts.map((post) => ({
+  title: post.data.title,
+  description: post.data.description,
+  date: post.data.pubDate.toISOString().slice(0, 10),
+  url: `/blog/${post.id}/`,
+}));
+const clockTicks = Array.from({ length: 24 }, (_, index) => ({
+  index,
+  major: index % 2 === 0,
+}));
+---
+
+<aside class="time-widget" aria-label="Live clock and calendar">
+  <div class="time-widget-head">
+    <p class="section-kicker">Now</p>
+    <span class="time-zone" data-time-zone>Local time</span>
+  </div>
+
+  <div class="clock-stage" aria-hidden="true">
+    <div class="clock-face">
+      <div class="clock-aurora"></div>
+      <div class="clock-shadow-plane"></div>
+      <div class="clock-glass-shell">
+        <div class="clock-progress-ring"></div>
+        <div class="clock-depth-ring"></div>
+        <div class="clock-tick-layer">
+          {
+            clockTicks.map((tick) => (
+              <span
+                class:list={["clock-tick", { "is-major": tick.major }]}
+                style={`--tick-index: ${tick.index}`}
+              />
+            ))
+          }
+        </div>
+        <div class="clock-scanline"></div>
+        <div class="clock-orbit"></div>
+        <div class="clock-hand hour-hand"></div>
+        <div class="clock-hand minute-hand"></div>
+        <div class="clock-hand second-hand"></div>
+        <div class="clock-core">
+          <span class="clock-core-glow"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="time-readout">
+    <strong data-time-text>--:--</strong>
+    <span data-date-text>Loading date</span>
+  </div>
+
+  <div class="mini-calendar">
+    <div class="calendar-head">
+      <span>
+        <CalendarDays size={16} aria-hidden="true" />
+        <strong data-month-label>Month</strong>
+      </span>
+      <span data-year-label>Year</span>
+    </div>
+    <div class="calendar-controls" aria-label="日历切换">
+      <button class="calendar-control" type="button" data-prev-month aria-label="上个月">
+        <ChevronLeft size={16} aria-hidden="true" />
+      </button>
+      <button class="calendar-reset" type="button" data-current-month>
+        <RotateCcw size={14} aria-hidden="true" />
+        <span>今天</span>
+      </button>
+      <button class="calendar-control" type="button" data-next-month aria-label="下个月">
+        <ChevronRight size={16} aria-hidden="true" />
+      </button>
+    </div>
+    <div class="weekday-row" aria-hidden="true">
+      <span>一</span>
+      <span>二</span>
+      <span>三</span>
+      <span>四</span>
+      <span>五</span>
+      <span>六</span>
+      <span>日</span>
+    </div>
+    <div class="calendar-grid" data-calendar-grid role="list"></div>
+  </div>
+
+  <section class="today-posts" aria-label="今日发布文章">
+    <div class="today-posts-head">
+      <strong data-selected-date-title>今日发布</strong>
+      <span data-today-count>0</span>
+    </div>
+    <div class="today-post-list" data-today-post-list></div>
+    <p class="today-post-empty" data-today-post-empty>今天没有新文章。</p>
+  </section>
+
+  <script type="application/json" data-time-widget-posts set:html={JSON.stringify(timeWidgetPosts)} />
+</aside>
+
+<script is:inline>
+  const widget = document.querySelector(".time-widget");
+
+  if (widget) {
+    const timeText = widget.querySelector("[data-time-text]");
+    const dateText = widget.querySelector("[data-date-text]");
+    const timeZone = widget.querySelector("[data-time-zone]");
+    const monthLabel = widget.querySelector("[data-month-label]");
+    const yearLabel = widget.querySelector("[data-year-label]");
+    const calendarGrid = widget.querySelector("[data-calendar-grid]");
+    const prevMonthButton = widget.querySelector("[data-prev-month]");
+    const nextMonthButton = widget.querySelector("[data-next-month]");
+    const currentMonthButton = widget.querySelector("[data-current-month]");
+    const postsData = widget.querySelector("[data-time-widget-posts]");
+    const selectedDateTitle = widget.querySelector("[data-selected-date-title]");
+    const todayCount = widget.querySelector("[data-today-count]");
+    const todayPostList = widget.querySelector("[data-today-post-list]");
+    const todayPostEmpty = widget.querySelector("[data-today-post-empty]");
+    const posts = postsData ? JSON.parse(postsData.textContent || "[]") : [];
+    const postsByDate = posts.reduce((dateMap, post) => {
+      dateMap[post.date] = dateMap[post.date] || [];
+      dateMap[post.date].push(post);
+      return dateMap;
+    }, {});
+
+    const monthFormatter = new Intl.DateTimeFormat("zh-CN", { month: "long" });
+    const dateFormatter = new Intl.DateTimeFormat("zh-CN", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+    });
+
+    let visibleYear;
+    let visibleMonth;
+    let selectedDateKey = "";
+
+    function renderCalendar(now) {
+      if (!calendarGrid || !monthLabel || !yearLabel) return;
+
+      const todayKey = getDateKey(now);
+      const year = visibleYear ?? now.getFullYear();
+      const month = visibleMonth ?? now.getMonth();
+      const firstDay = new Date(year, month, 1);
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const leadingEmptyDays = (firstDay.getDay() + 6) % 7;
+      const cells = [];
+
+      for (let i = 0; i < leadingEmptyDays; i += 1) {
+        cells.push(`<span class="calendar-day is-empty" aria-hidden="true"></span>`);
+      }
+
+      for (let day = 1; day <= daysInMonth; day += 1) {
+        const dateKey = getDateKey(new Date(year, month, day));
+        const isToday = dateKey === todayKey;
+        const isSelected = dateKey === selectedDateKey;
+        const hasPosts = Boolean(postsByDate[dateKey]?.length);
+        cells.push(`
+          <button
+            class="calendar-day${isToday ? " is-today" : ""}${hasPosts ? " has-posts" : ""}${isSelected ? " is-selected" : ""}"
+            type="button"
+            data-date="${dateKey}"
+            ${isToday ? 'aria-current="date"' : ""}
+            aria-label="${dateKey}${isToday ? "，今天" : ""}${hasPosts ? `，${postsByDate[dateKey].length} 篇文章` : ""}"
+          >
+            ${day}
+          </button>
+        `);
+      }
+
+      monthLabel.textContent = monthFormatter.format(now);
+      yearLabel.textContent = String(year);
+      calendarGrid.innerHTML = cells.join("");
+    }
+
+    let renderedMonthKey = "";
+
+    function getDateKey(date) {
+      return [
+        date.getFullYear(),
+        String(date.getMonth() + 1).padStart(2, "0"),
+        String(date.getDate()).padStart(2, "0"),
+      ].join("-");
+    }
+
+    function renderSelectedPosts(dateKey) {
+      if (!todayPostList || !todayPostEmpty || !todayCount) return;
+
+      const now = new Date();
+      const todayKey = getDateKey(now);
+      const selectedDate = new Date(`${dateKey}T00:00:00`);
+      const selectedPosts = postsByDate[dateKey] || [];
+      const isToday = dateKey === todayKey;
+
+      if (selectedDateTitle) {
+        selectedDateTitle.textContent = isToday
+          ? "今日发布"
+          : `${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日发布`;
+      }
+
+      todayCount.textContent = String(selectedPosts.length);
+      todayPostList.replaceChildren();
+
+      selectedPosts.forEach((post) => {
+        const link = document.createElement("a");
+        const title = document.createElement("strong");
+        const description = document.createElement("span");
+
+        link.className = "today-post-link";
+        link.href = post.url;
+        title.textContent = post.title;
+        description.textContent = post.description;
+
+        link.append(title, description);
+        todayPostList.append(link);
+      });
+
+      todayPostEmpty.textContent = isToday ? "今天没有新文章。" : "这一天没有发布文章。";
+      todayPostEmpty.hidden = selectedPosts.length > 0;
+    }
+
+    function updateClock() {
+      const now = new Date();
+      const hours = now.getHours();
+      const minutes = now.getMinutes();
+      const seconds = now.getSeconds();
+      const milliseconds = now.getMilliseconds();
+      const smoothSeconds = seconds + milliseconds / 1000;
+      const smoothMinutes = minutes + smoothSeconds / 60;
+      const smoothHours = (hours % 12) + smoothMinutes / 60;
+      const monthKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+
+      widget.style.setProperty("--hour-angle", `${smoothHours * 30}deg`);
+      widget.style.setProperty("--minute-angle", `${smoothMinutes * 6}deg`);
+      widget.style.setProperty("--second-angle", `${smoothSeconds * 6}deg`);
+      widget.style.setProperty("--day-progress", `${(hours * 60 + minutes) / 14.4}deg`);
+
+      if (timeText) {
+        timeText.textContent = [
+          String(hours).padStart(2, "0"),
+          String(minutes).padStart(2, "0"),
+          String(seconds).padStart(2, "0"),
+        ].join(":");
+      }
+
+      if (dateText) {
+        dateText.textContent = dateFormatter.format(now);
+      }
+
+      if (timeZone) {
+        timeZone.textContent = Intl.DateTimeFormat().resolvedOptions().timeZone || "Local time";
+      }
+
+      if (monthKey !== renderedMonthKey) {
+        if (visibleYear === undefined || visibleMonth === undefined) {
+          visibleYear = now.getFullYear();
+          visibleMonth = now.getMonth();
+        }
+        if (!selectedDateKey) {
+          selectedDateKey = getDateKey(now);
+        }
+        renderCalendar(now);
+        renderSelectedPosts(selectedDateKey);
+        renderedMonthKey = monthKey;
+      }
+
+      window.requestAnimationFrame(updateClock);
+    }
+
+    updateClock();
+
+    const clockStage = widget.querySelector(".clock-stage");
+    let tiltFrame = 0;
+
+    function setClockTilt(event) {
+      if (!clockStage) return;
+      window.cancelAnimationFrame(tiltFrame);
+      tiltFrame = window.requestAnimationFrame(() => {
+        const rect = clockStage.getBoundingClientRect();
+        const x = (event.clientX - rect.left) / rect.width;
+        const y = (event.clientY - rect.top) / rect.height;
+        const rotateY = (x - 0.5) * 14;
+        const rotateX = (0.5 - y) * 14;
+
+        widget.style.setProperty("--tilt-x", `${rotateX.toFixed(2)}deg`);
+        widget.style.setProperty("--tilt-y", `${rotateY.toFixed(2)}deg`);
+        widget.style.setProperty("--glare-x", `${(x * 100).toFixed(1)}%`);
+        widget.style.setProperty("--glare-y", `${(y * 100).toFixed(1)}%`);
+      });
+    }
+
+    clockStage?.addEventListener("pointermove", setClockTilt);
+    clockStage?.addEventListener("pointerleave", () => {
+      widget.style.setProperty("--tilt-x", "0deg");
+      widget.style.setProperty("--tilt-y", "0deg");
+      widget.style.setProperty("--glare-x", "35%");
+      widget.style.setProperty("--glare-y", "24%");
+    });
+
+    calendarGrid?.addEventListener("click", (event) => {
+      const dayButton = event.target.closest("[data-date]");
+      if (!(dayButton instanceof HTMLButtonElement)) return;
+
+      selectedDateKey = dayButton.dataset.date || selectedDateKey;
+      renderCalendar(new Date());
+      renderSelectedPosts(selectedDateKey);
+    });
+
+    prevMonthButton?.addEventListener("click", () => {
+      const previousMonth = new Date(visibleYear, visibleMonth - 1, 1);
+      visibleYear = previousMonth.getFullYear();
+      visibleMonth = previousMonth.getMonth();
+      renderCalendar(new Date());
+    });
+
+    nextMonthButton?.addEventListener("click", () => {
+      const nextMonth = new Date(visibleYear, visibleMonth + 1, 1);
+      visibleYear = nextMonth.getFullYear();
+      visibleMonth = nextMonth.getMonth();
+      renderCalendar(new Date());
+    });
+
+    currentMonthButton?.addEventListener("click", () => {
+      const now = new Date();
+      visibleYear = now.getFullYear();
+      visibleMonth = now.getMonth();
+      selectedDateKey = getDateKey(now);
+      renderCalendar(now);
+      renderSelectedPosts(selectedDateKey);
+    });
+  }
+</script>
+
+<style>
+  .time-widget {
+    --hour-angle: 0deg;
+    --minute-angle: 0deg;
+    --second-angle: 0deg;
+    --day-progress: 0deg;
+    --tilt-x: 0deg;
+    --tilt-y: 0deg;
+    --glare-x: 35%;
+    --glare-y: 24%;
+    --clock-center-bg: rgba(255, 255, 250, 0.48);
+    --clock-progress: rgba(70, 193, 171, 0.86);
+    --clock-rest: rgba(255, 255, 255, 0.38);
+    --clock-shadow: rgba(66, 103, 93, 0.16);
+    --clock-glass: rgba(255, 255, 250, 0.34);
+    --clock-glass-edge: rgba(255, 255, 255, 0.62);
+    --clock-engrave: rgba(47, 143, 112, 0.28);
+    --clock-prism: rgba(170, 214, 255, 0.38);
+    --clock-scan: rgba(255, 255, 255, 0.64);
+    --clock-coral: #f7a8bc;
+    --clock-lilac: #b9b5ff;
+    --calendar-soft-bg: rgba(255, 255, 250, 0.62);
+    --calendar-post-text: #7d6070;
+    --today-inner-ring: rgba(255, 255, 250, 0.74);
+    display: grid;
+    gap: 18px;
+    border: 1px solid var(--line);
+    border-radius: 28px;
+    background:
+      radial-gradient(circle at 18% 18%, rgba(255, 217, 138, 0.34), transparent 34%),
+      radial-gradient(circle at 84% 22%, rgba(246, 182, 200, 0.24), transparent 28%),
+      rgba(255, 255, 250, 0.84);
+    padding: 20px;
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(18px);
+  }
+
+  :global(html[data-theme="dark"]) .time-widget {
+    --clock-center-bg: rgba(232, 241, 234, 0.08);
+    --clock-progress: rgba(130, 225, 210, 0.72);
+    --clock-rest: rgba(232, 241, 234, 0.14);
+    --clock-shadow: rgba(0, 0, 0, 0.24);
+    --clock-glass: rgba(232, 241, 234, 0.08);
+    --clock-glass-edge: rgba(232, 241, 234, 0.2);
+    --clock-engrave: rgba(171, 232, 213, 0.34);
+    --clock-prism: rgba(154, 177, 255, 0.16);
+    --clock-scan: rgba(232, 241, 234, 0.28);
+    --clock-coral: #f0a7bb;
+    --clock-lilac: #aaa7ff;
+    --calendar-soft-bg: rgba(24, 35, 31, 0.72);
+    --calendar-post-text: #efb5c6;
+    --today-inner-ring: rgba(16, 24, 21, 0.78);
+    background:
+      radial-gradient(circle at 18% 18%, rgba(244, 201, 112, 0.18), transparent 34%),
+      radial-gradient(circle at 84% 22%, rgba(246, 182, 200, 0.12), transparent 28%),
+      rgba(24, 35, 31, 0.84);
+  }
+
+  .time-widget-head,
+  .calendar-head,
+  .calendar-head span {
+    display: flex;
+    align-items: center;
+  }
+
+  .time-widget-head,
+  .calendar-head {
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .time-widget-head .section-kicker {
+    margin: 0;
+  }
+
+  .time-zone {
+    color: var(--muted);
+    font-size: 0.76rem;
+    font-weight: 750;
+  }
+
+  .clock-stage {
+    --tick-radius: 94px;
+    position: relative;
+    display: grid;
+    width: min(236px, 100%);
+    aspect-ratio: 1;
+    place-items: center;
+    justify-self: center;
+    isolation: isolate;
+    perspective: 1100px;
+  }
+
+  .clock-face {
+    position: relative;
+    display: grid;
+    width: 100%;
+    aspect-ratio: 1;
+    place-items: center;
+    transform: rotateX(var(--tilt-x)) rotateY(var(--tilt-y));
+    transform-style: preserve-3d;
+    transition:
+      filter 260ms ease,
+      transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .clock-stage:hover .clock-face {
+    filter: saturate(1.1) contrast(1.02);
+  }
+
+  .clock-aurora,
+  .clock-shadow-plane,
+  .clock-glass-shell,
+  .clock-progress-ring,
+  .clock-depth-ring,
+  .clock-tick-layer,
+  .clock-scanline,
+  .clock-orbit {
+    position: absolute;
+    border-radius: 50%;
+  }
+
+  .clock-aurora {
+    inset: -18px;
+    z-index: 0;
+    background:
+      radial-gradient(circle at 24% 20%, rgba(255, 221, 146, 0.34), transparent 28%),
+      radial-gradient(circle at 82% 28%, rgba(247, 168, 188, 0.32), transparent 26%),
+      radial-gradient(circle at 42% 82%, var(--clock-prism), transparent 38%);
+    filter: blur(18px);
+    opacity: 0.78;
+    transform: translateZ(-36px);
+    animation: clock-aurora-breathe 6.4s ease-in-out infinite;
+  }
+
+  .clock-shadow-plane {
+    inset: 34px 34px 10px;
+    z-index: 0;
+    background: radial-gradient(ellipse, rgba(54, 97, 81, 0.18), transparent 68%);
+    filter: blur(18px);
+    transform: translate3d(0, 30px, -56px) rotateX(70deg);
+  }
+
+  .clock-glass-shell {
+    inset: 4px;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid var(--clock-glass-edge);
+    background:
+      radial-gradient(circle at var(--glare-x) var(--glare-y), rgba(255, 255, 255, 0.86), transparent 0 13%, transparent 44%),
+      radial-gradient(circle at 50% 50%, var(--clock-center-bg) 0 30%, transparent 31%),
+      linear-gradient(145deg, rgba(255, 255, 255, 0.44), transparent 34%),
+      linear-gradient(320deg, rgba(185, 181, 255, 0.18), transparent 44%),
+      var(--clock-glass);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.72),
+      inset 0 -18px 42px rgba(47, 143, 112, 0.08),
+      inset 0 0 0 10px rgba(255, 255, 255, 0.06),
+      0 26px 70px var(--clock-shadow);
+    backdrop-filter: blur(24px) saturate(1.55);
+    transform: translateZ(26px);
+  }
+
+  .clock-glass-shell::before {
+    content: "";
+    position: absolute;
+    inset: 11px;
+    border: 1px solid rgba(255, 255, 255, 0.38);
+    border-radius: inherit;
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  .clock-glass-shell::after {
+    content: "";
+    position: absolute;
+    inset: -44% 12% 58% -24%;
+    border-radius: 999px;
+    background: linear-gradient(112deg, rgba(255, 255, 255, 0.92), transparent 70%);
+    opacity: 0.5;
+    transform: rotate(-10deg);
+    pointer-events: none;
+  }
+
+  .clock-progress-ring {
+    inset: 1px;
+    background:
+      conic-gradient(
+        from -90deg,
+        var(--clock-lilac) 0deg,
+        var(--clock-progress) calc(var(--day-progress) * 0.55),
+        var(--clock-coral) var(--day-progress),
+        var(--clock-rest) 0
+      );
+    mask: radial-gradient(circle, transparent 0 75%, black 76% 78%, transparent 79%);
+    opacity: 0.9;
+  }
+
+  .clock-depth-ring {
+    inset: 42px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    background:
+      radial-gradient(circle at 42% 28%, rgba(255, 255, 255, 0.32), transparent 34%),
+      radial-gradient(circle at 54% 62%, rgba(47, 143, 112, 0.08), transparent 48%),
+      rgba(255, 255, 250, 0.06);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.36),
+      inset 0 -18px 28px rgba(47, 143, 112, 0.06);
+    backdrop-filter: blur(10px);
+    opacity: 0.96;
+  }
+
+  .clock-tick-layer {
+    inset: 0;
+  }
+
+  .clock-tick {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 2px;
+    height: 5px;
+    margin: -2.5px 0 0 -1px;
+    border-radius: 999px;
+    background: var(--clock-engrave);
+    opacity: 0.34;
+    transform:
+      rotate(calc(var(--tick-index) * 15deg))
+      translateY(calc(var(--tick-radius) * -1));
+    transform-origin: center;
+  }
+
+  .clock-tick.is-major {
+    width: 3px;
+    height: 11px;
+    margin: -5.5px 0 0 -1.5px;
+    opacity: 0.62;
+  }
+
+  .clock-scanline {
+    inset: 28px;
+    background: conic-gradient(
+      from calc(var(--second-angle) - 16deg),
+      transparent 0deg,
+      var(--clock-scan) 8deg,
+      transparent 24deg,
+      transparent 360deg
+    );
+    mask: radial-gradient(circle, transparent 0 46%, black 47% 52%, transparent 53%);
+    mix-blend-mode: screen;
+    opacity: 0.55;
+  }
+
+  .clock-orbit {
+    inset: 22px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transform: rotate(var(--second-angle));
+  }
+
+  .clock-orbit::before,
+  .clock-orbit::after {
+    content: "";
+    position: absolute;
+    border-radius: 50%;
+  }
+
+  .clock-orbit::before {
+    top: -4px;
+    left: 50%;
+    width: 8px;
+    height: 8px;
+    background: var(--clock-coral);
+    box-shadow:
+      0 0 0 4px rgba(247, 168, 188, 0.13),
+      0 0 22px rgba(247, 168, 188, 0.36);
+    transform: translateX(-50%);
+  }
+
+  .clock-orbit::after {
+    display: none;
+  }
+
+  .clock-hand {
+    position: absolute;
+    z-index: 3;
+    bottom: 50%;
+    left: calc(50% - 1.5px);
+    width: 3px;
+    border-radius: 999px;
+    transform-origin: 50% 100%;
+    box-shadow:
+      0 8px 18px rgba(25, 52, 43, 0.14),
+      0 0 18px rgba(255, 255, 255, 0.18);
+  }
+
+  .hour-hand {
+    height: 23%;
+    background: linear-gradient(180deg, var(--text), color-mix(in srgb, var(--text) 48%, transparent));
+    transform: rotate(var(--hour-angle)) translateZ(44px);
+  }
+
+  .minute-hand {
+    left: calc(50% - 1px);
+    width: 2px;
+    height: 36%;
+    background: linear-gradient(180deg, var(--clock-progress), rgba(70, 193, 171, 0.18));
+    transform: rotate(var(--minute-angle)) translateZ(48px);
+  }
+
+  .second-hand {
+    left: calc(50% - 1px);
+    width: 2px;
+    height: 41%;
+    background: linear-gradient(180deg, var(--clock-coral), rgba(247, 168, 188, 0.08));
+    transform: rotate(var(--second-angle)) translateZ(54px);
+  }
+
+  .clock-core {
+    position: relative;
+    z-index: 4;
+    display: grid;
+    width: 18px;
+    height: 18px;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.42);
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 38% 24%, rgba(255, 255, 255, 0.72), transparent 34%),
+      rgba(255, 255, 250, 0.22);
+    color: var(--accent-strong);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      0 6px 14px rgba(74, 116, 98, 0.12);
+    backdrop-filter: blur(10px) saturate(1.25);
+    transform: translateZ(62px);
+  }
+
+  .clock-core-glow {
+    position: absolute;
+    inset: 4px;
+    border-radius: inherit;
+    background: radial-gradient(circle, rgba(117, 201, 165, 0.28), transparent 70%);
+    animation: clock-core-pulse 2.4s ease-in-out infinite;
+  }
+
+  @keyframes clock-aurora-breathe {
+    0%,
+    100% {
+      opacity: 0.72;
+      transform: translateZ(-34px) scale(0.98);
+    }
+
+    50% {
+      opacity: 0.98;
+      transform: translateZ(-34px) scale(1.04);
+    }
+  }
+
+  @keyframes clock-core-pulse {
+    0%,
+    100% {
+      opacity: 0.46;
+      transform: scale(0.9);
+    }
+
+    50% {
+      opacity: 0.86;
+      transform: scale(1.08);
+    }
+  }
+
+  .time-readout {
+    display: grid;
+    gap: 4px;
+    text-align: center;
+  }
+
+  .time-readout strong {
+    color: var(--text);
+    font-family: "SFMono-Regular", Consolas, ui-monospace, monospace;
+    font-size: clamp(1.9rem, 4vw, 2.7rem);
+    line-height: 1;
+    letter-spacing: 0;
+  }
+
+  .time-readout span {
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  .mini-calendar {
+    display: grid;
+    gap: 10px;
+    border-top: 1px solid var(--line);
+    padding-top: 16px;
+  }
+
+  .calendar-head {
+    color: var(--text);
+    font-size: 0.92rem;
+  }
+
+  .calendar-head span {
+    gap: 6px;
+  }
+
+  .calendar-head span:last-child {
+    color: var(--muted);
+    font-weight: 750;
+  }
+
+  .calendar-controls {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) 34px;
+    gap: 8px;
+  }
+
+  .calendar-control,
+  .calendar-reset {
+    display: inline-flex;
+    min-height: 34px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(117, 201, 165, 0.28);
+    border-radius: 999px;
+    background: var(--calendar-soft-bg);
+    color: var(--muted);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 800;
+    transition:
+      background 180ms ease,
+      border-color 180ms ease,
+      color 180ms ease,
+      transform 180ms ease;
+  }
+
+  .calendar-reset {
+    gap: 6px;
+  }
+
+  .calendar-control:hover,
+  .calendar-reset:hover {
+    border-color: rgba(47, 143, 112, 0.42);
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+    transform: translateY(-1px);
+  }
+
+  .weekday-row,
+  .calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .weekday-row span {
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-align: center;
+  }
+
+  :global(.calendar-day) {
+    position: relative;
+    display: grid;
+    aspect-ratio: 1;
+    place-items: center;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 750;
+    padding: 0;
+    transition:
+      background 180ms ease,
+      border-color 180ms ease,
+      color 180ms ease,
+      transform 180ms ease,
+      box-shadow 180ms ease;
+  }
+
+  :global(.calendar-day:hover) {
+    background: rgba(223, 244, 233, 0.46);
+    color: var(--accent-strong);
+  }
+
+  :global(.calendar-day.has-posts) {
+    border-color: rgba(246, 182, 200, 0.42);
+    background: rgba(246, 182, 200, 0.14);
+    color: var(--calendar-post-text);
+  }
+
+  :global(.calendar-day.has-posts::before) {
+    content: "";
+    position: absolute;
+    right: 5px;
+    top: 5px;
+    width: 5px;
+    height: 5px;
+    border-radius: 999px;
+    background: var(--rose);
+  }
+
+  :global(.calendar-day.is-today) {
+    background: rgba(117, 201, 165, 0.14);
+    border: 1px solid rgba(47, 143, 112, 0.42);
+    border-radius: 999px;
+    color: var(--accent-strong);
+    font-weight: 900;
+    transform: translateY(-1px);
+    box-shadow:
+      inset 0 0 0 4px var(--today-inner-ring),
+      0 8px 18px rgba(74, 116, 98, 0.1);
+  }
+
+  :global(.calendar-day.is-today.has-posts) {
+    background:
+      linear-gradient(135deg, rgba(117, 201, 165, 0.18), rgba(246, 182, 200, 0.16));
+    border-color: rgba(47, 143, 112, 0.48);
+    color: var(--accent-strong);
+  }
+
+  :global(.calendar-day.is-selected) {
+    border-color: rgba(47, 143, 112, 0.68);
+    box-shadow:
+      0 0 0 3px rgba(117, 201, 165, 0.16),
+      0 8px 18px rgba(74, 116, 98, 0.1);
+  }
+
+  :global(.calendar-day.has-posts.is-selected) {
+    border-color: rgba(246, 182, 200, 0.72);
+    box-shadow:
+      0 0 0 3px rgba(246, 182, 200, 0.18),
+      0 8px 18px rgba(74, 116, 98, 0.1);
+  }
+
+  .today-posts {
+    display: grid;
+    gap: 10px;
+    border-top: 1px solid var(--line);
+    padding-top: 16px;
+  }
+
+  .today-posts-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .today-posts-head strong {
+    color: var(--text);
+    font-size: 0.95rem;
+  }
+
+  .today-posts-head span {
+    display: inline-grid;
+    min-width: 24px;
+    height: 24px;
+    place-items: center;
+    border: 1px solid rgba(117, 201, 165, 0.34);
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+    font-size: 0.78rem;
+    font-weight: 900;
+  }
+
+  .today-post-list {
+    display: grid;
+    gap: 8px;
+  }
+
+  :global(.today-post-link) {
+    display: grid;
+    gap: 4px;
+    border: 1px solid rgba(117, 201, 165, 0.24);
+    border-radius: 16px;
+    background: var(--calendar-soft-bg);
+    padding: 10px 12px;
+    transition:
+      background 180ms ease,
+      border-color 180ms ease,
+      transform 180ms ease;
+  }
+
+  :global(.today-post-link:hover) {
+    border-color: rgba(117, 201, 165, 0.54);
+    background: var(--accent-soft);
+    transform: translateY(-1px);
+  }
+
+  :global(.today-post-link strong) {
+    color: var(--text);
+    font-size: 0.9rem;
+    line-height: 1.35;
+  }
+
+  :global(.today-post-link span) {
+    display: -webkit-box;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 0.78rem;
+    line-height: 1.5;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .today-post-empty {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.84rem;
+    line-height: 1.6;
+  }
+
+  @media (max-width: 760px) {
+    .clock-stage {
+      --tick-radius: min(88px, 32vw);
+      width: min(210px, 74vw);
+    }
+  }
+</style>

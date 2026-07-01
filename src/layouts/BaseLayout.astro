@@ -1,5 +1,5 @@
 ---
-import { Rss, Search } from "lucide-astro";
+import { Archive, Home, Moon, Rss, Search, Sun, Tags, User } from "lucide-astro";
 import "katex/dist/katex.min.css";
 
 interface Props {
@@ -35,7 +35,7 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
     <meta name="generator" content={Astro.generator} />
     <meta name="author" content="Sinxy Sai" />
     <meta name="robots" content="index, follow" />
-    <meta name="theme-color" content="#f6fbf5" />
+    <meta id="theme-color-meta" name="theme-color" content="#f6fbf5" />
     <link rel="canonical" href={canonicalUrl} />
     <meta property="og:title" content={pageTitle} />
     <meta property="og:description" content={description} />
@@ -55,9 +55,27 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
     <meta name="twitter:title" content={pageTitle} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={imageUrl} />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.png" type="image/png" />
     <link rel="alternate" type="application/rss+xml" title={siteTitle} href="/rss.xml" />
     <title>{pageTitle}</title>
+    <script is:inline>
+      (() => {
+        try {
+          const storedTheme = localStorage.getItem("sinxy-theme");
+          const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          const theme = storedTheme === "light" || storedTheme === "dark"
+            ? storedTheme
+            : prefersDark
+              ? "dark"
+              : "light";
+
+          document.documentElement.dataset.theme = theme;
+          document.documentElement.style.colorScheme = theme;
+        } catch {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
   </head>
   <body>
     <div class="ambient ambient-one" aria-hidden="true"></div>
@@ -66,10 +84,7 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
     <header class="site-header">
       <a class="brand" href="/" aria-label="返回首页">
         <span class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 32 32" role="img">
-            <path d="M7 19.8c5.7-.7 10.7-4.3 14.9-10.6 2.7 7.8-1.2 14.8-8.3 15.5-2.4.2-4.6-.6-6.6-2.1Z" />
-            <path d="M8 22.6c4.2-1.8 7.7-4.5 10.6-8.2" />
-          </svg>
+          <img src="/favicon.png" alt="" width="52" height="52" />
         </span>
         <span>
           <strong>{siteTitle}</strong>
@@ -94,10 +109,33 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
         </div>
       </form>
       <nav class="site-nav" aria-label="Primary navigation">
-        <a href="/">首页</a>
-        <a href="/archive/">归档</a>
-        <a href="/tags/">标签</a>
-        <a href="/about/">关于</a>
+        <a href="/">
+          <Home size={16} aria-hidden="true" />
+          <span>首页</span>
+        </a>
+        <a href="/archive/">
+          <Archive size={16} aria-hidden="true" />
+          <span>归档</span>
+        </a>
+        <a href="/tags/">
+          <Tags size={16} aria-hidden="true" />
+          <span>标签</span>
+        </a>
+        <a href="/about/">
+          <User size={16} aria-hidden="true" />
+          <span>关于</span>
+        </a>
+        <button
+          class="theme-toggle"
+          type="button"
+          data-theme-toggle
+          aria-label="切换到夜间模式"
+          aria-pressed="false"
+        >
+          <Sun class="theme-icon theme-icon-sun" size={16} aria-hidden="true" />
+          <Moon class="theme-icon theme-icon-moon" size={16} aria-hidden="true" />
+          <span data-theme-toggle-text>夜间</span>
+        </button>
       </nav>
     </header>
 
@@ -117,6 +155,41 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
       </span>
     </footer>
     <script is:inline>
+      const themeToggle = document.querySelector("[data-theme-toggle]");
+      const themeToggleText = document.querySelector("[data-theme-toggle-text]");
+      const themeColorMeta = document.querySelector("#theme-color-meta");
+
+      function setSiteTheme(theme, shouldStore = true) {
+        const isDark = theme === "dark";
+
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+        if (themeColorMeta) {
+          themeColorMeta.setAttribute("content", isDark ? "#101815" : "#f6fbf5");
+        }
+
+        if (themeToggle) {
+          themeToggle.setAttribute("aria-pressed", String(isDark));
+          themeToggle.setAttribute("aria-label", isDark ? "切换到白天模式" : "切换到夜间模式");
+        }
+
+        if (themeToggleText) {
+          themeToggleText.textContent = isDark ? "白天" : "夜间";
+        }
+
+        if (shouldStore) {
+          localStorage.setItem("sinxy-theme", theme);
+        }
+      }
+
+      const initialTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+      setSiteTheme(initialTheme, false);
+
+      themeToggle?.addEventListener("click", () => {
+        const currentTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+        setSiteTheme(currentTheme === "dark" ? "light" : "dark");
+      });
+
       const siteSearchForm = document.querySelector(".header-search");
       const siteSearchInput = document.querySelector("#site-search-input");
       const siteSearchPanel = document.querySelector("#site-search-panel");
@@ -258,6 +331,66 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
         },
         { passive: true },
       );
+
+      const tocLinks = Array.from(document.querySelectorAll(".article-toc a[href^='#']"));
+      const tocHeadings = tocLinks
+        .map((link) => {
+          const id = link.getAttribute("href")?.slice(1);
+          return id ? document.getElementById(id) : null;
+        })
+        .filter(Boolean);
+      let activeTocId = "";
+      let tocTicking = false;
+
+      function setActiveToc(id) {
+        if (!id || id === activeTocId) return;
+        activeTocId = id;
+
+        tocLinks.forEach((link) => {
+          const isActive = link.getAttribute("href") === `#${id}`;
+          link.classList.toggle("is-active", isActive);
+          if (isActive) {
+            link.setAttribute("aria-current", "true");
+            link.scrollIntoView({ block: "nearest", inline: "nearest" });
+          } else {
+            link.removeAttribute("aria-current");
+          }
+        });
+      }
+
+      function updateActiveToc() {
+        if (!tocHeadings.length) {
+          tocTicking = false;
+          return;
+        }
+
+        const readingLine = window.innerHeight * 0.32;
+        let currentHeading = tocHeadings[0];
+
+        tocHeadings.forEach((heading) => {
+          if (heading.getBoundingClientRect().top <= readingLine) {
+            currentHeading = heading;
+          }
+        });
+
+        setActiveToc(currentHeading.id);
+        tocTicking = false;
+      }
+
+      if (tocHeadings.length) {
+        updateActiveToc();
+        window.addEventListener(
+          "scroll",
+          () => {
+            if (!tocTicking) {
+              window.requestAnimationFrame(updateActiveToc);
+              tocTicking = true;
+            }
+          },
+          { passive: true },
+        );
+        window.addEventListener("resize", updateActiveToc);
+      }
     </script>
   </body>
 </html>
@@ -269,6 +402,8 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
     --bg-soft: #eef8ee;
     --surface: rgba(255, 255, 250, 0.82);
     --surface-strong: #fffef8;
+    --surface-floating: rgba(255, 255, 250, 0.96);
+    --surface-control: rgba(255, 255, 250, 0.72);
     --text: #22342f;
     --muted: #66756f;
     --line: rgba(113, 148, 137, 0.24);
@@ -279,10 +414,46 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
     --rose: #f6b6c8;
     --code-bg: #24352f;
     --shadow: 0 22px 70px rgba(74, 116, 98, 0.16);
+    --body-bg:
+      radial-gradient(circle at 12% 8%, rgba(255, 217, 138, 0.48), transparent 22rem),
+      radial-gradient(circle at 88% 12%, rgba(117, 201, 165, 0.35), transparent 24rem),
+      linear-gradient(180deg, #fbfff9 0%, var(--bg) 46%, #f8fbf4 100%);
+    --grid-line: rgba(117, 201, 165, 0.08);
+    --scroll-track: rgba(223, 244, 233, 0.58);
+    --scroll-thumb: rgba(47, 143, 112, 0.46);
+    --scroll-thumb-hover: rgba(47, 143, 112, 0.68);
     --radius: 18px;
     font-family:
       ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
       "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  }
+
+  html[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #101815;
+    --bg-soft: #18231f;
+    --surface: rgba(24, 35, 31, 0.82);
+    --surface-strong: #17211d;
+    --surface-floating: rgba(20, 31, 27, 0.96);
+    --surface-control: rgba(24, 35, 31, 0.76);
+    --text: #e8f1ea;
+    --muted: #a8b8b0;
+    --line: rgba(166, 207, 189, 0.18);
+    --accent: #88d8b8;
+    --accent-strong: #9de4c6;
+    --accent-soft: rgba(80, 145, 116, 0.22);
+    --sun: #f4c970;
+    --rose: #f3a8bc;
+    --code-bg: #0b1210;
+    --shadow: 0 22px 70px rgba(0, 0, 0, 0.34);
+    --body-bg:
+      radial-gradient(circle at 12% 8%, rgba(244, 201, 112, 0.18), transparent 22rem),
+      radial-gradient(circle at 88% 12%, rgba(136, 216, 184, 0.16), transparent 24rem),
+      linear-gradient(180deg, #101815 0%, #111c18 48%, #141c19 100%);
+    --grid-line: rgba(136, 216, 184, 0.06);
+    --scroll-track: rgba(24, 35, 31, 0.82);
+    --scroll-thumb: rgba(136, 216, 184, 0.38);
+    --scroll-thumb-hover: rgba(136, 216, 184, 0.58);
   }
 
   * {
@@ -291,7 +462,28 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
 
   html {
     background: var(--bg);
+    scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+    scrollbar-width: thin;
     scroll-behavior: smooth;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: var(--scroll-track);
+  }
+
+  *::-webkit-scrollbar-thumb {
+    border: 2px solid var(--bg);
+    border-radius: 999px;
+    background: var(--scroll-thumb);
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: var(--scroll-thumb-hover);
   }
 
   body {
@@ -299,11 +491,11 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
     min-height: 100vh;
     overflow-x: hidden;
     color: var(--text);
-    background:
-      radial-gradient(circle at 12% 8%, rgba(255, 217, 138, 0.48), transparent 22rem),
-      radial-gradient(circle at 88% 12%, rgba(117, 201, 165, 0.35), transparent 24rem),
-      linear-gradient(180deg, #fbfff9 0%, var(--bg) 46%, #f8fbf4 100%);
+    background: var(--body-bg);
     letter-spacing: 0;
+    transition:
+      background 220ms ease,
+      color 220ms ease;
   }
 
   body::before {
@@ -312,8 +504,8 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
     inset: 0;
     z-index: -2;
     background-image:
-      linear-gradient(rgba(117, 201, 165, 0.08) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(117, 201, 165, 0.08) 1px, transparent 1px);
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
     background-size: 34px 34px;
     mask-image: linear-gradient(to bottom, black, transparent 78%);
   }
@@ -396,7 +588,7 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
     z-index: -1;
     border: 1px solid var(--line);
     border-radius: 28px;
-    background: rgba(255, 255, 250, 0.96);
+    background: var(--surface-floating);
     box-shadow: 0 18px 54px rgba(74, 116, 98, 0.16);
     opacity: 0;
     backdrop-filter: blur(18px);
@@ -422,24 +614,22 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
 
   .brand-mark {
     display: grid;
-    width: 46px;
-    height: 46px;
+    width: 52px;
+    height: 52px;
     flex: 0 0 auto;
     place-items: center;
     border: 1px solid rgba(117, 201, 165, 0.38);
-    border-radius: 16px;
-    background: linear-gradient(145deg, #ffffff, #e6f7ee);
+    border-radius: 18px;
+    background: var(--surface-strong);
     box-shadow: 0 12px 32px rgba(74, 116, 98, 0.16);
+    overflow: hidden;
   }
 
-  .brand-mark svg {
-    width: 29px;
-    height: 29px;
-    fill: none;
-    stroke: var(--accent-strong);
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    stroke-width: 2.1;
+  .brand-mark img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
   .brand strong,
@@ -480,20 +670,24 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
   .header-search-field svg {
     position: absolute;
     left: 14px;
-    color: var(--muted);
+    z-index: 1;
+    color: var(--accent-strong);
+    opacity: 0.82;
     pointer-events: none;
+    stroke-width: 2.2;
   }
 
   .header-search-input {
+    position: relative;
     width: 100%;
     min-height: 44px;
     border: 1px solid var(--line);
     border-radius: 999px;
-    background: rgba(255, 255, 250, 0.78);
+    background: var(--surface-control);
     color: var(--text);
     font: inherit;
     font-size: 0.92rem;
-    padding: 0 16px 0 42px;
+    padding: 0 16px 0 46px;
     box-shadow: 0 14px 38px rgba(74, 116, 98, 0.1);
     backdrop-filter: blur(16px);
     transition:
@@ -503,12 +697,12 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
   }
 
   .header-search-input::placeholder {
-    color: rgba(102, 117, 111, 0.78);
+    color: color-mix(in srgb, var(--muted) 78%, transparent);
   }
 
   .header-search-input:focus {
     border-color: rgba(117, 201, 165, 0.8);
-    background: rgba(255, 255, 250, 0.94);
+    background: var(--surface-floating);
     outline: 3px solid rgba(117, 201, 165, 0.22);
     box-shadow: 0 16px 44px rgba(74, 116, 98, 0.14);
   }
@@ -523,7 +717,7 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
     overflow: auto;
     border: 1px solid var(--line);
     border-radius: 22px;
-    background: rgba(255, 255, 250, 0.96);
+    background: var(--surface-floating);
     padding: 12px;
     box-shadow: var(--shadow);
     backdrop-filter: blur(18px);
@@ -578,15 +772,23 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
     padding: 5px;
     border: 1px solid var(--line);
     border-radius: 999px;
-    background: rgba(255, 255, 250, 0.72);
+    background: var(--surface-control);
     box-shadow: 0 14px 38px rgba(74, 116, 98, 0.1);
     backdrop-filter: blur(16px);
   }
 
-  .site-nav a {
+  .site-nav a,
+  .theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     min-height: 38px;
+    border: 0;
     border-radius: 999px;
+    background: transparent;
     color: var(--muted);
+    cursor: pointer;
+    font: inherit;
     font-size: 0.92rem;
     padding: 9px 14px;
     transition:
@@ -595,10 +797,30 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
       transform 180ms ease;
   }
 
-  .site-nav a:hover {
+  .site-nav a svg,
+  .theme-toggle svg {
+    flex: 0 0 auto;
+  }
+
+  .site-nav a:hover,
+  .theme-toggle:hover {
     background: var(--accent-soft);
     color: var(--accent-strong);
     transform: translateY(-1px);
+  }
+
+  .theme-toggle {
+    position: relative;
+    min-width: 82px;
+  }
+
+  .theme-icon-moon,
+  html[data-theme="dark"] .theme-icon-sun {
+    display: none;
+  }
+
+  html[data-theme="dark"] .theme-icon-moon {
+    display: block;
   }
 
   .site-footer {
@@ -646,15 +868,15 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
 
   .page-title {
     margin: 0;
-    max-width: 860px;
+    max-width: 760px;
     color: var(--text);
-    font-size: clamp(2.35rem, 7vw, 5.8rem);
+    font-size: clamp(2.45rem, 6vw, 5.35rem);
     font-weight: 850;
     line-height: 1.02;
   }
 
   .page-description {
-    max-width: 680px;
+    max-width: 650px;
     margin: 20px 0 0;
     color: var(--muted);
     font-size: clamp(1rem, 2vw, 1.16rem);
@@ -663,11 +885,70 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
 
   .hero {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 290px;
-    gap: 28px;
-    align-items: end;
-    min-height: 52vh;
-    padding: 44px 0 32px;
+    grid-template-columns: minmax(0, 1fr) minmax(330px, 360px);
+    gap: clamp(28px, 5vw, 58px);
+    align-items: start;
+    padding: clamp(30px, 5vw, 64px) 0 32px;
+  }
+
+  .hero-copy {
+    display: grid;
+    align-content: center;
+    gap: 24px;
+    min-height: min(640px, calc(100vh - 170px));
+    padding: 10px 0 22px;
+  }
+
+  .hero-note-strip {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) repeat(2, minmax(100px, 0.55fr));
+    gap: 10px;
+    max-width: 730px;
+    margin-top: 2px;
+  }
+
+  .hero-note-item {
+    display: grid;
+    gap: 7px;
+    min-height: 78px;
+    border: 1px solid rgba(117, 201, 165, 0.28);
+    border-radius: 18px;
+    background: var(--surface-control);
+    padding: 13px 14px;
+    box-shadow: 0 12px 30px rgba(74, 116, 98, 0.08);
+    transition:
+      transform 180ms ease,
+      border-color 180ms ease,
+      background 180ms ease,
+      box-shadow 180ms ease;
+  }
+
+  .hero-note-item:hover {
+    transform: translateY(-2px);
+    border-color: rgba(117, 201, 165, 0.58);
+    background: var(--surface-floating);
+    box-shadow: 0 16px 36px rgba(74, 116, 98, 0.13);
+  }
+
+  .hero-note-item span {
+    color: var(--muted);
+    font-size: 0.75rem;
+    font-weight: 850;
+  }
+
+  .hero-note-item strong {
+    color: var(--text);
+    font-size: clamp(1.45rem, 3vw, 2.05rem);
+    line-height: 1;
+  }
+
+  .hero-note-latest strong {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 1rem;
+    line-height: 1.45;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
   }
 
   .hero-panel {
@@ -738,7 +1019,7 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
     justify-content: center;
     border: 1px solid var(--line);
     border-radius: 999px;
-    background: rgba(255, 255, 250, 0.72);
+    background: var(--surface-control);
     color: var(--text);
     cursor: pointer;
     font-weight: 750;
@@ -754,7 +1035,7 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
   .button.primary {
     border-color: rgba(47, 143, 112, 0.28);
     background: var(--accent-strong);
-    color: #fffef8;
+    color: var(--bg);
     box-shadow: 0 14px 30px rgba(47, 143, 112, 0.22);
   }
 
@@ -797,7 +1078,7 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
   .post-card:hover {
     transform: translateY(-3px);
     border-color: rgba(117, 201, 165, 0.72);
-    background: rgba(255, 255, 250, 0.94);
+    background: var(--surface-floating);
     box-shadow: var(--shadow);
   }
 
@@ -889,6 +1170,29 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
     align-items: center;
   }
 
+  .profile-link {
+    margin: -8px;
+    border: 1px solid transparent;
+    border-radius: 24px;
+    padding: 8px;
+    transition:
+      background 180ms ease,
+      border-color 180ms ease,
+      transform 180ms ease,
+      box-shadow 180ms ease;
+  }
+
+  .profile-link:hover {
+    border-color: rgba(117, 201, 165, 0.45);
+    background: rgba(223, 244, 233, 0.46);
+    box-shadow: 0 14px 34px rgba(74, 116, 98, 0.1);
+    transform: translateY(-2px);
+  }
+
+  .profile-link:active {
+    transform: translateY(0);
+  }
+
   .profile-head h2 {
     margin: 0 0 4px;
   }
@@ -900,6 +1204,16 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
     border-radius: 24px;
     object-fit: cover;
     box-shadow: 0 14px 34px rgba(74, 116, 98, 0.14);
+    transition:
+      border-color 180ms ease,
+      transform 180ms ease,
+      box-shadow 180ms ease;
+  }
+
+  .profile-link:hover .profile-avatar {
+    border-color: rgba(47, 143, 112, 0.5);
+    box-shadow: 0 18px 38px rgba(47, 143, 112, 0.18);
+    transform: scale(1.03) rotate(-1deg);
   }
 
   .profile-bio {
@@ -929,7 +1243,7 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
     gap: 8px;
     border: 1px solid var(--line);
     border-radius: 999px;
-    background: rgba(255, 255, 250, 0.62);
+    background: var(--surface-control);
     color: var(--text);
     font-size: 0.9rem;
     font-weight: 750;
@@ -1000,17 +1314,42 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
   }
 
   .article-toc a {
+    position: relative;
     display: block;
     border-radius: 12px;
     color: var(--muted);
     font-size: 0.88rem;
     line-height: 1.45;
-    padding: 6px 8px;
+    padding: 6px 8px 6px 14px;
+    transition:
+      background 180ms ease,
+      color 180ms ease;
   }
 
-  .article-toc a:hover {
+  .article-toc a::before {
+    content: "";
+    position: absolute;
+    top: 9px;
+    bottom: 9px;
+    left: 6px;
+    width: 3px;
+    border-radius: 999px;
+    background: transparent;
+    transition: background 180ms ease;
+  }
+
+  .article-toc a:hover,
+  .article-toc a.is-active {
     background: var(--accent-soft);
     color: var(--accent-strong);
+  }
+
+  .article-toc a.is-active {
+    font-weight: 800;
+  }
+
+  .article-toc a.is-active::before {
+    background: var(--accent-strong);
   }
 
   .toc-depth-3 {
@@ -1044,7 +1383,7 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
   .prose p,
   .prose ul,
   .prose ol {
-    color: #33443e;
+    color: color-mix(in srgb, var(--text) 86%, var(--muted));
   }
 
   .prose a {
@@ -1129,7 +1468,7 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
     display: flex;
     flex-direction: column;
     justify-content: center;
-    background: rgba(255, 255, 250, 0.58);
+    background: var(--surface-control);
     transition:
       transform 180ms ease,
       border-color 180ms ease,
@@ -1225,7 +1564,7 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
     display: block;
     border: 1px solid var(--line);
     border-radius: 20px;
-    background: rgba(255, 255, 250, 0.58);
+    background: var(--surface-control);
     padding: 16px;
   }
 
@@ -1288,6 +1627,19 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
       grid-template-columns: 1fr;
       min-height: auto;
       padding-top: 28px;
+    }
+
+    .hero-copy {
+      min-height: auto;
+      padding: 0;
+    }
+
+    .hero-note-strip {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .hero-note-latest {
+      grid-column: 1 / -1;
     }
 
     .content-grid {

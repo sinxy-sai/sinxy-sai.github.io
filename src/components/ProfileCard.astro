@@ -4,14 +4,14 @@ import { profile, socialLinks } from "../lib/profile";
 ---
 
 <section class="profile-card" aria-label="Profile">
-  <div class="profile-head">
+  <a class="profile-head profile-link" href="/about/" aria-label={`查看 ${profile.displayName} 的关于页`}>
     <img class="profile-avatar" src={profile.avatar} alt={`${profile.displayName} avatar`} />
     <div>
       <p class="section-kicker">Profile</p>
       <h2>{profile.displayName}</h2>
       <p>{profile.role}</p>
     </div>
-  </div>
+  </a>
 
   <p class="profile-bio">{profile.bio}</p>
 
