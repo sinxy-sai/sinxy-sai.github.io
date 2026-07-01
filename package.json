@@ -21,6 +21,7 @@
     "three": "^0.185.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "cross-env": "^10.1.0",
     "pagefind": "^1.5.2"
   }
