@@ -268,6 +268,31 @@ const timeWidgetPosts = posts.map((post) => ({
     meteorTexture.colorSpace = THREE.SRGBColorSpace;
     const meteorColors = [0xb8e7ff, 0xf6b8cc, 0xf8d996, 0xd7c6ff];
 
+    const nightVeilCanvas = document.createElement("canvas");
+    nightVeilCanvas.width = 512;
+    nightVeilCanvas.height = 512;
+    const nightVeilContext = nightVeilCanvas.getContext("2d");
+
+    if (nightVeilContext) {
+      const veil = nightVeilContext.createRadialGradient(224, 172, 0, 256, 256, 286);
+      veil.addColorStop(0, "rgba(176, 216, 255, 0.18)");
+      veil.addColorStop(0.34, "rgba(28, 48, 72, 0.34)");
+      veil.addColorStop(0.72, "rgba(9, 20, 34, 0.24)");
+      veil.addColorStop(1, "rgba(9, 20, 34, 0)");
+      nightVeilContext.fillStyle = veil;
+      nightVeilContext.fillRect(0, 0, 512, 512);
+
+      const moonGlow = nightVeilContext.createRadialGradient(172, 112, 0, 172, 112, 138);
+      moonGlow.addColorStop(0, "rgba(230, 247, 255, 0.22)");
+      moonGlow.addColorStop(0.42, "rgba(160, 210, 255, 0.1)");
+      moonGlow.addColorStop(1, "rgba(160, 210, 255, 0)");
+      nightVeilContext.fillStyle = moonGlow;
+      nightVeilContext.fillRect(0, 0, 512, 512);
+    }
+
+    const nightVeilTexture = new THREE.CanvasTexture(nightVeilCanvas);
+    nightVeilTexture.colorSpace = THREE.SRGBColorSpace;
+
     const glassDisc = new THREE.Mesh(
       new THREE.CylinderGeometry(1.18, 1.24, 0.16, 128, 1, false),
       glassMaterial,
@@ -325,6 +350,63 @@ const timeWidgetPosts = posts.map((post) => ({
     }
 
     face.add(beadGroup);
+
+    const nightVeil = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.55, 2.55),
+      new THREE.MeshBasicMaterial({
+        map: nightVeilTexture,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+      }),
+    );
+    nightVeil.position.z = 0.46;
+    face.add(nightVeil);
+
+    const constellationCount = 110;
+    const constellationPositions = new Float32Array(constellationCount * 3);
+    const constellationData = [];
+
+    for (let index = 0; index < constellationCount; index += 1) {
+      const targetAngle = Math.random() * Math.PI * 2;
+      const targetRadius = 0.42 + Math.random() * 0.9;
+      const startAngle = targetAngle - 0.9 + Math.random() * 1.8;
+      const startRadius = 1.42 + Math.random() * 0.72;
+      const targetX = Math.sin(targetAngle) * targetRadius;
+      const targetY = Math.cos(targetAngle) * targetRadius;
+      const startX = Math.sin(startAngle) * startRadius;
+      const startY = Math.cos(startAngle) * startRadius;
+
+      constellationData.push({
+        startX,
+        startY,
+        targetX,
+        targetY,
+        z: 0.52 + Math.random() * 0.16,
+        phase: Math.random() * Math.PI * 2,
+        drift: 0.006 + Math.random() * 0.014,
+      });
+
+      constellationPositions[index * 3] = startX;
+      constellationPositions[index * 3 + 1] = startY;
+      constellationPositions[index * 3 + 2] = 0.52;
+    }
+
+    const constellationGeometry = new THREE.BufferGeometry();
+    constellationGeometry.setAttribute("position", new THREE.BufferAttribute(constellationPositions, 3));
+
+    const constellationMaterial = new THREE.PointsMaterial({
+      color: 0xc9ecff,
+      size: 0.026,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      sizeAttenuation: true,
+    });
+
+    const constellation = new THREE.Points(constellationGeometry, constellationMaterial);
+    face.add(constellation);
 
     const meteorGroup = new THREE.Group();
 
@@ -537,6 +619,13 @@ const timeWidgetPosts = posts.map((post) => ({
           : 0;
         const starPresence = THREE.MathUtils.clamp(darkBlend * 1.35 + burstPresence * 0.86, 0, 1.35);
         const starStrength = THREE.MathUtils.clamp(starPresence, 0, 1);
+        const nightReveal = THREE.MathUtils.clamp(
+          meteorBurstDirection === 1 && burstAge >= 0 && burstAge < 1500
+            ? Math.max(darkBlend, burstProgress)
+            : darkBlend,
+          0,
+          1,
+        );
 
         hourHand.rotation.z = -THREE.MathUtils.degToRad(smoothHours * 30);
         minuteHand.rotation.z = -THREE.MathUtils.degToRad(smoothMinutes * 6);
@@ -552,6 +641,9 @@ const timeWidgetPosts = posts.map((post) => ({
         causticMaterials[2].opacity = THREE.MathUtils.lerp(0.1, 0.14, starStrength);
         beadMaterials[0].opacity = THREE.MathUtils.lerp(0.26, 0.92, starStrength);
         beadMaterials[1].opacity = THREE.MathUtils.lerp(0.18, 0.72, starStrength);
+        nightVeil.material.opacity = THREE.MathUtils.lerp(0, 0.72, nightReveal) + burstPresence * 0.1;
+        constellationMaterial.opacity = THREE.MathUtils.lerp(0, 0.86, starStrength);
+        constellationMaterial.size = THREE.MathUtils.lerp(0.014, 0.032, starStrength);
 
         if (!reducedMotion) {
           root.rotation.x += (targetTiltX - root.rotation.x) * 0.08;
@@ -567,6 +659,20 @@ const timeWidgetPosts = posts.map((post) => ({
             const pulse = 0.88 + Math.sin(elapsed * 0.0024 + bead.userData.phase) * (0.2 + starPresence * 0.26);
             bead.scale.setScalar((0.76 + starPresence * 0.52) * pulse * (bead.userData.phase % 2 > 1 ? 1.24 : 1));
           });
+          nightVeil.rotation.z = -0.08 + Math.sin(elapsed * 0.00028) * 0.035;
+          const positions = constellationGeometry.attributes.position.array;
+          constellationData.forEach((star, index) => {
+            const driftX = Math.sin(elapsed * 0.001 + star.phase) * star.drift * starStrength;
+            const driftY = Math.cos(elapsed * 0.0012 + star.phase) * star.drift * starStrength;
+            const x = THREE.MathUtils.lerp(star.startX, star.targetX, nightReveal) + driftX;
+            const y = THREE.MathUtils.lerp(star.startY, star.targetY, nightReveal) + driftY;
+
+            positions[index * 3] = x;
+            positions[index * 3 + 1] = y;
+            positions[index * 3 + 2] = star.z;
+          });
+          constellationGeometry.attributes.position.needsUpdate = true;
+          constellation.rotation.z = elapsed * 0.00005;
           meteorGroup.rotation.z = Math.sin(elapsed * 0.0005) * 0.03;
           meteorGroup.children.forEach((meteor) => {
             const t = (burstAge - meteor.userData.delay) / meteor.userData.duration;
