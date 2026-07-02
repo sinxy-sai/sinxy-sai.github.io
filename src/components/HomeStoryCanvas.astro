@@ -50,6 +50,7 @@ const {
         height: 0,
         dpr: 1,
         particles: [],
+        outlineSegments: [],
         blooms: [],
         sparks: [],
         pointer: { x: 0, y: 0, active: false, inside: false },
@@ -99,6 +100,54 @@ const {
         return targets.slice(0, 920);
       }
 
+      function easeOutCubic(value) {
+        return 1 - Math.pow(1 - value, 3);
+      }
+
+      function clamp01(value) {
+        return Math.max(0, Math.min(1, value));
+      }
+
+      function createOutlineSegments() {
+        const fontSize = getWelcomeFontSize();
+        context.save();
+        context.font = `900 ${fontSize}px Inter, ui-sans-serif, system-ui`;
+        const metrics = context.measureText("Welcome");
+        context.restore();
+
+        const textWidth = metrics.width;
+        const textHeight = fontSize * 1.08;
+        const left = state.width / 2 - textWidth / 2 - fontSize * 0.06;
+        const top = state.height * 0.5 - textHeight / 2;
+        const columns = 14;
+        const rows = 4;
+        const gap = Math.max(2, fontSize * 0.012);
+        const cellWidth = (textWidth + fontSize * 0.12) / columns;
+        const cellHeight = textHeight / rows;
+        const segments = [];
+
+        for (let row = 0; row < rows; row += 1) {
+          for (let column = 0; column < columns; column += 1) {
+            const wave = Math.sin(column * 1.7 + row * 2.4) * 0.16;
+            const centerBias = Math.abs(column - (columns - 1) / 2) / columns;
+            const scatter = ((column * 7 + row * 11) % 9) / 9;
+
+            segments.push({
+              x: left + column * cellWidth - gap,
+              y: top + row * cellHeight - gap,
+              width: cellWidth + gap * 2,
+              height: cellHeight + gap * 2,
+              delay: 0.03 + centerBias * 0.28 + row * 0.055 + scatter * 0.22 + wave,
+              duration: 0.52 + ((row + column) % 5) * 0.045,
+              phase: column * 0.73 + row * 1.91,
+              direction: (column + row) % 2 === 0 ? 1 : -1,
+            });
+          }
+        }
+
+        state.outlineSegments = segments;
+      }
+
       function resetParticles() {
         const targets = createTargets();
 
@@ -124,6 +173,7 @@ const {
         canvas.height = Math.floor(state.height * state.dpr);
         context.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
         resetParticles();
+        createOutlineSegments();
       }
 
       function addBloom(x, y, pressure = 1) {
@@ -200,7 +250,7 @@ const {
         context.restore();
       }
 
-      function drawParticles(theme, elapsed) {
+      function updateParticles() {
         const pointer = state.pointer;
 
         state.particles.forEach((particle) => {
@@ -226,19 +276,51 @@ const {
           particle.x += particle.vx;
           particle.y += particle.vy;
         });
+      }
+
+      function drawSegmentedOutline(theme, elapsed) {
+        const intro = prefersReducedMotion ? 1 : clamp01((elapsed - 1400) / 2700);
+        if (intro <= 0) return;
+
+        context.save();
+        context.globalCompositeOperation = "lighter";
+        context.font = `900 ${getWelcomeFontSize()}px Inter, ui-sans-serif, system-ui`;
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.lineWidth = theme === "dark" ? 1.35 : 1.9;
+        context.strokeStyle = theme === "dark" ? "rgba(213, 249, 240, 0.82)" : "rgba(35, 82, 95, 0.9)";
+        context.shadowColor = theme === "dark" ? "rgba(150, 236, 214, 0.42)" : "rgba(62, 135, 148, 0.24)";
+        context.shadowBlur = theme === "dark" ? 12 : 5;
+
+        state.outlineSegments.forEach((segment) => {
+          const segmentProgress = clamp01((intro - segment.delay) / segment.duration);
+          if (segmentProgress <= 0) return;
+
+          const eased = easeOutCubic(segmentProgress);
+          const shimmer = 0.86 + Math.sin(elapsed * 0.004 + segment.phase) * 0.14;
+          const width = segment.width * eased;
+          const x = segment.direction > 0 ? segment.x : segment.x + segment.width - width;
+
+          context.save();
+          context.beginPath();
+          context.rect(x, segment.y, width, segment.height);
+          context.clip();
+          context.globalAlpha = (theme === "dark" ? 0.22 : 0.28) * eased * shimmer;
+          context.strokeText("Welcome", state.width / 2, state.height * 0.5);
+          context.restore();
+        });
+
+        context.restore();
+      }
+
+      function drawTargetGhosts(theme, elapsed) {
+        const intro = prefersReducedMotion ? 1 : clamp01((elapsed - 1750) / 2300);
+        if (intro <= 0) return;
 
         context.save();
         context.globalCompositeOperation = "lighter";
 
-        context.globalAlpha = theme === "dark" ? 0.16 : 0.22;
-        context.font = `900 ${getWelcomeFontSize()}px Inter, ui-sans-serif, system-ui`;
-        context.textAlign = "center";
-        context.textBaseline = "middle";
-        context.lineWidth = theme === "dark" ? 1.4 : 1.8;
-        context.strokeStyle = theme === "dark" ? "rgba(202, 244, 234, 0.82)" : "rgba(43, 87, 102, 0.86)";
-        context.strokeText("Welcome", state.width / 2, state.height * 0.5);
-
-        context.globalAlpha = theme === "dark" ? 0.18 : 0.14;
+        context.globalAlpha = (theme === "dark" ? 0.16 : 0.12) * easeOutCubic(intro);
         context.fillStyle = theme === "dark" ? "rgba(188, 238, 228, 0.84)" : "rgba(72, 125, 139, 0.58)";
         state.particles.forEach((particle, index) => {
           if (index % 2 !== 0) return;
@@ -246,6 +328,13 @@ const {
           context.arc(particle.tx, particle.ty, 0.9, 0, Math.PI * 2);
           context.fill();
         });
+
+        context.restore();
+      }
+
+      function drawParticleConnections(theme) {
+        context.save();
+        context.globalCompositeOperation = "lighter";
 
         for (let i = 0; i < state.particles.length; i += 4) {
           const a = state.particles[i];
@@ -265,6 +354,13 @@ const {
           }
         }
 
+        context.restore();
+      }
+
+      function drawParticleDots(theme, elapsed) {
+        context.save();
+        context.globalCompositeOperation = "lighter";
+
         state.particles.forEach((particle) => {
           const pulse = 0.7 + Math.sin(elapsed * 0.003 + particle.phase) * 0.3;
           context.globalAlpha = theme === "dark" ? 0.8 : 0.72;
@@ -275,6 +371,14 @@ const {
         });
 
         context.restore();
+      }
+
+      function drawParticles(theme, elapsed) {
+        updateParticles();
+        drawSegmentedOutline(theme, elapsed);
+        drawTargetGhosts(theme, elapsed);
+        drawParticleConnections(theme);
+        drawParticleDots(theme, elapsed);
       }
 
       function drawBlooms(now, theme) {
