@@ -1,5 +1,6 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
+import HomeStoryCanvas from "../components/HomeStoryCanvas.astro";
 import HomeTimeWidget from "../components/HomeTimeWidget.astro";
 import ProfileCard from "../components/ProfileCard.astro";
 import { formatDate, getAllTags, getPublishedPosts } from "../lib/posts";
@@ -14,37 +15,13 @@ const latestPost = featuredPosts[0];
   title="首页"
   description="Sinxy Sai 的个人博客，记录计算机科学、算法学习和工程实践。"
 >
-  <section class="hero">
-    <div class="hero-copy">
-      <div>
-        <p class="section-kicker">Personal Blog / Computer Science</p>
-        <h1 class="page-title">把问题写清楚，把答案留下来。</h1>
-        <p class="page-description">
-          这里保存我在算法、计算机基础和工程实践里的学习记录。文章会尽量写清楚问题从哪里来、我是怎么想的，以及最后留下了什么结论。
-        </p>
-      </div>
-
-      <div class="button-row">
-        <a class="button primary" href="/archive/">浏览文章</a>
-        <a class="button" href="/about/">关于我</a>
-      </div>
-
-      <div class="hero-note-strip" aria-label="博客概览">
-        <a class="hero-note-item hero-note-latest" href={latestPost ? `/blog/${latestPost.id}/` : "/archive/"}>
-          <span>最新文章</span>
-          <strong>{latestPost ? latestPost.data.title : "准备第一篇文章"}</strong>
-        </a>
-        <a class="hero-note-item" href="/archive/">
-          <span>文章</span>
-          <strong>{posts.length}</strong>
-        </a>
-        <a class="hero-note-item" href="/tags/">
-          <span>主题</span>
-          <strong>{tags.length}</strong>
-        </a>
-      </div>
-    </div>
-
+  <section class="home-hero" aria-label="Homepage introduction">
+    <HomeStoryCanvas
+      latestTitle={latestPost ? latestPost.data.title : "准备第一篇文章"}
+      latestUrl={latestPost ? `/blog/${latestPost.id}/` : "/archive/"}
+      postCount={posts.length}
+      tagCount={tags.length}
+    />
     <HomeTimeWidget posts={posts} />
   </section>
 
@@ -98,4 +75,21 @@ const latestPost = featuredPosts[0];
       </div>
     </aside>
   </section>
+
+  <style>
+    .home-hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(340px, 430px);
+      align-items: start;
+      gap: clamp(22px, 4vw, 46px);
+      min-height: calc(100vh - 160px);
+    }
+
+    @media (max-width: 1080px) {
+      .home-hero {
+        grid-template-columns: 1fr;
+        min-height: 0;
+      }
+    }
+  </style>
 </BaseLayout>

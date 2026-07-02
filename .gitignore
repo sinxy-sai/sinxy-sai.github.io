@@ -10,3 +10,7 @@ dist/
 
 # Local AI/tooling workspace
 .agents/
+
+# Local temporary files and verification artifacts
+tmp/
+debug.log
