@@ -1,0 +1,230 @@
+<div class="ambient-flow" aria-hidden="true">
+  <canvas data-ambient-flow></canvas>
+</div>
+
+<script>
+  const ambientCanvas = document.querySelector("[data-ambient-flow]");
+
+  if (ambientCanvas instanceof HTMLCanvasElement) {
+    const context = ambientCanvas.getContext("2d", { alpha: true });
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (context) {
+      const state = {
+        width: 0,
+        height: 0,
+        dpr: 1,
+        startedAt: performance.now(),
+        lastScrollY: window.scrollY,
+        scrollEnergy: 0,
+        pointer: {
+          x: window.innerWidth * 0.5,
+          y: window.innerHeight * 0.42,
+          targetX: window.innerWidth * 0.5,
+          targetY: window.innerHeight * 0.42,
+          active: false,
+        },
+        motes: [],
+      };
+
+      function getTheme() {
+        return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+      }
+
+      function resize() {
+        state.width = window.innerWidth;
+        state.height = window.innerHeight;
+        state.dpr = Math.min(window.devicePixelRatio || 1, 2);
+        ambientCanvas.width = Math.floor(state.width * state.dpr);
+        ambientCanvas.height = Math.floor(state.height * state.dpr);
+        ambientCanvas.style.width = `${state.width}px`;
+        ambientCanvas.style.height = `${state.height}px`;
+        context.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+
+        const moteCount = Math.max(28, Math.min(76, Math.floor((state.width * state.height) / 22000)));
+        state.motes = Array.from({ length: moteCount }, (_, index) => ({
+          x: Math.random() * state.width,
+          y: Math.random() * state.height,
+          size: 0.8 + Math.random() * 2.6,
+          drift: 0.18 + Math.random() * 0.55,
+          phase: index * 1.73 + Math.random() * 4,
+          hue: 165 + Math.random() * 58,
+        }));
+      }
+
+      function drawSoftWash(theme, elapsed) {
+        const centerX = state.width * (theme === "dark" ? 0.62 : 0.34);
+        const centerY = state.height * (theme === "dark" ? 0.34 : 0.22);
+        const radius = Math.max(state.width, state.height) * 0.82;
+        const wash = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+
+        if (theme === "dark") {
+          wash.addColorStop(0, "rgba(87, 151, 137, 0.16)");
+          wash.addColorStop(0.36, "rgba(77, 120, 172, 0.07)");
+          wash.addColorStop(1, "rgba(11, 18, 16, 0)");
+        } else {
+          wash.addColorStop(0, "rgba(255, 220, 146, 0.18)");
+          wash.addColorStop(0.42, "rgba(118, 207, 194, 0.10)");
+          wash.addColorStop(1, "rgba(255, 255, 255, 0)");
+        }
+
+        context.fillStyle = wash;
+        context.fillRect(0, 0, state.width, state.height);
+
+        const drift = Math.sin(elapsed * 0.00018) * state.width * 0.06;
+        const sideGlow = context.createRadialGradient(
+          state.width * 0.86 + drift,
+          state.height * 0.22,
+          0,
+          state.width * 0.86 + drift,
+          state.height * 0.22,
+          state.width * 0.42,
+        );
+
+        sideGlow.addColorStop(0, theme === "dark" ? "rgba(136, 216, 184, 0.10)" : "rgba(246, 182, 200, 0.13)");
+        sideGlow.addColorStop(1, "rgba(255, 255, 255, 0)");
+        context.fillStyle = sideGlow;
+        context.fillRect(0, 0, state.width, state.height);
+      }
+
+      function drawRibbons(theme, elapsed) {
+        const lineCount = Math.max(8, Math.min(15, Math.floor(state.height / 78)));
+        const speed = 1 + state.scrollEnergy * 0.55;
+        const pointerPull = state.pointer.active ? 1 : 0.45;
+
+        context.save();
+        context.globalCompositeOperation = theme === "dark" ? "screen" : "multiply";
+
+        for (let line = 0; line < lineCount; line += 1) {
+          const baseY = state.height * (0.16 + line * 0.075);
+          const phase = elapsed * 0.00013 * speed + line * 0.68;
+          const alpha = theme === "dark" ? 0.105 : 0.07;
+          const gradient = context.createLinearGradient(0, 0, state.width, 0);
+
+          if (theme === "dark") {
+            gradient.addColorStop(0, `rgba(112, 178, 219, 0)`);
+            gradient.addColorStop(0.28, `rgba(116, 210, 196, ${alpha})`);
+            gradient.addColorStop(0.68, `rgba(198, 178, 255, ${alpha * 0.62})`);
+            gradient.addColorStop(1, `rgba(112, 178, 219, 0)`);
+          } else {
+            gradient.addColorStop(0, `rgba(117, 201, 165, 0)`);
+            gradient.addColorStop(0.32, `rgba(80, 150, 139, ${alpha})`);
+            gradient.addColorStop(0.72, `rgba(237, 168, 190, ${alpha * 0.68})`);
+            gradient.addColorStop(1, `rgba(117, 201, 165, 0)`);
+          }
+
+          context.strokeStyle = gradient;
+          context.lineWidth = 1.1 + (line % 3) * 0.34;
+          context.beginPath();
+
+          const pointCount = 9;
+          for (let index = 0; index <= pointCount; index += 1) {
+            const ratio = index / pointCount;
+            const x = ratio * state.width;
+            const wave =
+              Math.sin(ratio * Math.PI * 2.4 + phase) * 17 +
+              Math.cos(ratio * Math.PI * 4.8 - phase * 1.7) * 8;
+            const pointerDistance = Math.hypot(x - state.pointer.x, baseY - state.pointer.y);
+            const pull = Math.max(0, 1 - pointerDistance / 430) * pointerPull * 22;
+            const y = baseY + wave - pull;
+
+            if (index === 0) {
+              context.moveTo(x, y);
+            } else {
+              context.lineTo(x, y);
+            }
+          }
+
+          context.stroke();
+        }
+
+        context.restore();
+      }
+
+      function drawMotes(theme, elapsed) {
+        context.save();
+        context.globalCompositeOperation = "screen";
+
+        state.motes.forEach((mote) => {
+          const speed = mote.drift * (1 + state.scrollEnergy * 0.8);
+          mote.x += speed;
+          mote.y += Math.sin(elapsed * 0.0007 + mote.phase) * 0.12;
+
+          if (mote.x > state.width + 20) {
+            mote.x = -20;
+            mote.y = Math.random() * state.height;
+          }
+
+          const pulse = 0.65 + Math.sin(elapsed * 0.0014 + mote.phase) * 0.35;
+          const alpha = (theme === "dark" ? 0.24 : 0.16) * pulse;
+
+          context.fillStyle = `hsla(${mote.hue}, 68%, ${theme === "dark" ? 72 : 48}%, ${alpha})`;
+          context.beginPath();
+          context.arc(mote.x, mote.y, mote.size * pulse, 0, Math.PI * 2);
+          context.fill();
+        });
+
+        context.restore();
+      }
+
+      function animate(now) {
+        const elapsed = now - state.startedAt;
+        const theme = getTheme();
+
+        state.pointer.x += (state.pointer.targetX - state.pointer.x) * 0.055;
+        state.pointer.y += (state.pointer.targetY - state.pointer.y) * 0.055;
+        state.scrollEnergy *= 0.92;
+
+        context.clearRect(0, 0, state.width, state.height);
+        drawSoftWash(theme, elapsed);
+        drawRibbons(theme, elapsed);
+        drawMotes(theme, elapsed);
+
+        if (!prefersReducedMotion) {
+          window.requestAnimationFrame(animate);
+        }
+      }
+
+      window.addEventListener("resize", resize);
+      window.addEventListener("pointermove", (event) => {
+        state.pointer.targetX = event.clientX;
+        state.pointer.targetY = event.clientY;
+        state.pointer.active = true;
+      });
+      window.addEventListener("pointerleave", () => {
+        state.pointer.active = false;
+      });
+      window.addEventListener("scroll", () => {
+        const delta = Math.abs(window.scrollY - state.lastScrollY);
+        state.lastScrollY = window.scrollY;
+        state.scrollEnergy = Math.min(1, state.scrollEnergy + delta / 520);
+      }, { passive: true });
+
+      resize();
+      animate(performance.now());
+    }
+  }
+</script>
+
+<style>
+  .ambient-flow {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .ambient-flow canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    opacity: 0.95;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ambient-flow canvas {
+      opacity: 0.62;
+    }
+  }
+</style>
