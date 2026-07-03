@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "cross-env ASTRO_TELEMETRY_DISABLED=1 astro dev --host 127.0.0.1",
-    "build": "cross-env ASTRO_TELEMETRY_DISABLED=1 astro build && pagefind --site dist",
+    "build": "cross-env ASTRO_TELEMETRY_DISABLED=1 astro build",
     "preview": "cross-env ASTRO_TELEMETRY_DISABLED=1 astro preview",
     "deploy:worker": "npm run build && wrangler deploy",
     "astro": "cross-env ASTRO_TELEMETRY_DISABLED=1 astro"

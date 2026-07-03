@@ -82,7 +82,7 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
       })();
     </script>
   </head>
-  <body>
+  <body data-pagefind-ignore>
     <AmbientFlow />
     <CornerPet />
 
@@ -210,41 +210,10 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
           "'": "&#39;",
         })[char]);
 
-      let sitePagefind;
       let siteSearchRequestId = 0;
-
-      async function loadSitePagefind() {
-        if (sitePagefind) return sitePagefind;
-        const importPagefind = new Function("path", "return import(path)");
-        const loadedPagefind = await importPagefind("/pagefind/pagefind.js");
-        sitePagefind = loadedPagefind.createInstance({
-          basePath: "/pagefind/",
-          noWorker: true,
-        });
-        await sitePagefind.init();
-        return sitePagefind;
-      }
 
       function closeSiteSearch() {
         if (siteSearchPanel) siteSearchPanel.hidden = true;
-      }
-
-      function getD1SearchMatches(posts, query) {
-        const normalizedQuery = query.toLocaleLowerCase();
-
-        return posts
-          .filter((post) => {
-            const haystack = [
-              post.title,
-              post.description,
-              ...(post.tags || []),
-            ]
-              .join(" ")
-              .toLocaleLowerCase();
-
-            return haystack.includes(normalizedQuery);
-          })
-          .slice(0, 4);
       }
 
       function renderD1SearchResult(post) {
@@ -320,8 +289,60 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
         }
       }
 
+      function renderArticleSearchResult(post) {
+        return `
+          <a class="header-search-result" href="${post.url}">
+            <strong>${escapeSearchHtml(post.title || "Untitled")}</strong>
+            <span>${escapeSearchHtml(post.excerpt || post.description || "")}</span>
+          </a>
+        `;
+      }
+
+      async function runArticleSearch(query) {
+        const currentRequest = ++siteSearchRequestId;
+        const trimmed = query.trim();
+
+        if (!trimmed) {
+          closeSiteSearch();
+          if (siteSearchResults) siteSearchResults.innerHTML = "";
+          return;
+        }
+
+        if (siteSearchPanel) siteSearchPanel.hidden = false;
+        if (siteSearchStatus) siteSearchStatus.textContent = "正在搜索...";
+
+        try {
+          const response = await fetch(`/api/search?q=${encodeURIComponent(trimmed)}`, {
+            headers: { accept: "application/json" },
+          });
+          const payload = response.ok ? await response.json() : { data: [] };
+          const results = Array.isArray(payload?.data) ? payload.data : [];
+
+          if (currentRequest !== siteSearchRequestId) return;
+
+          if (siteSearchStatus) {
+            siteSearchStatus.textContent = results.length
+              ? `找到 ${results.length} 条文章结果`
+              : "没有找到匹配的文章";
+          }
+
+          if (siteSearchResults) {
+            siteSearchResults.innerHTML = results.map(renderArticleSearchResult).join("");
+          }
+        } catch (error) {
+          console.error("Search failed:", error);
+          if (currentRequest !== siteSearchRequestId) return;
+          if (siteSearchStatus) siteSearchStatus.textContent = "搜索暂时不可用";
+          if (siteSearchResults) siteSearchResults.innerHTML = "";
+        }
+      }
+
+      async function runSiteSearch(query) {
+        return runArticleSearch(query);
+      }
+
       siteSearchInput?.addEventListener("input", (event) => {
-        runSiteSearch(event.target.value);
+        runArticleSearch(event.target.value);
       });
 
       siteSearchForm?.addEventListener("submit", (event) => {

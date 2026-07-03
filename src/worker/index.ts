@@ -199,6 +199,10 @@ interface PostDetailRow extends PostListRow {
   contentMarkdown: string;
 }
 
+interface SearchPostRow extends PostDetailRow {
+  rank: number;
+}
+
 interface AdminPostRow extends PostDetailRow {
   id: string;
   status: "DRAFT" | "PUBLISHED";
@@ -428,6 +432,43 @@ function renderMarkdownDocument(markdown: string) {
 
 function renderMarkdown(markdown: string) {
   return renderMarkdownDocument(markdown).html;
+}
+
+function stripMarkdownForSearch(value: string) {
+  return value
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/!\[[^\]]*]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]+)]\([^)]*\)/g, "$1")
+    .replace(/[#>*_`~|[\]()-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function createSearchExcerpt(post: SearchPostRow, query: string) {
+  const text = stripMarkdownForSearch(
+    [post.description, post.contentMarkdown].filter(Boolean).join(" "),
+  );
+  if (!text) return post.description;
+
+  const normalizedText = text.toLocaleLowerCase();
+  const normalizedQuery = query.toLocaleLowerCase();
+  const matchIndex = normalizedText.indexOf(normalizedQuery);
+  const excerptLength = 140;
+
+  if (matchIndex < 0) {
+    return text.length > excerptLength ? `${text.slice(0, excerptLength).trim()}...` : text;
+  }
+
+  const start = Math.max(0, matchIndex - 46);
+  const end = Math.min(text.length, matchIndex + normalizedQuery.length + 94);
+  const prefix = start > 0 ? "..." : "";
+  const suffix = end < text.length ? "..." : "";
+
+  return `${prefix}${text.slice(start, end).trim()}${suffix}`;
+}
+
+function escapeLikePattern(value: string) {
+  return `%${value.replace(/[\\%_]/g, (match) => `\\${match}`)}%`;
 }
 
 function formatDate(value: string) {
@@ -1253,6 +1294,90 @@ async function handlePosts(request: Request, env: Env) {
   }
 }
 
+async function handleSearch(request: Request, env: Env) {
+  if (request.method !== "GET") return methodNotAllowed(["GET"]);
+
+  const url = new URL(request.url);
+  const query = (url.searchParams.get("q") || "").trim();
+
+  if (!query) {
+    return json({ data: [] });
+  }
+
+  if (query.length > 80) {
+    return validationError("q must be 80 characters or fewer.");
+  }
+
+  const pattern = escapeLikePattern(query);
+
+  try {
+    const { results } = await env.sinxy_sai_blog_db
+      .prepare(
+        `
+          SELECT
+            posts.slug,
+            posts.title,
+            posts.description,
+            posts.content_markdown AS contentMarkdown,
+            posts.pub_date AS pubDate,
+            posts.updated_at AS updatedDate,
+            assets.r2_key AS coverAssetKey,
+            group_concat(tags.name, ',') AS tags,
+            CASE
+              WHEN posts.title LIKE ? ESCAPE '\\' THEN 0
+              WHEN posts.description LIKE ? ESCAPE '\\' THEN 1
+              WHEN EXISTS (
+                SELECT 1
+                FROM post_tags search_post_tags
+                JOIN tags search_tags ON search_tags.id = search_post_tags.tag_id
+                WHERE search_post_tags.post_id = posts.id
+                  AND search_tags.name LIKE ? ESCAPE '\\'
+              ) THEN 2
+              ELSE 3
+            END AS rank
+          FROM posts
+          LEFT JOIN assets ON assets.id = posts.cover_asset_id
+          LEFT JOIN post_tags all_post_tags ON all_post_tags.post_id = posts.id
+          LEFT JOIN tags ON tags.id = all_post_tags.tag_id
+          WHERE posts.status = 'PUBLISHED'
+            AND (
+              posts.title LIKE ? ESCAPE '\\'
+              OR posts.description LIKE ? ESCAPE '\\'
+              OR posts.content_markdown LIKE ? ESCAPE '\\'
+              OR EXISTS (
+                SELECT 1
+                FROM post_tags search_post_tags
+                JOIN tags search_tags ON search_tags.id = search_post_tags.tag_id
+                WHERE search_post_tags.post_id = posts.id
+                  AND search_tags.name LIKE ? ESCAPE '\\'
+              )
+            )
+          GROUP BY posts.id
+          ORDER BY rank ASC, posts.pub_date DESC
+          LIMIT 20
+        `,
+      )
+      .bind(pattern, pattern, pattern, pattern, pattern, pattern, pattern)
+      .all<SearchPostRow>();
+
+    return json({
+      data: results.map((post) => ({
+        slug: post.slug,
+        title: post.title,
+        description: post.description,
+        excerpt: createSearchExcerpt(post, query),
+        pubDate: post.pubDate,
+        updatedDate: post.updatedDate,
+        tags: post.tags ? post.tags.split(",").filter(Boolean) : [],
+        url: `/blog/${post.slug}/`,
+      })),
+    });
+  } catch (error) {
+    console.error("Failed to search posts", error);
+    return internalError();
+  }
+}
+
 function normalizeAdminPost(row: AdminPostRow) {
   return {
     id: row.id,
@@ -1922,6 +2047,7 @@ function handleApi(request: Request, env: Env) {
 
   if (pathname === "/api/health") return handleHealth(request);
   if (pathname === "/api/posts") return handlePosts(request, env);
+  if (pathname === "/api/search") return handleSearch(request, env);
   if (pathname === "/api/assets") return handleAssets(request, env);
   if (pathname === "/api/rss.xml") return handleRss(request, env);
   if (pathname === "/api/admin/assets") return handleAdminAssets(request, env);
