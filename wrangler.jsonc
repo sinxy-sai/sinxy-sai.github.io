@@ -1,8 +1,31 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "sinxy-sai-blog",
-  "compatibility_date": "2026-07-03",
-  "assets": {
-    "directory": "./dist"
-  }
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "sinxy-sai-blog",
+	"main": "./src/worker/index.ts",
+	"compatibility_date": "2026-07-03",
+	"workers_dev": true,
+	"assets": {
+		"directory": "./dist",
+		"binding": "ASSETS",
+		"run_worker_first": [
+			"/api/*",
+			"/blog/*",
+			"/media/*"
+		]
+	},
+	"d1_databases": [
+		{
+			"binding": "sinxy_sai_blog_db",
+			"database_name": "sinxy-sai-blog-db",
+			"database_id": "010d6dc8-a830-4967-9aa0-26050c0b29eb",
+			"remote": true
+		}
+	],
+	"r2_buckets": [
+		{
+			"bucket_name": "sinxy-sai-blog-media",
+			"binding": "sinxy_sai_blog_media",
+			"remote": true
+		}
+	]
 }
