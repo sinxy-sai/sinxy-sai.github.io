@@ -2,12 +2,23 @@
 import { CalendarDays, ChevronLeft, ChevronRight, RotateCcw } from "lucide-astro";
 
 const { posts = [] } = Astro.props;
-const timeWidgetPosts = posts.map((post) => ({
-  title: post.data.title,
-  description: post.data.description,
-  date: post.data.pubDate.toISOString().slice(0, 10),
-  url: `/blog/${post.id}/`,
-}));
+const timeWidgetPosts = posts
+  .map((post) => {
+    const data = post.data ?? post;
+    const pubDate = data.pubDate ? String(data.pubDate).slice(0, 10) : "";
+    const slug = post.id ?? data.slug;
+    const url = data.url ?? (slug ? `/blog/${slug}/` : "");
+
+    if (!data.title || !pubDate || !url) return null;
+
+    return {
+      title: data.title,
+      description: data.description ?? "",
+      date: pubDate,
+      url,
+    };
+  })
+  .filter(Boolean);
 ---
 
 <aside class="time-widget" aria-label="Live clock and calendar">
@@ -723,12 +734,8 @@ const timeWidgetPosts = posts.map((post) => ({
     const todayCount = widget.querySelector("[data-today-count]");
     const todayPostList = widget.querySelector("[data-today-post-list]");
     const todayPostEmpty = widget.querySelector("[data-today-post-empty]");
-    const posts = postsData ? JSON.parse(postsData.textContent || "[]") : [];
-    const postsByDate = posts.reduce((dateMap, post) => {
-      dateMap[post.date] = dateMap[post.date] || [];
-      dateMap[post.date].push(post);
-      return dateMap;
-    }, {});
+    let posts = postsData ? JSON.parse(postsData.textContent || "[]") : [];
+    let postsByDate = groupPostsByDate(posts);
 
     const monthFormatter = new Intl.DateTimeFormat("zh-CN", { month: "long" });
     const dateFormatter = new Intl.DateTimeFormat("zh-CN", {
@@ -740,6 +747,53 @@ const timeWidgetPosts = posts.map((post) => ({
     let visibleYear;
     let visibleMonth;
     let selectedDateKey = "";
+
+    function normalizePostUrl(url) {
+      try {
+        return new URL(url, window.location.origin).pathname;
+      } catch {
+        return url;
+      }
+    }
+
+    function normalizeD1TimeWidgetPost(post) {
+      if (!post?.pubDate || !post?.url || !post?.title) return null;
+
+      return {
+        title: post.title,
+        description: post.description || "",
+        date: String(post.pubDate).slice(0, 10),
+        url: post.url,
+      };
+    }
+
+    function groupPostsByDate(postItems) {
+      return postItems.reduce((dateMap, post) => {
+        dateMap[post.date] = dateMap[post.date] || [];
+        dateMap[post.date].push(post);
+        return dateMap;
+      }, {});
+    }
+
+    function mergeTimeWidgetPosts(incomingPosts) {
+      const existingUrls = new Set(posts.map((post) => normalizePostUrl(post.url)));
+      const normalizedPosts = incomingPosts
+        .map(normalizeD1TimeWidgetPost)
+        .filter(Boolean)
+        .filter((post) => {
+          const url = normalizePostUrl(post.url);
+          if (existingUrls.has(url)) return false;
+          existingUrls.add(url);
+          return true;
+        });
+
+      if (!normalizedPosts.length) return;
+
+      posts = [...posts, ...normalizedPosts].sort((a, b) => b.date.localeCompare(a.date));
+      postsByDate = groupPostsByDate(posts);
+      renderCalendar(new Date());
+      if (selectedDateKey) renderSelectedPosts(selectedDateKey);
+    }
 
     function renderCalendar(now) {
       if (!calendarGrid || !monthLabel || !yearLabel) return;
@@ -937,6 +991,15 @@ const timeWidgetPosts = posts.map((post) => ({
       renderCalendar(now);
       renderSelectedPosts(selectedDateKey);
     });
+
+    fetch("/api/posts", { headers: { accept: "application/json" } })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (Array.isArray(payload?.data)) mergeTimeWidgetPosts(payload.data);
+      })
+      .catch(() => {
+        // Static-only deployments do not expose the Worker API.
+      });
   }
 </script>
 

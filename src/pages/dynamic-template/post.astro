@@ -1,0 +1,30 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="__D1_POST_TITLE__"
+  description="__D1_POST_DESCRIPTION__"
+  type="article"
+  publishedTime="__D1_POST_PUBLISHED_TIME__"
+  robots="noindex, nofollow"
+>
+  <div class="article-layout __D1_POST_LAYOUT_CLASS__">
+    __D1_POST_TOC__
+    <article class="article">
+      <header class="article-header">
+        <p class="section-kicker">Article</p>
+        <h1 class="article-title">__D1_POST_TITLE__</h1>
+        <div class="meta">
+          <time datetime="__D1_POST_PUBLISHED_TIME__">__D1_POST_DATE__</time>
+          __D1_POST_UPDATED__
+        </div>
+        <div class="tag-list">__D1_POST_TAGS__</div>
+      </header>
+      <div class="prose">__D1_POST_CONTENT__</div>
+      <nav class="post-nav" aria-label="文章导航">
+        __D1_POST_NAV__
+      </nav>
+    </article>
+  </div>
+</BaseLayout>

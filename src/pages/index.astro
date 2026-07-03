@@ -3,12 +3,6 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import HomeStoryCanvas from "../components/HomeStoryCanvas.astro";
 import HomeTimeWidget from "../components/HomeTimeWidget.astro";
 import ProfileCard from "../components/ProfileCard.astro";
-import { formatDate, getAllTags, getPublishedPosts } from "../lib/posts";
-
-const posts = await getPublishedPosts();
-const tags = getAllTags(posts);
-const featuredPosts = posts.slice(0, 5);
-const latestPost = featuredPosts[0];
 ---
 
 <BaseLayout
@@ -17,45 +11,18 @@ const latestPost = featuredPosts[0];
 >
   <section class="home-hero" aria-label="Homepage introduction">
     <HomeStoryCanvas
-      latestTitle={latestPost ? latestPost.data.title : "准备第一篇文章"}
-      latestUrl={latestPost ? `/blog/${latestPost.id}/` : "/archive/"}
-      postCount={posts.length}
-      tagCount={tags.length}
+      latestTitle="正在读取最新文章"
+      latestUrl="/archive/"
+      latestPubDate=""
+      postCount={0}
+      tagCount={0}
     />
-    <HomeTimeWidget posts={posts} />
+    <HomeTimeWidget posts={[]} />
   </section>
 
   <section class="content-grid" aria-label="Recent posts">
-    <div class="post-list">
+    <div class="post-list" data-d1-post-list data-d1-limit="5">
       <p class="section-kicker">Latest Notes</p>
-      {
-        featuredPosts.map((post) => (
-          <a class="post-card" href={`/blog/${post.id}/`}>
-            <div class="meta">
-              <time datetime={post.data.pubDate.toISOString()}>
-                {formatDate(post.data.pubDate)}
-              </time>
-              {post.data.tags.length > 0 && <span>{post.data.tags.slice(0, 2).join(" / ")}</span>}
-            </div>
-            <h2>{post.data.title}</h2>
-            <p>{post.data.description}</p>
-            <div class="tag-list">
-              {post.data.tags.map((tag) => (
-                <span class="tag">{tag}</span>
-              ))}
-            </div>
-          </a>
-        ))
-      }
-      {
-        featuredPosts.length === 0 && (
-          <div class="post-card">
-            <div class="meta">Empty</div>
-            <h2>还没有文章</h2>
-            <p>在 src/content/blog 里新增 Markdown 文件后，这里会自动显示。</p>
-          </div>
-        )
-      }
     </div>
 
     <aside class="sidebar-panel">
@@ -64,15 +31,7 @@ const latestPost = featuredPosts[0];
         <p class="section-kicker">Topics</p>
         <h2>常写主题</h2>
       </div>
-      <div class="tag-list">
-        {
-          tags.map(([tag, count]) => (
-            <a class="tag" href={`/tags/${encodeURIComponent(tag)}/`}>
-              {tag} · {count}
-            </a>
-          ))
-        }
-      </div>
+      <div class="tag-list" data-d1-tag-list></div>
     </aside>
   </section>
 

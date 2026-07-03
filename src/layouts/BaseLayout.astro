@@ -8,6 +8,7 @@ interface Props {
   title?: string;
   description?: string;
   image?: string;
+  robots?: string;
   type?: "website" | "article";
   publishedTime?: string;
   tags?: string[];
@@ -18,6 +19,7 @@ const {
   title = "首页",
   description = "Personal notes on computer science, algorithms, and building things.",
   image = "/avatar.jpg",
+  robots = "index, follow",
   type = "website",
   publishedTime,
   tags = [],
@@ -26,6 +28,7 @@ const {
 const pageTitle = `${title} | ${siteTitle}`;
 const canonicalUrl = new URL(Astro.url.pathname, Astro.site ?? Astro.url).toString();
 const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
+const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
 ---
 
 <!doctype html>
@@ -36,7 +39,7 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
     <meta name="description" content={description} />
     <meta name="generator" content={Astro.generator} />
     <meta name="author" content="Sinxy Sai" />
-    <meta name="robots" content="index, follow" />
+    <meta name="robots" content={robots} />
     <meta id="theme-color-meta" name="theme-color" content="#f6fbf5" />
     <link rel="canonical" href={canonicalUrl} />
     <meta property="og:title" content={pageTitle} />
@@ -58,7 +61,7 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={imageUrl} />
     <link rel="icon" href="/favicon.png" type="image/png" />
-    <link rel="alternate" type="application/rss+xml" title={siteTitle} href="/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title={siteTitle} href={rssUrl} />
     <title>{pageTitle}</title>
     <script is:inline>
       (() => {
@@ -148,7 +151,7 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
     <footer class="site-footer">
       <span>© {new Date().getFullYear()} Sinxy Sai. Content rights reserved.</span>
       <span class="footer-links">
-        <a class="footer-rss" href="/rss.xml" aria-label="RSS 订阅">
+        <a class="footer-rss" href={rssUrl} aria-label="RSS 订阅">
           <Rss size={16} aria-hidden="true" />
           <span>RSS</span>
         </a>
@@ -226,6 +229,33 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
         if (siteSearchPanel) siteSearchPanel.hidden = true;
       }
 
+      function getD1SearchMatches(posts, query) {
+        const normalizedQuery = query.toLocaleLowerCase();
+
+        return posts
+          .filter((post) => {
+            const haystack = [
+              post.title,
+              post.description,
+              ...(post.tags || []),
+            ]
+              .join(" ")
+              .toLocaleLowerCase();
+
+            return haystack.includes(normalizedQuery);
+          })
+          .slice(0, 4);
+      }
+
+      function renderD1SearchResult(post) {
+        return `
+          <a class="header-search-result" href="${post.url}">
+            <strong>${escapeSearchHtml(post.title || "Untitled")}</strong>
+            <span>${escapeSearchHtml(post.description || "D1 动态文章")}</span>
+          </a>
+        `;
+      }
+
       async function runSiteSearch(query) {
         const currentRequest = ++siteSearchRequestId;
         const trimmed = query.trim();
@@ -239,34 +269,54 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
         if (siteSearchPanel) siteSearchPanel.hidden = false;
         if (siteSearchStatus) siteSearchStatus.textContent = "正在搜索...";
 
+        let pagefindFailed = false;
+        let pagefindTotal = 0;
+        let resultData = [];
+        let d1Matches = [];
+
         try {
           const search = await (await loadSitePagefind()).search(trimmed);
           if (currentRequest !== siteSearchRequestId) return;
 
-          const resultData = await Promise.all(
+          resultData = await Promise.all(
             search.results.slice(0, 6).map((result) => result.data()),
           );
-
-          if (siteSearchStatus) {
-            siteSearchStatus.textContent = resultData.length
-              ? `找到 ${search.results.length} 条结果`
-              : "没有找到匹配的文章";
-          }
-
-          if (siteSearchResults) {
-            siteSearchResults.innerHTML = resultData
-              .map((item) => `
-                <a class="header-search-result" href="${item.url}">
-                  <strong>${escapeSearchHtml(item.meta.title || "Untitled")}</strong>
-                  <span>${item.excerpt || ""}</span>
-                </a>
-              `)
-              .join("");
-          }
+          pagefindTotal = search.results.length;
         } catch (error) {
           console.error("Pagefind search failed:", error);
-          if (siteSearchStatus) siteSearchStatus.textContent = "搜索暂时不可用，请先运行构建。";
-          if (siteSearchResults) siteSearchResults.innerHTML = "";
+          pagefindFailed = true;
+        }
+
+        try {
+          d1Matches = getD1SearchMatches(await loadD1Posts(), trimmed);
+        } catch {
+          d1Matches = [];
+        }
+
+        if (currentRequest !== siteSearchRequestId) return;
+
+        const staticUrls = new Set(resultData.map((item) => item.url));
+        const uniqueD1Matches = d1Matches.filter((post) => !staticUrls.has(post.url));
+        const total = pagefindTotal + uniqueD1Matches.length;
+
+        if (siteSearchStatus) {
+          siteSearchStatus.textContent = total
+            ? `找到 ${total} 条结果`
+            : pagefindFailed
+              ? "没有找到匹配的动态文章，静态索引需要先运行构建。"
+              : "没有找到匹配的文章";
+        }
+
+        if (siteSearchResults) {
+          siteSearchResults.innerHTML = [
+            ...resultData.map((item) => `
+              <a class="header-search-result" href="${item.url}">
+                <strong>${escapeSearchHtml(item.meta.title || "Untitled")}</strong>
+                <span>${item.excerpt || ""}</span>
+              </a>
+            `),
+            ...uniqueD1Matches.map(renderD1SearchResult),
+          ].join("");
         }
       }
 
@@ -393,6 +443,196 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
         );
         window.addEventListener("resize", updateActiveToc);
       }
+
+      const normalizeUrlPath = (url) => {
+        try {
+          return new URL(url, window.location.origin).pathname;
+        } catch {
+          return url;
+        }
+      };
+
+      const getDateKeyFromIso = (value) => String(value || "").slice(0, 10);
+      const formatD1Date = (value) => getDateKeyFromIso(value).replaceAll("-", "/");
+      const getPublishSortKey = (value) => String(value || "").replace(" ", "T").slice(0, 19);
+
+      const renderD1PostCard = (post) => `
+        <a class="post-card" href="${post.url}" data-d1-post="true" data-pub-date="${getDateKeyFromIso(post.pubDate)}">
+          <div class="meta">
+            <time datetime="${getDateKeyFromIso(post.pubDate)}">${formatD1Date(post.pubDate)}</time>
+            ${post.tags?.length ? `<span>${post.tags.slice(0, 2).map(escapeSearchHtml).join(" / ")}</span>` : ""}
+          </div>
+          <h2>${escapeSearchHtml(post.title)}</h2>
+          <p>${escapeSearchHtml(post.description)}</p>
+          ${
+            post.tags?.length
+              ? `<div class="tag-list">${post.tags.map((tag) => `<span class="tag">${escapeSearchHtml(tag)}</span>`).join("")}</div>`
+              : ""
+          }
+        </a>
+      `;
+
+      const renderD1ArchiveItem = (post) => `
+        <a class="archive-item" href="${post.url}" data-d1-post="true" data-pub-date="${getDateKeyFromIso(post.pubDate)}">
+          <time datetime="${getDateKeyFromIso(post.pubDate)}">${formatD1Date(post.pubDate)}</time>
+          <strong>${escapeSearchHtml(post.title)}</strong>
+        </a>
+      `;
+
+      let d1PostsPromise;
+
+      async function loadD1Posts() {
+        if (!d1PostsPromise) {
+          d1PostsPromise = fetch("/api/posts", {
+            headers: { accept: "application/json" },
+          })
+            .then((response) => (response.ok ? response.json() : null))
+            .then((payload) => (Array.isArray(payload?.data) ? payload.data : []))
+            .catch(() => []);
+        }
+
+        return d1PostsPromise;
+      }
+
+      function getItemTime(item) {
+        const rawDate = item.getAttribute("data-pub-date") || item.querySelector("time")?.getAttribute("datetime") || "";
+        return getPublishSortKey(rawDate);
+      }
+
+      function sortItemsByPublishDate(container, selector) {
+        const items = Array.from(container.querySelectorAll(selector));
+        items
+          .sort((a, b) => getItemTime(b).localeCompare(getItemTime(a)))
+          .forEach((item) => container.append(item));
+      }
+
+      function insertD1Posts(posts) {
+        document.querySelectorAll("[data-d1-post-list]").forEach((container) => {
+          const tag = container.getAttribute("data-d1-tag");
+          const limit = Number(container.getAttribute("data-d1-limit") || "0");
+          const existing = new Set(
+            Array.from(container.querySelectorAll("a[href]")).map((link) =>
+              normalizeUrlPath(link.getAttribute("href")),
+            ),
+          );
+          const filteredPosts = tag
+            ? posts.filter((post) => post.tags?.includes(tag))
+            : posts;
+          const title = container.querySelector(":scope > .section-kicker");
+
+          for (const post of [...filteredPosts].reverse()) {
+            if (existing.has(normalizeUrlPath(post.url))) continue;
+            if (title) {
+              title.insertAdjacentHTML("afterend", renderD1PostCard(post));
+            } else {
+              container.insertAdjacentHTML("afterbegin", renderD1PostCard(post));
+            }
+            existing.add(normalizeUrlPath(post.url));
+          }
+
+          sortItemsByPublishDate(container, ".post-card");
+
+          if (limit > 0) {
+            Array.from(container.querySelectorAll(".post-card"))
+              .slice(limit)
+              .forEach((item) => item.remove());
+          }
+        });
+
+        document.querySelectorAll("[data-d1-archive-list]").forEach((container) => {
+          const existing = new Set(
+            Array.from(container.querySelectorAll("a[href]")).map((link) =>
+              normalizeUrlPath(link.getAttribute("href")),
+            ),
+          );
+
+          for (const post of [...posts].reverse()) {
+            if (existing.has(normalizeUrlPath(post.url))) continue;
+            container.insertAdjacentHTML("afterbegin", renderD1ArchiveItem(post));
+            existing.add(normalizeUrlPath(post.url));
+          }
+
+          sortItemsByPublishDate(container, ".archive-item");
+        });
+      }
+
+      function insertD1Tags(posts) {
+        document.querySelectorAll("[data-d1-tag-list]").forEach((container) => {
+          if (container.dataset.d1Enhanced === "true") return;
+          container.dataset.d1Enhanced = "true";
+
+          const counts = new Map();
+
+          for (const tag of posts.flatMap((post) => post.tags || [])) {
+            counts.set(tag, (counts.get(tag) || 0) + 1);
+          }
+
+          for (const [tag, count] of counts) {
+            const href = `/tags/${encodeURIComponent(tag)}/`;
+            const existing = Array.from(container.querySelectorAll("a[href]")).find(
+              (link) => normalizeUrlPath(link.getAttribute("href")) === normalizeUrlPath(href),
+            );
+
+            if (existing) {
+              const text = existing.textContent || "";
+              const match = text.match(/^(.*?)(?:\s*[路·]\s*(\d+))?$/);
+              const currentCount = Number(match?.[2] || "0");
+              existing.textContent = `${tag} · ${currentCount + count}`;
+            } else {
+              container.insertAdjacentHTML(
+                "beforeend",
+                `<a class="tag" href="${href}" data-d1-tag="true">${escapeSearchHtml(tag)} · ${count}</a>`,
+              );
+            }
+          }
+        });
+      }
+
+      function updateHomeSummary(posts) {
+        const latestLink = document.querySelector("[data-home-latest]");
+        const latestTitle = document.querySelector("[data-home-latest-title]");
+        const postCount = document.querySelector("[data-home-post-count] span");
+        const tagCount = document.querySelector("[data-home-tag-count] span");
+
+        if (postCount) {
+          const staticCount = Number(postCount.closest("[data-static-count]")?.getAttribute("data-static-count") || "0");
+          postCount.textContent = String(staticCount + posts.length);
+        }
+
+        if (tagCount) {
+          const visibleTags = new Set(
+            Array.from(document.querySelectorAll("[data-d1-tag-list] a[href]"))
+              .map((link) => link.getAttribute("href"))
+              .filter(Boolean),
+          );
+          const staticCount = Number(tagCount.closest("[data-static-count]")?.getAttribute("data-static-count") || "0");
+          tagCount.textContent = String(visibleTags.size || staticCount);
+        }
+
+        if (latestLink instanceof HTMLAnchorElement && latestTitle && posts.length) {
+          const currentTime = getPublishSortKey(latestLink.getAttribute("data-latest-pub-date") || "");
+          const latestDynamicPost = [...posts].sort(
+            (a, b) => getPublishSortKey(b.pubDate).localeCompare(getPublishSortKey(a.pubDate)),
+          )[0];
+          const latestDynamicTime = getPublishSortKey(latestDynamicPost.pubDate);
+
+          if (!currentTime || latestDynamicTime > currentTime) {
+            latestLink.href = latestDynamicPost.url;
+            latestLink.setAttribute("data-latest-pub-date", latestDynamicPost.pubDate);
+            latestTitle.textContent = latestDynamicPost.title;
+          }
+        }
+      }
+
+      loadD1Posts()
+        .then((posts) => {
+          insertD1Posts(posts);
+          insertD1Tags(posts);
+          updateHomeSummary(posts);
+        })
+        .catch(() => {
+          // GitHub Pages does not provide the Worker API. Keep the static page unchanged.
+        });
     </script>
   </body>
 </html>

@@ -1,21 +1,7 @@
 ---
 import BaseLayout from "../../layouts/BaseLayout.astro";
-import { formatDate, getPublishedPosts } from "../../lib/posts";
-
-const posts = await getPublishedPosts();
 ---
 
 <BaseLayout title="归档" description="Sinxy Sai 的博客文章归档。">
-  <section class="archive-list">
-    {
-      posts.map((post) => (
-        <a class="archive-item" href={`/blog/${post.id}/`}>
-          <time datetime={post.data.pubDate.toISOString()}>
-            {formatDate(post.data.pubDate)}
-          </time>
-          <strong>{post.data.title}</strong>
-        </a>
-      ))
-    }
-  </section>
+  <section class="archive-list" data-d1-archive-list></section>
 </BaseLayout>

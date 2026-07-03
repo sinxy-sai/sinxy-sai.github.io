@@ -1,3 +1,5 @@
+import katex from "katex";
+
 type ApiErrorCode =
   | "CONFLICT"
   | "NOT_FOUND"
@@ -217,6 +219,12 @@ interface AssetRow {
   createdAt: string;
 }
 
+interface RenderedHeading {
+  depth: number;
+  text: string;
+  slug: string;
+}
+
 function escapeHtml(value: string) {
   return value
     .replaceAll("&", "&amp;")
@@ -241,11 +249,46 @@ function normalizePostSlug(value: string) {
     .slice(0, 96);
 }
 
-function renderInlineMarkdown(value: string) {
+function renderMath(latex: string, displayMode: boolean) {
+  try {
+    return katex.renderToString(latex.trim(), {
+      displayMode,
+      throwOnError: false,
+      strict: false,
+      trust: false,
+    });
+  } catch {
+    const delimiter = displayMode ? "$$" : "$";
+    return `${delimiter}${escapeHtml(latex)}${delimiter}`;
+  }
+}
+
+function renderPlainInlineMarkdown(value: string) {
   return escapeHtml(value)
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/\*([^*]+)\*/g, "<em>$1</em>");
+}
+
+function renderInlineMarkdown(value: string) {
+  return value
+    .split(/(`[^`]+`)/g)
+    .map((part) => {
+      if (part.startsWith("`") && part.endsWith("`")) {
+        return `<code>${escapeHtml(part.slice(1, -1))}</code>`;
+      }
+
+      return part
+        .split(/(\$(?!\$)[^$\n]+(?<!\\)\$)/g)
+        .map((segment) => {
+          if (segment.startsWith("$") && segment.endsWith("$")) {
+            return renderMath(segment.slice(1, -1), false);
+          }
+
+          return renderPlainInlineMarkdown(segment);
+        })
+        .join("");
+    })
+    .join("");
 }
 
 function flushParagraph(lines: string[], html: string[]) {
@@ -254,13 +297,24 @@ function flushParagraph(lines: string[], html: string[]) {
   lines.length = 0;
 }
 
-function renderMarkdown(markdown: string) {
+function renderMarkdownDocument(markdown: string) {
   const html: string[] = [];
   const paragraphLines: string[] = [];
   const listItems: string[] = [];
+  const headings: RenderedHeading[] = [];
+  const headingCounts = new Map<string, number>();
   let inCodeBlock = false;
   let codeLanguage = "";
   let codeLines: string[] = [];
+  let inDisplayMath = false;
+  let displayMathLines: string[] = [];
+
+  function createHeadingSlug(text: string) {
+    const baseSlug = slugify(text) || "section";
+    const count = headingCounts.get(baseSlug) ?? 0;
+    headingCounts.set(baseSlug, count + 1);
+    return count === 0 ? baseSlug : `${baseSlug}-${count + 1}`;
+  }
 
   function flushList() {
     if (listItems.length === 0) return;
@@ -276,6 +330,11 @@ function renderMarkdown(markdown: string) {
     );
     codeLines = [];
     codeLanguage = "";
+  }
+
+  function flushDisplayMath() {
+    html.push(renderMath(displayMathLines.join("\n"), true));
+    displayMathLines = [];
   }
 
   for (const line of markdown.replace(/\r\n/g, "\n").split("\n")) {
@@ -294,8 +353,37 @@ function renderMarkdown(markdown: string) {
       continue;
     }
 
+    if (inDisplayMath) {
+      const endMath = line.match(/^(.*?)\s*\$\$\s*$/);
+      if (endMath) {
+        if (endMath[1].trim()) displayMathLines.push(endMath[1]);
+        flushDisplayMath();
+        inDisplayMath = false;
+      } else {
+        displayMathLines.push(line);
+      }
+      continue;
+    }
+
     if (inCodeBlock) {
       codeLines.push(line);
+      continue;
+    }
+
+    const singleLineDisplayMath = line.match(/^\s*\$\$\s*(.*?)\s*\$\$\s*$/);
+    if (singleLineDisplayMath) {
+      flushParagraph(paragraphLines, html);
+      flushList();
+      html.push(renderMath(singleLineDisplayMath[1], true));
+      continue;
+    }
+
+    const startDisplayMath = line.match(/^\s*\$\$\s*(.*)$/);
+    if (startDisplayMath) {
+      flushParagraph(paragraphLines, html);
+      flushList();
+      inDisplayMath = true;
+      if (startDisplayMath[1].trim()) displayMathLines.push(startDisplayMath[1]);
       continue;
     }
 
@@ -311,7 +399,8 @@ function renderMarkdown(markdown: string) {
       flushList();
       const depth = heading[1].length;
       const text = heading[2].trim();
-      const id = slugify(text);
+      const id = createHeadingSlug(text);
+      headings.push({ depth, text, slug: id });
       html.push(`<h${depth} id="${escapeHtml(id)}">${renderInlineMarkdown(text)}</h${depth}>`);
       continue;
     }
@@ -327,18 +416,27 @@ function renderMarkdown(markdown: string) {
   }
 
   if (inCodeBlock) flushCodeBlock();
+  if (inDisplayMath) flushDisplayMath();
   flushParagraph(paragraphLines, html);
   flushList();
 
-  return html.join("\n");
+  return {
+    html: html.join("\n"),
+    headings,
+  };
+}
+
+function renderMarkdown(markdown: string) {
+  return renderMarkdownDocument(markdown).html;
 }
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(value));
+  const dateKey = String(value || "").slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+    return dateKey.replaceAll("-", "/");
+  }
+
+  return value;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -382,13 +480,37 @@ function asOptionalString(value: unknown, field: string, maxLength: number) {
 
 function asIsoDate(value: unknown, field: string) {
   const raw = asTrimmedString(value, field, 80);
-  const date = new Date(raw);
+  const normalized = raw.replace(" ", "T");
+  const match = normalized.match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,3})?)?)?(?:Z|[+-]\d{2}:?\d{2})?$/,
+  );
 
-  if (Number.isNaN(date.valueOf())) {
+  if (!match) {
     throw new Error(`${field} must be a valid date.`);
   }
 
-  return date.toISOString();
+  const [, yearValue, monthValue, dayValue, hourValue = "00", minuteValue = "00", secondValue = "00"] =
+    match;
+  const year = Number(yearValue);
+  const month = Number(monthValue);
+  const day = Number(dayValue);
+  const hour = Number(hourValue);
+  const minute = Number(minuteValue);
+  const second = Number(secondValue);
+  const date = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day ||
+    date.getUTCHours() !== hour ||
+    date.getUTCMinutes() !== minute ||
+    date.getUTCSeconds() !== second
+  ) {
+    throw new Error(`${field} must be a valid date.`);
+  }
+
+  return `${yearValue}-${monthValue}-${dayValue}T${hourValue}:${minuteValue}:${secondValue}`;
 }
 
 function asOptionalIsoDate(value: unknown, field: string) {
@@ -664,7 +786,7 @@ function buildPostHtml(post: PostDetailRow) {
           <p class="description">${description}</p>
           <div class="meta">
             <time datetime="${escapeHtml(post.pubDate)}">${formatDate(post.pubDate)}</time>
-            ${post.updatedDate ? `<span>更新于 ${formatDate(post.updatedDate)}</span>` : ""}
+            ${post.updatedDate ? `<span>最后编辑于 ${formatDate(post.updatedDate)}</span>` : ""}
           </div>
           ${
             tags.length > 0
@@ -680,6 +802,419 @@ function buildPostHtml(post: PostDetailRow) {
     </main>
   </body>
 </html>`;
+}
+
+function buildTagHtml(tag: string, posts: PostListRow[]) {
+  const title = escapeHtml(tag);
+  const items = posts
+    .map(
+      (post) => `
+        <a class="post-card" href="/blog/${encodeURIComponent(post.slug)}/">
+          <div class="meta">
+            <time datetime="${escapeHtml(post.pubDate)}">${formatDate(post.pubDate)}</time>
+            ${post.tags ? `<span>${post.tags.split(",").map(escapeHtml).join(" / ")}</span>` : ""}
+          </div>
+          <h2>${escapeHtml(post.title)}</h2>
+          <p>${escapeHtml(post.description)}</p>
+        </a>
+      `,
+    )
+    .join("");
+
+  return `<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${title} | Sinxy Sai's Blog</title>
+    <meta name="description" content="与 ${title} 相关的文章。" />
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f8fbf8;
+        --paper: rgba(255, 255, 255, 0.78);
+        --text: #25312d;
+        --muted: #64736d;
+        --line: rgba(72, 118, 101, 0.18);
+        --accent: #4c8f7b;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--text);
+        background:
+          radial-gradient(circle at 20% 0%, rgba(149, 213, 190, 0.26), transparent 32rem),
+          radial-gradient(circle at 90% 12%, rgba(242, 196, 141, 0.22), transparent 30rem),
+          var(--bg);
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      a { color: inherit; text-decoration: none; }
+
+      .site-header {
+        border-bottom: 1px solid var(--line);
+        background: rgba(248, 251, 248, 0.82);
+        backdrop-filter: blur(18px);
+      }
+
+      .header-inner,
+      main {
+        width: min(980px, calc(100% - 32px));
+        margin: 0 auto;
+      }
+
+      .header-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 68px;
+      }
+
+      .brand { font-weight: 760; }
+
+      .nav {
+        display: flex;
+        gap: 18px;
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      main { padding: clamp(38px, 8vw, 84px) 0; }
+
+      .page-head {
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        background: var(--paper);
+        box-shadow: 0 26px 70px rgba(55, 89, 79, 0.13);
+        padding: clamp(28px, 6vw, 56px);
+      }
+
+      .kicker {
+        margin: 0 0 12px;
+        color: var(--accent);
+        font-size: 0.78rem;
+        font-weight: 760;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(2.2rem, 7vw, 4.6rem);
+        line-height: 1.04;
+        letter-spacing: 0;
+      }
+
+      .page-head p {
+        margin: 18px 0 0;
+        color: var(--muted);
+      }
+
+      .post-list {
+        display: grid;
+        gap: 14px;
+        margin-top: 26px;
+      }
+
+      .post-card {
+        display: block;
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        background: var(--paper);
+        padding: 22px;
+        box-shadow: 0 16px 46px rgba(74, 116, 98, 0.1);
+        transition: transform 180ms ease, border-color 180ms ease;
+      }
+
+      .post-card:hover {
+        transform: translateY(-2px);
+        border-color: rgba(76, 143, 123, 0.42);
+      }
+
+      .post-card h2 {
+        margin: 10px 0 8px;
+        font-size: clamp(1.25rem, 3vw, 1.8rem);
+      }
+
+      .post-card p,
+      .meta {
+        color: var(--muted);
+      }
+
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 12px;
+        font-size: 0.88rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="brand" href="/">Sinxy Sai's Blog</a>
+        <nav class="nav" aria-label="Primary">
+          <a href="/">首页</a>
+          <a href="/archive/">归档</a>
+          <a href="/tags/">标签</a>
+          <a href="/about/">关于</a>
+        </nav>
+      </div>
+    </header>
+    <main>
+      <section class="page-head">
+        <p class="kicker">D1 Tag</p>
+        <h1>${title}</h1>
+        <p>这里收录了 ${posts.length} 篇与 ${title} 相关的动态文章。</p>
+      </section>
+      <section class="post-list">${items}</section>
+    </main>
+  </body>
+</html>`;
+}
+
+function replaceTemplateTokens(template: string, replacements: Record<string, string>) {
+  let html = template;
+
+  for (const [token, value] of Object.entries(replacements)) {
+    html = html.split(token).join(value);
+  }
+
+  return html;
+}
+
+async function loadTemplate(request: Request, env: Env, path: string) {
+  const url = new URL(path, request.url);
+  const response = await env.ASSETS.fetch(new Request(url, { method: "GET" }));
+
+  if (!response.ok) {
+    throw new Error(`Template not found: ${path}`);
+  }
+
+  return response.text();
+}
+
+function renderTagLinks(tags: string[]) {
+  return tags
+    .map(
+      (tag) =>
+        `<a class="tag" href="/tags/${encodeURIComponent(tag)}/">${escapeHtml(tag)}</a>`,
+    )
+    .join("");
+}
+
+function renderArticleToc(headings: RenderedHeading[]) {
+  const tocHeadings = headings.filter((heading) => heading.depth >= 2 && heading.depth <= 3);
+
+  if (!tocHeadings.length) return "";
+
+  return `
+    <aside class="article-toc" aria-label="文章目录">
+      <h2>目录</h2>
+      <ol>
+        ${tocHeadings
+          .map(
+            (heading) => `
+              <li class="toc-depth-${heading.depth}">
+                <a href="#${escapeHtml(heading.slug)}">${escapeHtml(heading.text)}</a>
+              </li>
+            `,
+          )
+          .join("")}
+      </ol>
+    </aside>
+  `;
+}
+
+function renderPostNavItem(post: PostListRow | undefined, label: string, emptyText: string) {
+  if (!post) return `<span>${escapeHtml(emptyText)}</span>`;
+
+  return `
+    <a href="/blog/${encodeURIComponent(post.slug)}/">
+      <small>${escapeHtml(label)}</small>
+      <strong>${escapeHtml(post.title)}</strong>
+    </a>
+  `;
+}
+
+function renderPostNavigation(posts: PostListRow[], slug: string) {
+  const currentIndex = posts.findIndex((post) => post.slug === slug);
+  const newerPost = currentIndex > 0 ? posts[currentIndex - 1] : undefined;
+  const olderPost = currentIndex >= 0 ? posts[currentIndex + 1] : undefined;
+
+  return `
+    ${renderPostNavItem(newerPost, "上一篇", "已经是最新文章")}
+    ${renderPostNavItem(olderPost, "下一篇", "已经是最后一篇")}
+  `;
+}
+
+async function buildPostHtmlFromTemplate(post: PostDetailRow, request: Request, env: Env) {
+  const tags = post.tags ? post.tags.split(",").filter(Boolean) : [];
+  const template = await loadTemplate(request, env, "/dynamic-template/post/");
+  const updated = post.updatedDate
+    ? `<span>最后编辑于 ${formatDate(post.updatedDate)}</span>`
+    : "";
+  const publicUrl = new URL(`/blog/${post.slug}/`, request.url).toString();
+  const renderedPost = renderMarkdownDocument(post.contentMarkdown);
+  const publishedPosts = await getPublishedPostList(env);
+  const toc = renderArticleToc(renderedPost.headings);
+
+  return replaceTemplateTokens(template, {
+    "__D1_POST_TITLE__": escapeHtml(post.title),
+    "__D1_POST_DESCRIPTION__": escapeHtml(post.description),
+    "__D1_POST_PUBLISHED_TIME__": escapeHtml(post.pubDate),
+    "__D1_POST_DATE__": formatDate(post.pubDate),
+    "__D1_POST_UPDATED__": updated,
+    "__D1_POST_TAGS__": renderTagLinks(tags),
+    "__D1_POST_LAYOUT_CLASS__": toc ? "has-toc" : "no-toc",
+    "__D1_POST_TOC__": toc,
+    "__D1_POST_CONTENT__": renderedPost.html,
+    "__D1_POST_NAV__": renderPostNavigation(publishedPosts, post.slug),
+    "https://sinxy-sai.github.io/dynamic-template/post/": publicUrl,
+    "/dynamic-template/post/": `/blog/${post.slug}/`,
+    'content="noindex, nofollow"': 'content="index, follow"',
+  });
+}
+
+function renderTagPostCards(posts: PostListRow[]) {
+  return posts
+    .map((post) => {
+      const tags = post.tags ? post.tags.split(",").filter(Boolean) : [];
+
+      return `
+        <a class="post-card" href="/blog/${encodeURIComponent(post.slug)}/">
+          <div class="meta">
+            <time datetime="${escapeHtml(post.pubDate)}">${formatDate(post.pubDate)}</time>
+            ${tags.length ? `<span>${tags.map(escapeHtml).join(" / ")}</span>` : ""}
+          </div>
+          <h2>${escapeHtml(post.title)}</h2>
+          <p>${escapeHtml(post.description)}</p>
+        </a>
+      `;
+    })
+    .join("");
+}
+
+async function buildTagHtmlFromTemplate(
+  tag: string,
+  posts: PostListRow[],
+  request: Request,
+  env: Env,
+) {
+  const template = await loadTemplate(request, env, "/dynamic-template/tag/");
+  const publicUrl = new URL(`/tags/${encodeURIComponent(tag)}/`, request.url).toString();
+
+  return replaceTemplateTokens(template, {
+    "__D1_TAG_TITLE__": escapeHtml(tag),
+    "__D1_TAG_COUNT__": String(posts.length),
+    "__D1_TAG_POSTS__": renderTagPostCards(posts),
+    "https://sinxy-sai.github.io/dynamic-template/tag/": publicUrl,
+    "/dynamic-template/tag/": `/tags/${encodeURIComponent(tag)}/`,
+    'content="noindex, nofollow"': 'content="index, follow"',
+  });
+}
+
+async function getPublishedPostList(env: Env) {
+  const { results } = await env.sinxy_sai_blog_db
+    .prepare(
+      `
+        SELECT
+          posts.slug,
+          posts.title,
+          posts.description,
+          posts.pub_date AS pubDate,
+          posts.updated_at AS updatedDate,
+          assets.r2_key AS coverAssetKey,
+          group_concat(tags.name, ',') AS tags
+        FROM posts
+        LEFT JOIN assets ON assets.id = posts.cover_asset_id
+        LEFT JOIN post_tags ON post_tags.post_id = posts.id
+        LEFT JOIN tags ON tags.id = post_tags.tag_id
+        WHERE posts.status = 'PUBLISHED'
+        GROUP BY posts.id
+        ORDER BY posts.pub_date DESC
+      `,
+    )
+    .all<PostListRow>();
+
+  return results;
+}
+
+function escapeXml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
+function formatRssDate(value: string) {
+  const raw = String(value || "").replace(" ", "T");
+  const match = raw.match(/^(\d{4}-\d{2}-\d{2})(?:T(\d{2}:\d{2}(?::\d{2})?))?/);
+
+  if (match) {
+    const time = match[2] ? (match[2].length === 5 ? `${match[2]}:00` : match[2]) : "00:00:00";
+    return new Date(`${match[1]}T${time}+08:00`).toUTCString();
+  }
+
+  const date = new Date(raw);
+  return Number.isNaN(date.valueOf()) ? new Date().toUTCString() : date.toUTCString();
+}
+
+function renderRssItem(post: PostListRow, request: Request) {
+  const link = new URL(`/blog/${post.slug}/`, request.url).toString();
+
+  return `
+    <item>
+      <title>${escapeXml(post.title)}</title>
+      <link>${escapeXml(link)}</link>
+      <guid>${escapeXml(link)}</guid>
+      <description>${escapeXml(post.description)}</description>
+      <pubDate>${formatRssDate(post.pubDate)}</pubDate>
+    </item>`;
+}
+
+async function handleRss(request: Request, env: Env) {
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return methodNotAllowed(["GET", "HEAD"]);
+  }
+
+  try {
+    const staticRssUrl = new URL("/rss.xml", request.url);
+    const staticResponse = await env.ASSETS.fetch(new Request(staticRssUrl, { method: "GET" }));
+    if (!staticResponse.ok) return staticResponse;
+
+    if (request.method === "HEAD") {
+      return new Response(null, {
+        headers: {
+          "content-type": "application/rss+xml; charset=utf-8",
+          "cache-control": "public, max-age=60",
+        },
+      });
+    }
+
+    const staticRss = await staticResponse.text();
+    const dynamicItems = (await getPublishedPostList(env))
+      .map((post) => renderRssItem(post, request))
+      .join("\n");
+
+    const rss = staticRss.includes("</channel>")
+      ? staticRss.replace("</channel>", `${dynamicItems}\n</channel>`)
+      : staticRss;
+
+    return new Response(rss, {
+      headers: {
+        "content-type": "application/rss+xml; charset=utf-8",
+        "cache-control": "public, max-age=60",
+      },
+    });
+  } catch (error) {
+    console.error("Failed to render RSS", error);
+    return internalError();
+  }
 }
 
 function handleHealth(request: Request) {
@@ -699,28 +1234,7 @@ async function handlePosts(request: Request, env: Env) {
   if (request.method !== "GET") return methodNotAllowed(["GET"]);
 
   try {
-    const { results } = await env.sinxy_sai_blog_db
-      .prepare(
-        `
-          SELECT
-            posts.slug,
-            posts.title,
-            posts.description,
-            posts.pub_date AS pubDate,
-            posts.updated_date AS updatedDate,
-            assets.r2_key AS coverAssetKey,
-            group_concat(tags.name, ',') AS tags
-          FROM posts
-          LEFT JOIN assets ON assets.id = posts.cover_asset_id
-          LEFT JOIN post_tags ON post_tags.post_id = posts.id
-          LEFT JOIN tags ON tags.id = post_tags.tag_id
-          WHERE posts.status = 'PUBLISHED'
-          GROUP BY posts.id
-          ORDER BY posts.pub_date DESC
-        `,
-      )
-      .all<PostListRow>();
-
+    const results = await getPublishedPostList(env);
     return json({
       data: results.map((post) => ({
         slug: post.slug,
@@ -770,7 +1284,7 @@ async function getAdminPostById(id: string, env: Env) {
           posts.content_markdown AS contentMarkdown,
           posts.status,
           posts.pub_date AS pubDate,
-          posts.updated_date AS updatedDate,
+          posts.updated_at AS updatedDate,
           posts.cover_asset_id AS coverAssetId,
           assets.r2_key AS coverAssetKey,
           posts.created_at AS createdAt,
@@ -802,7 +1316,7 @@ async function listAdminPosts(env: Env) {
           posts.content_markdown AS contentMarkdown,
           posts.status,
           posts.pub_date AS pubDate,
-          posts.updated_date AS updatedDate,
+          posts.updated_at AS updatedDate,
           posts.cover_asset_id AS coverAssetId,
           assets.r2_key AS coverAssetKey,
           posts.created_at AS createdAt,
@@ -871,7 +1385,6 @@ async function handleCreateAdminPost(request: Request, env: Env) {
       asOptionalString(body.slug, "slug", 120) ?? title,
     );
     const pubDate = body.pubDate ? asIsoDate(body.pubDate, "pubDate") : new Date().toISOString();
-    const updatedDate = asOptionalIsoDate(body.updatedDate, "updatedDate");
     const coverAssetId = asOptionalString(body.coverAssetId, "coverAssetId", 120);
     const tags = normalizeTags(body.tags) ?? [];
 
@@ -901,9 +1414,8 @@ async function handleCreateAdminPost(request: Request, env: Env) {
             content_markdown,
             cover_asset_id,
             status,
-            pub_date,
-            updated_date
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            pub_date
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `,
       )
       .bind(
@@ -915,7 +1427,6 @@ async function handleCreateAdminPost(request: Request, env: Env) {
         coverAssetId,
         status,
         pubDate,
-        updatedDate,
       )
       .run();
 
@@ -958,10 +1469,6 @@ async function handleUpdateAdminPost(request: Request, env: Env, id: string) {
         : normalizePostSlug(asTrimmedString(body.slug, "slug", 120));
     const pubDate =
       body.pubDate === undefined ? existing.pubDate : asIsoDate(body.pubDate, "pubDate");
-    const updatedDate =
-      body.updatedDate === undefined
-        ? existing.updatedDate
-        : asOptionalIsoDate(body.updatedDate, "updatedDate");
     const coverAssetId =
       body.coverAssetId === undefined
         ? existing.coverAssetId
@@ -995,7 +1502,6 @@ async function handleUpdateAdminPost(request: Request, env: Env, id: string) {
             cover_asset_id = ?,
             status = ?,
             pub_date = ?,
-            updated_date = ?,
             updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
         `,
@@ -1008,7 +1514,6 @@ async function handleUpdateAdminPost(request: Request, env: Env, id: string) {
         coverAssetId,
         status,
         pubDate,
-        updatedDate,
         id,
       )
       .run();
@@ -1125,7 +1630,7 @@ async function getPublishedPostBySlug(slug: string, env: Env) {
           posts.description,
           posts.content_markdown AS contentMarkdown,
           posts.pub_date AS pubDate,
-          posts.updated_date AS updatedDate,
+          posts.updated_at AS updatedDate,
           assets.r2_key AS coverAssetKey,
           group_concat(tags.name, ',') AS tags
         FROM posts
@@ -1139,6 +1644,36 @@ async function getPublishedPostBySlug(slug: string, env: Env) {
     )
     .bind(slug)
     .first<PostDetailRow>();
+}
+
+async function getPublishedPostsByTag(tag: string, env: Env) {
+  const { results } = await env.sinxy_sai_blog_db
+    .prepare(
+      `
+        SELECT
+          posts.slug,
+          posts.title,
+          posts.description,
+          posts.pub_date AS pubDate,
+          posts.updated_at AS updatedDate,
+          assets.r2_key AS coverAssetKey,
+          group_concat(all_tags.name, ',') AS tags
+        FROM posts
+        JOIN post_tags selected_post_tags ON selected_post_tags.post_id = posts.id
+        JOIN tags selected_tags ON selected_tags.id = selected_post_tags.tag_id
+        LEFT JOIN assets ON assets.id = posts.cover_asset_id
+        LEFT JOIN post_tags all_post_tags ON all_post_tags.post_id = posts.id
+        LEFT JOIN tags all_tags ON all_tags.id = all_post_tags.tag_id
+        WHERE posts.status = 'PUBLISHED'
+          AND selected_tags.name = ?
+        GROUP BY posts.id
+        ORDER BY posts.pub_date DESC
+      `,
+    )
+    .bind(tag)
+    .all<PostListRow>();
+
+  return results;
 }
 
 async function handleBlog(request: Request, env: Env) {
@@ -1171,7 +1706,7 @@ async function handleBlog(request: Request, env: Env) {
       });
     }
 
-    return new Response(buildPostHtml(post), {
+    return new Response(await buildPostHtmlFromTemplate(post, request, env), {
       headers: {
         "content-type": "text/html; charset=utf-8",
         "cache-control": "public, max-age=60",
@@ -1179,6 +1714,54 @@ async function handleBlog(request: Request, env: Env) {
     });
   } catch (error) {
     console.error("Failed to render dynamic post", error);
+    return internalError();
+  }
+}
+
+async function handleTags(request: Request, env: Env) {
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return methodNotAllowed(["GET", "HEAD"]);
+  }
+
+  const staticResponse = await env.ASSETS.fetch(request);
+
+  if (staticResponse.status !== 404) {
+    return staticResponse;
+  }
+
+  const { pathname } = new URL(request.url);
+  const match = pathname.match(/^\/tags\/([^/]+)\/?$/);
+
+  if (!match) {
+    return staticResponse;
+  }
+
+  const tag = decodeURIComponent(match[1]);
+
+  try {
+    const posts = await getPublishedPostsByTag(tag, env);
+
+    if (posts.length === 0) {
+      return staticResponse;
+    }
+
+    if (request.method === "HEAD") {
+      return new Response(null, {
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "public, max-age=60",
+        },
+      });
+    }
+
+    return new Response(await buildTagHtmlFromTemplate(tag, posts, request, env), {
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "public, max-age=60",
+      },
+    });
+  } catch (error) {
+    console.error("Failed to render dynamic tag page", error);
     return internalError();
   }
 }
@@ -1340,6 +1923,7 @@ function handleApi(request: Request, env: Env) {
   if (pathname === "/api/health") return handleHealth(request);
   if (pathname === "/api/posts") return handlePosts(request, env);
   if (pathname === "/api/assets") return handleAssets(request, env);
+  if (pathname === "/api/rss.xml") return handleRss(request, env);
   if (pathname === "/api/admin/assets") return handleAdminAssets(request, env);
   if (pathname === "/api/admin/posts" || pathname.startsWith("/api/admin/posts/")) {
     return handleAdminPosts(request, env);
@@ -1356,8 +1940,16 @@ export default {
       return handleApi(request, env);
     }
 
+    if (pathname === "/rss.xml") {
+      return handleRss(request, env);
+    }
+
     if (pathname.startsWith("/blog/")) {
       return handleBlog(request, env);
+    }
+
+    if (pathname.startsWith("/tags/")) {
+      return handleTags(request, env);
     }
 
     if (pathname.startsWith("/media/")) {

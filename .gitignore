@@ -6,6 +6,7 @@ dist/
 
 # Framework and package-manager cache
 .astro/
+.wrangler/
 .npm-cache/
 
 # Local AI/tooling workspace

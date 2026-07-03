@@ -4,6 +4,7 @@ import { WandSparkles } from "lucide-astro";
 const {
   latestTitle = "Latest note",
   latestUrl = "/archive/",
+  latestPubDate = "",
   postCount = 0,
   tagCount = 0,
 } = Astro.props;
@@ -21,15 +22,15 @@ const {
   </div>
 
   <div class="story-actions" aria-label="Homepage actions">
-    <a class="story-latest" href={latestUrl}>
+    <a class="story-latest" href={latestUrl} data-home-latest data-latest-pub-date={latestPubDate}>
       <span>Latest</span>
-      <strong>{latestTitle}</strong>
+      <strong data-home-latest-title>{latestTitle}</strong>
     </a>
-    <a class="story-pill" href="/archive/">
+    <a class="story-pill" href="/archive/" data-home-post-count data-static-count={postCount}>
       <span>{postCount}</span>
       <strong>Posts</strong>
     </a>
-    <a class="story-pill" href="/tags/">
+    <a class="story-pill" href="/tags/" data-home-tag-count data-static-count={tagCount}>
       <span>{tagCount}</span>
       <strong>Topics</strong>
     </a>

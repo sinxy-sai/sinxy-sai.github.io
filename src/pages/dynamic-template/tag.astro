@@ -1,0 +1,19 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="__D1_TAG_TITLE__"
+  description="与 __D1_TAG_TITLE__ 相关的文章。"
+  robots="noindex, nofollow"
+>
+  <section>
+    <p class="section-kicker">Tag</p>
+    <h1 class="page-title">__D1_TAG_TITLE__</h1>
+    <p class="page-description">这里收录了 __D1_TAG_COUNT__ 篇与 __D1_TAG_TITLE__ 相关的动态文章。</p>
+  </section>
+
+  <section class="post-list" style="margin-top: 36px">
+    __D1_TAG_POSTS__
+  </section>
+</BaseLayout>
