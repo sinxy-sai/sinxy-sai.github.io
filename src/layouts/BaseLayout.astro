@@ -1,6 +1,7 @@
 ---
 import { Archive, Home, Moon, Rss, Search, Sun, Tags, User } from "lucide-astro";
 import AmbientFlow from "../components/AmbientFlow.astro";
+import CornerPet from "../components/CornerPet.astro";
 import "katex/dist/katex.min.css";
 
 interface Props {
@@ -80,6 +81,7 @@ const imageUrl = new URL(image, Astro.site ?? Astro.url).toString();
   </head>
   <body>
     <AmbientFlow />
+    <CornerPet />
 
     <header class="site-header">
       <a class="brand" href="/" aria-label="返回首页">

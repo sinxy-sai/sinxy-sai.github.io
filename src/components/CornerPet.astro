@@ -1,0 +1,394 @@
+<div class="corner-pet" data-corner-pet>
+  <div class="corner-pet-bubble" data-pet-bubble aria-live="polite">我在。</div>
+  <button class="corner-pet-button" type="button" data-pet-button aria-label="和角落小狗互动">
+    <span class="corner-pet-aura" aria-hidden="true"></span>
+    <span class="corner-pet-stage" aria-hidden="true">
+      <span class="corner-pet-sprite" data-pet-sprite></span>
+      <span class="corner-pet-zzz">Z</span>
+    </span>
+    <span class="corner-pet-shadow" aria-hidden="true"></span>
+  </button>
+</div>
+
+<script>
+  const pet = document.querySelector("[data-corner-pet]");
+  const petButton = document.querySelector("[data-pet-button]");
+  const petBubble = document.querySelector("[data-pet-bubble]");
+  const petSprite = document.querySelector("[data-pet-sprite]");
+
+  if (
+    pet instanceof HTMLElement &&
+    petButton instanceof HTMLButtonElement &&
+    petBubble instanceof HTMLElement &&
+    petSprite instanceof HTMLElement
+  ) {
+    const animations = {
+      idle: { file: "/pet-clean/idle.png", frames: 8, fps: 8, loop: true },
+      happy: { file: "/pet-clean/happy.png", frames: 8, fps: 11, loop: false, next: "idle" },
+      sleep: { file: "/pet-clean/sleep.png", frames: 8, fps: 6, loop: true },
+      tap: { file: "/pet-clean/tap.png", frames: 6, fps: 12, loop: false, next: "idle" },
+      wake: { file: "/pet-clean/wake.png", frames: 6, fps: 10, loop: false, next: "idle" },
+    };
+    const messages = [
+      "我在。",
+      "刚刚巡逻了一圈。",
+      "拖动画布会开花。",
+      "写文章前先摸摸我。",
+      "今天也要整理笔记。",
+      "夜间模式适合安静阅读。",
+    ];
+
+    let currentAnimation = "idle";
+    let currentFrame = 0;
+    let lastFrameAt = performance.now();
+    let messageIndex = 0;
+    let clickIndex = 0;
+    let sleepTimer = 0;
+    let bubbleTimer = 0;
+
+    function setFrame(frame) {
+      const animation = animations[currentAnimation];
+      const progress = animation.frames <= 1 ? 0 : frame / (animation.frames - 1);
+
+      petSprite.style.backgroundPosition = `${progress * 100}% 0`;
+    }
+
+    function setAnimation(name, shouldRestart = true) {
+      if (!animations[name]) return;
+      if (currentAnimation === name && !shouldRestart) return;
+
+      currentAnimation = name;
+      currentFrame = 0;
+      lastFrameAt = performance.now();
+
+      const animation = animations[name];
+      pet.dataset.animation = name;
+      petSprite.style.backgroundImage = `url("${animation.file}")`;
+      petSprite.style.backgroundSize = `${animation.frames * 100}% 100%`;
+      setFrame(0);
+    }
+
+    function animate(now) {
+      const animation = animations[currentAnimation];
+      const frameDuration = 1000 / animation.fps;
+
+      if (now - lastFrameAt >= frameDuration) {
+        const steps = Math.floor((now - lastFrameAt) / frameDuration);
+        lastFrameAt += steps * frameDuration;
+        currentFrame += steps;
+
+        if (currentFrame >= animation.frames) {
+          if (animation.loop) {
+            currentFrame %= animation.frames;
+          } else {
+            const nextAnimation = animation.next ?? "idle";
+            setAnimation(nextAnimation);
+            window.requestAnimationFrame(animate);
+            return;
+          }
+        }
+
+        setFrame(currentFrame);
+      }
+
+      window.requestAnimationFrame(animate);
+    }
+
+    function scheduleSleep() {
+      window.clearTimeout(sleepTimer);
+      sleepTimer = window.setTimeout(() => {
+        setAnimation("sleep");
+      }, 18000);
+    }
+
+    function wakePet() {
+      if (currentAnimation === "sleep") {
+        setAnimation("wake");
+      }
+      scheduleSleep();
+    }
+
+    function showMessage(message) {
+      petBubble.textContent = message;
+      pet.dataset.bubble = "visible";
+      window.clearTimeout(bubbleTimer);
+      bubbleTimer = window.setTimeout(() => {
+        pet.dataset.bubble = "hidden";
+      }, 4200);
+    }
+
+    function createSpark(count = 5) {
+      for (let index = 0; index < count; index += 1) {
+        const spark = document.createElement("span");
+        spark.className = "corner-pet-spark";
+        spark.style.setProperty("--spark-x", `${Math.random() * 58 - 12}px`);
+        spark.style.setProperty("--spark-y", `${Math.random() * -50 - 18}px`);
+        spark.style.setProperty("--spark-delay", `${index * 34}ms`);
+        petButton.append(spark);
+        window.setTimeout(() => spark.remove(), 900 + index * 34);
+      }
+    }
+
+    pet.dataset.bubble = "hidden";
+    setAnimation("idle");
+    scheduleSleep();
+    window.requestAnimationFrame(animate);
+
+    petButton.addEventListener("click", () => {
+      wakePet();
+      messageIndex = (messageIndex + 1) % messages.length;
+      clickIndex += 1;
+      showMessage(messages[messageIndex]);
+      setAnimation(clickIndex % 2 === 0 ? "happy" : "tap");
+      createSpark(clickIndex % 2 === 0 ? 8 : 5);
+    });
+
+    petButton.addEventListener("pointerenter", () => {
+      wakePet();
+      pet.dataset.hover = "true";
+      showMessage(messages[messageIndex]);
+    });
+
+    petButton.addEventListener("pointerleave", () => {
+      pet.dataset.hover = "false";
+      pet.style.setProperty("--pet-tilt", "0deg");
+      pet.style.setProperty("--pet-lift", "0px");
+    });
+
+    window.addEventListener("pointermove", (event) => {
+      const rect = petButton.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const distance = Math.hypot(event.clientX - centerX, event.clientY - centerY);
+
+      if (distance < 250) {
+        wakePet();
+        const tilt = Math.max(-8, Math.min(8, (event.clientX - centerX) / 28));
+        const lift = Math.max(0, 1 - distance / 250) * 7;
+        pet.style.setProperty("--pet-tilt", `${tilt}deg`);
+        pet.style.setProperty("--pet-lift", `${lift}px`);
+      }
+    }, { passive: true });
+  }
+</script>
+
+<style>
+  .corner-pet {
+    --pet-tilt: 0deg;
+    --pet-lift: 0px;
+    position: fixed;
+    left: max(12px, env(safe-area-inset-left));
+    bottom: max(12px, env(safe-area-inset-bottom));
+    z-index: 24;
+    display: grid;
+    justify-items: start;
+    gap: 8px;
+    pointer-events: none;
+  }
+
+  .corner-pet-button {
+    position: relative;
+    display: grid;
+    width: 122px;
+    height: 122px;
+    place-items: center;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    pointer-events: auto;
+    transform: translateY(calc(var(--pet-lift) * -1)) rotate(var(--pet-tilt));
+    transform-origin: 50% 82%;
+    transition:
+      filter 180ms ease,
+      transform 180ms ease;
+  }
+
+  .corner-pet-button:hover {
+    filter: drop-shadow(0 18px 28px rgba(74, 116, 98, 0.18));
+  }
+
+  .corner-pet-stage {
+    position: relative;
+    z-index: 2;
+    display: block;
+    width: 112px;
+    height: 112px;
+    border-radius: 30px;
+    overflow: visible;
+    transform-origin: 50% 86%;
+    transition: transform 180ms ease;
+  }
+
+  .corner-pet[data-hover="true"] .corner-pet-stage {
+    transform: translateY(-5px) scale(1.03);
+  }
+
+  .corner-pet-sprite {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background-repeat: no-repeat;
+    image-rendering: auto;
+    filter: drop-shadow(0 16px 18px rgba(42, 66, 58, 0.16));
+  }
+
+  .corner-pet-aura {
+    position: absolute;
+    inset: 4px;
+    z-index: 0;
+    border-radius: 34px;
+    background: radial-gradient(circle, rgba(117, 201, 165, 0.18), transparent 70%);
+    opacity: 0.72;
+    animation: pet-aura 3.8s ease-in-out infinite;
+  }
+
+  .corner-pet-shadow {
+    position: absolute;
+    right: 24px;
+    bottom: 6px;
+    left: 24px;
+    z-index: 0;
+    height: 14px;
+    border-radius: 999px;
+    background: rgba(42, 66, 58, 0.17);
+    filter: blur(8px);
+    transform: scaleX(0.98);
+  }
+
+  .corner-pet-bubble {
+    max-width: min(230px, calc(100vw - 36px));
+    border: 1px solid rgba(117, 201, 165, 0.28);
+    border-radius: 16px 16px 16px 6px;
+    background: rgba(255, 255, 250, 0.92);
+    color: var(--text);
+    padding: 9px 12px;
+    box-shadow: 0 14px 34px rgba(74, 116, 98, 0.12);
+    font-size: 0.86rem;
+    font-weight: 720;
+    line-height: 1.35;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(6px) scale(0.96);
+    transform-origin: left bottom;
+    transition:
+      opacity 180ms ease,
+      transform 180ms ease;
+    backdrop-filter: blur(16px);
+  }
+
+  .corner-pet[data-bubble="visible"] .corner-pet-bubble {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  .corner-pet-zzz {
+    position: absolute;
+    top: 8px;
+    right: 14px;
+    z-index: 4;
+    color: var(--accent-strong);
+    font-size: 0.82rem;
+    font-weight: 900;
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  .corner-pet[data-animation="sleep"] .corner-pet-zzz {
+    animation: pet-zzz 2.6s ease-in-out infinite;
+  }
+
+  .corner-pet-spark {
+    position: absolute;
+    top: 42px;
+    left: 70px;
+    z-index: 5;
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255, 217, 138, 0.95);
+    box-shadow: 0 0 14px rgba(255, 217, 138, 0.72);
+    animation: pet-spark 820ms ease-out var(--spark-delay) forwards;
+    pointer-events: none;
+  }
+
+  html[data-theme="dark"] .corner-pet-bubble {
+    border-color: rgba(136, 216, 184, 0.24);
+    background: rgba(20, 31, 27, 0.9);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
+  }
+
+  html[data-theme="dark"] .corner-pet-aura {
+    background: radial-gradient(circle, rgba(136, 216, 184, 0.16), transparent 70%);
+  }
+
+  html[data-theme="dark"] .corner-pet-sprite {
+    filter: drop-shadow(0 16px 18px rgba(0, 0, 0, 0.28));
+  }
+
+  @keyframes pet-aura {
+    0%,
+    100% {
+      opacity: 0.44;
+      transform: scale(0.94);
+    }
+
+    50% {
+      opacity: 0.86;
+      transform: scale(1.04);
+    }
+  }
+
+  @keyframes pet-zzz {
+    0% {
+      opacity: 0;
+      transform: translate(0, 5px) scale(0.84);
+    }
+
+    30%,
+    64% {
+      opacity: 0.86;
+    }
+
+    100% {
+      opacity: 0;
+      transform: translate(10px, -14px) scale(1.12);
+    }
+  }
+
+  @keyframes pet-spark {
+    0% {
+      opacity: 0;
+      transform: translate(0, 0) scale(0.4);
+    }
+
+    24% {
+      opacity: 1;
+    }
+
+    100% {
+      opacity: 0;
+      transform: translate(var(--spark-x), var(--spark-y)) scale(1.2);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .corner-pet-aura,
+    .corner-pet-zzz,
+    .corner-pet-spark {
+      animation: none !important;
+    }
+
+    .corner-pet-button,
+    .corner-pet-stage,
+    .corner-pet-bubble {
+      transition-duration: 0.01ms;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .corner-pet {
+      transform: scale(0.78);
+      transform-origin: left bottom;
+    }
+  }
+</style>
