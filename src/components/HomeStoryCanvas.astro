@@ -1,4 +1,6 @@
 ---
+import { WandSparkles } from "lucide-astro";
+
 const {
   latestTitle = "Latest note",
   latestUrl = "/archive/",
@@ -14,10 +16,7 @@ const {
       <h1 id="story-title" class="story-sr-title">Sinxy Sai's Blog</h1>
     </div>
     <div class="story-hint" aria-label="Drag to grow a thought path" role="img">
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M4 18c4.6-7.2 9.1 2.2 13.5-5.2" />
-        <path d="m15 4 5 5-7.2 7.2-4.4 1.2 1.2-4.4L15 4Z" />
-      </svg>
+      <WandSparkles size={21} aria-hidden="true" />
     </div>
   </div>
 
