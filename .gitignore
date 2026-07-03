@@ -10,6 +10,7 @@ dist/
 
 # Local AI/tooling workspace
 .agents/
+skills-lock.json
 
 # Local temporary files and verification artifacts
 tmp/
