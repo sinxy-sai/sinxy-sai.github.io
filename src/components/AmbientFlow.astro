@@ -63,8 +63,8 @@
           wash.addColorStop(0.36, "rgba(77, 120, 172, 0.07)");
           wash.addColorStop(1, "rgba(11, 18, 16, 0)");
         } else {
-          wash.addColorStop(0, "rgba(255, 220, 146, 0.18)");
-          wash.addColorStop(0.42, "rgba(118, 207, 194, 0.10)");
+          wash.addColorStop(0, "rgba(255, 220, 146, 0.24)");
+          wash.addColorStop(0.42, "rgba(118, 207, 194, 0.16)");
           wash.addColorStop(1, "rgba(255, 255, 255, 0)");
         }
 
@@ -81,13 +81,15 @@
           state.width * 0.42,
         );
 
-        sideGlow.addColorStop(0, theme === "dark" ? "rgba(136, 216, 184, 0.10)" : "rgba(246, 182, 200, 0.13)");
+        sideGlow.addColorStop(0, theme === "dark" ? "rgba(136, 216, 184, 0.10)" : "rgba(246, 182, 200, 0.2)");
         sideGlow.addColorStop(1, "rgba(255, 255, 255, 0)");
         context.fillStyle = sideGlow;
         context.fillRect(0, 0, state.width, state.height);
       }
 
       function drawRibbons(theme, elapsed) {
+        if (theme === "light") return;
+
         const lineCount = Math.max(8, Math.min(15, Math.floor(state.height / 78)));
         const speed = 1 + state.scrollEnergy * 0.55;
         const pointerPull = state.pointer.active ? 1 : 0.45;
@@ -98,7 +100,7 @@
         for (let line = 0; line < lineCount; line += 1) {
           const baseY = state.height * (0.16 + line * 0.075);
           const phase = elapsed * 0.00013 * speed + line * 0.68;
-          const alpha = theme === "dark" ? 0.105 : 0.07;
+          const alpha = theme === "dark" ? 0.105 : 0.12;
           const gradient = context.createLinearGradient(0, 0, state.width, 0);
 
           if (theme === "dark") {
@@ -141,6 +143,30 @@
         context.restore();
       }
 
+      function drawDayGlints(theme, elapsed) {
+        if (theme !== "light") return;
+
+        context.save();
+        context.globalCompositeOperation = "multiply";
+
+        for (let index = 0; index < 9; index += 1) {
+          const phase = elapsed * 0.00018 + index * 0.84;
+          const x = state.width * (0.08 + ((index * 0.137 + Math.sin(phase) * 0.02) % 0.86));
+          const y = state.height * (0.12 + ((index * 0.211 + Math.cos(phase * 1.4) * 0.035) % 0.78));
+          const radius = 80 + Math.sin(phase * 1.7) * 22 + (index % 3) * 28;
+          const alpha = 0.035 + (index % 4) * 0.007;
+          const glow = context.createRadialGradient(x, y, 0, x, y, radius);
+
+          glow.addColorStop(0, `rgba(75, 157, 142, ${alpha})`);
+          glow.addColorStop(0.48, `rgba(241, 185, 152, ${alpha * 0.54})`);
+          glow.addColorStop(1, "rgba(255, 255, 255, 0)");
+          context.fillStyle = glow;
+          context.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+        }
+
+        context.restore();
+      }
+
       function drawMotes(theme, elapsed) {
         context.save();
         context.globalCompositeOperation = "screen";
@@ -156,9 +182,9 @@
           }
 
           const pulse = 0.65 + Math.sin(elapsed * 0.0014 + mote.phase) * 0.35;
-          const alpha = (theme === "dark" ? 0.24 : 0.16) * pulse;
+          const alpha = (theme === "dark" ? 0.24 : 0.24) * pulse;
 
-          context.fillStyle = `hsla(${mote.hue}, 68%, ${theme === "dark" ? 72 : 48}%, ${alpha})`;
+          context.fillStyle = `hsla(${mote.hue}, 72%, ${theme === "dark" ? 72 : 42}%, ${alpha})`;
           context.beginPath();
           context.arc(mote.x, mote.y, mote.size * pulse, 0, Math.PI * 2);
           context.fill();
@@ -177,6 +203,7 @@
 
         context.clearRect(0, 0, state.width, state.height);
         drawSoftWash(theme, elapsed);
+        drawDayGlints(theme, elapsed);
         drawRibbons(theme, elapsed);
         drawMotes(theme, elapsed);
 

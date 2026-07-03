@@ -279,7 +279,7 @@ const {
       }
 
       function drawSegmentedOutline(theme, elapsed) {
-        const intro = prefersReducedMotion ? 1 : clamp01((elapsed - 1400) / 2700);
+        const intro = prefersReducedMotion ? 1 : clamp01((elapsed - 1000) / 2700);
         if (intro <= 0) return;
 
         context.save();
@@ -314,7 +314,7 @@ const {
       }
 
       function drawTargetGhosts(theme, elapsed) {
-        const intro = prefersReducedMotion ? 1 : clamp01((elapsed - 1750) / 2300);
+        const intro = prefersReducedMotion ? 1 : clamp01((elapsed - 1200) / 2300);
         if (intro <= 0) return;
 
         context.save();
