@@ -7,15 +7,7 @@ const tags = getAllTags(posts);
 ---
 
 <BaseLayout title="标签" description="按主题浏览 Sinxy Sai 的博客文章。">
-  <section>
-    <p class="section-kicker">Tags</p>
-    <h1 class="page-title">按主题阅读</h1>
-    <p class="page-description">
-      有些问题会在不同文章里反复出现。标签把这些线索放在一起，方便以后继续补充、修正和连接。
-    </p>
-  </section>
-
-  <section class="tag-list" style="margin-top: 36px">
+  <section class="tag-list">
     {
       tags.map(([tag, count]) => (
         <a class="tag" href={`/tags/${encodeURIComponent(tag)}/`}>

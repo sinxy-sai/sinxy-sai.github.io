@@ -6,14 +6,6 @@ const posts = await getPublishedPosts();
 ---
 
 <BaseLayout title="归档" description="Sinxy Sai 的博客文章归档。">
-  <section>
-    <p class="section-kicker">Archive</p>
-    <h1 class="page-title">所有文章</h1>
-    <p class="page-description">
-      按时间顺序保存下来的笔记和文章。新的记录在前面，旧的想法也尽量留在原处，方便回看当时的思路。
-    </p>
-  </section>
-
   <section class="archive-list">
     {
       posts.map((post) => (
