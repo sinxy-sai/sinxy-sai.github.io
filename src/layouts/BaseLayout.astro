@@ -1548,6 +1548,25 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
     line-height: 1.08;
   }
 
+  .article-origin-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    border: 1px solid rgba(117, 201, 165, 0.3);
+    border-radius: 999px;
+    background: rgba(223, 244, 233, 0.72);
+    color: var(--accent-strong);
+    font-size: 0.78rem;
+    font-weight: 800;
+    padding: 4px 10px;
+  }
+
+  html[data-theme="dark"] .article-origin-badge {
+    border-color: rgba(136, 216, 184, 0.34);
+    background: rgba(31, 55, 48, 0.88);
+    color: #d8f7e9;
+  }
+
   .prose {
     margin-top: 34px;
     font-size: 1.06rem;
@@ -1590,6 +1609,25 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
   .prose code {
     font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
     font-size: 0.92em;
+  }
+
+  .creation-statement {
+    margin-top: 34px;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    background: var(--surface-control);
+    padding: 16px 18px;
+  }
+
+  .creation-statement strong {
+    color: var(--accent-strong);
+    font-size: 0.9rem;
+  }
+
+  .creation-statement p {
+    margin: 6px 0 0;
+    color: var(--muted);
+    line-height: 1.7;
   }
 
   .archive-list {

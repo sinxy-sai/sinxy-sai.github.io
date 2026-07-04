@@ -45,6 +45,7 @@ interface Env {
       };
       customMetadata?: Record<string, string>;
     } | null>;
+    delete(key: string): Promise<unknown>;
   };
   ADMIN_TOKEN?: string;
 }
@@ -197,6 +198,9 @@ interface PostListRow {
 
 interface PostDetailRow extends PostListRow {
   contentMarkdown: string;
+  contentOrigin: "ORIGINAL" | "REPOST" | "TRANSLATION";
+  creationStatement: "NONE" | "AI_ASSISTED" | "AGGREGATED" | "PERSONAL_VIEW";
+  visibility: "PUBLIC" | "PRIVATE";
 }
 
 interface SearchPostRow extends PostDetailRow {
@@ -207,6 +211,9 @@ interface AdminPostRow extends PostDetailRow {
   id: string;
   status: "DRAFT" | "PUBLISHED";
   coverAssetId: string | null;
+  contentOrigin: "ORIGINAL" | "REPOST" | "TRANSLATION";
+  creationStatement: "NONE" | "AI_ASSISTED" | "AGGREGATED" | "PERSONAL_VIEW";
+  visibility: "PUBLIC" | "PRIVATE";
   createdAt: string;
   updatedAt: string;
 }
@@ -568,6 +575,38 @@ function normalizeStatus(value: unknown) {
   return value;
 }
 
+function normalizeContentOrigin(value: unknown) {
+  if (value === undefined || value === null) return "ORIGINAL";
+  if (value !== "ORIGINAL" && value !== "REPOST" && value !== "TRANSLATION") {
+    throw new Error("contentOrigin must be ORIGINAL, REPOST, or TRANSLATION.");
+  }
+
+  return value;
+}
+
+function normalizeCreationStatement(value: unknown) {
+  if (value === undefined || value === null) return "NONE";
+  if (
+    value !== "NONE" &&
+    value !== "AI_ASSISTED" &&
+    value !== "AGGREGATED" &&
+    value !== "PERSONAL_VIEW"
+  ) {
+    throw new Error("creationStatement is invalid.");
+  }
+
+  return value;
+}
+
+function normalizeVisibility(value: unknown) {
+  if (value === undefined || value === null) return "PUBLIC";
+  if (value !== "PUBLIC" && value !== "PRIVATE") {
+    throw new Error("visibility must be PUBLIC or PRIVATE.");
+  }
+
+  return value;
+}
+
 function normalizeTags(value: unknown) {
   if (value === undefined || value === null) return undefined;
   if (!Array.isArray(value)) {
@@ -590,6 +629,35 @@ function normalizeTags(value: unknown) {
   }
 
   return tags;
+}
+
+let postPublishingColumnsEnsurePromise: Promise<void> | null = null;
+
+async function ensurePostPublishingColumns(env: Env) {
+  if (!postPublishingColumnsEnsurePromise) {
+    postPublishingColumnsEnsurePromise = (async () => {
+      const { results } = await env.sinxy_sai_blog_db
+        .prepare("PRAGMA table_info(posts)")
+        .all<{ name: string }>();
+      const columns = new Set(results.map((column) => column.name));
+      const missingColumns = [
+        ["content_origin", "TEXT NOT NULL DEFAULT 'ORIGINAL'"],
+        ["creation_statement", "TEXT NOT NULL DEFAULT 'NONE'"],
+        ["visibility", "TEXT NOT NULL DEFAULT 'PUBLIC'"],
+      ].filter(([name]) => !columns.has(name));
+
+      for (const [name, definition] of missingColumns) {
+        await env.sinxy_sai_blog_db
+          .prepare(`ALTER TABLE posts ADD COLUMN ${name} ${definition}`)
+          .run();
+      }
+    })().catch((error) => {
+      postPublishingColumnsEnsurePromise = null;
+      throw error;
+    });
+  }
+
+  return postPublishingColumnsEnsurePromise;
 }
 
 async function readJsonBody(request: Request) {
@@ -733,10 +801,24 @@ function buildPostHtml(post: PostDetailRow) {
       .meta {
         display: flex;
         flex-wrap: wrap;
+        align-items: center;
         gap: 10px 14px;
         margin-top: 22px;
         color: var(--muted);
         font-size: 0.94rem;
+      }
+
+      .article-origin-badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 28px;
+        border: 1px solid rgba(76, 143, 123, 0.28);
+        border-radius: 999px;
+        background: rgba(223, 244, 233, 0.68);
+        color: var(--accent);
+        font-size: 0.8rem;
+        font-weight: 760;
+        padding: 4px 10px;
       }
 
       .tags {
@@ -798,6 +880,24 @@ function buildPostHtml(post: PostDetailRow) {
         color: inherit;
       }
 
+      .creation-statement {
+        margin-top: 34px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: rgba(223, 244, 233, 0.46);
+        padding: 16px 18px;
+      }
+
+      .creation-statement strong {
+        color: var(--accent);
+        font-size: 0.9rem;
+      }
+
+      .creation-statement p {
+        margin: 6px 0 0;
+        color: var(--muted);
+      }
+
       .back-link {
         display: inline-flex;
         margin-top: 28px;
@@ -826,6 +926,7 @@ function buildPostHtml(post: PostDetailRow) {
           <h1>${title}</h1>
           <p class="description">${description}</p>
           <div class="meta">
+            ${renderContentOriginBadge(post)}
             <time datetime="${escapeHtml(post.pubDate)}">${formatDate(post.pubDate)}</time>
             ${post.updatedDate ? `<span>最后编辑于 ${formatDate(post.updatedDate)}</span>` : ""}
           </div>
@@ -838,6 +939,7 @@ function buildPostHtml(post: PostDetailRow) {
           }
         </header>
         <div class="content">${content}</div>
+        ${renderCreationStatement(post)}
         <a class="back-link" href="/archive/">返回归档</a>
       </article>
     </main>
@@ -1046,6 +1148,43 @@ function renderTagLinks(tags: string[]) {
     .join("");
 }
 
+function getContentOriginLabel(value: PostDetailRow["contentOrigin"]) {
+  const labels = {
+    ORIGINAL: "原创",
+    REPOST: "转载",
+    TRANSLATION: "翻译",
+  };
+
+  return labels[value] || labels.ORIGINAL;
+}
+
+function getCreationStatementLabel(value: PostDetailRow["creationStatement"]) {
+  const labels = {
+    NONE: "",
+    AI_ASSISTED: "部分内容由 AI 辅助生成。",
+    AGGREGATED: "内容来源网络，进行整合/再创作。",
+    PERSONAL_VIEW: "个人观点，仅供参考。",
+  };
+
+  return labels[value] || "";
+}
+
+function renderContentOriginBadge(post: PostDetailRow) {
+  return `<span class="article-origin-badge">${escapeHtml(getContentOriginLabel(post.contentOrigin))}</span>`;
+}
+
+function renderCreationStatement(post: PostDetailRow) {
+  const statement = getCreationStatementLabel(post.creationStatement);
+  if (!statement) return "";
+
+  return `
+    <aside class="creation-statement" aria-label="创作声明">
+      <strong>创作声明</strong>
+      <p>${escapeHtml(statement)}</p>
+    </aside>
+  `;
+}
+
 function renderArticleToc(headings: RenderedHeading[]) {
   const tocHeadings = headings.filter((heading) => heading.depth >= 2 && heading.depth <= 3);
 
@@ -1108,10 +1247,12 @@ async function buildPostHtmlFromTemplate(post: PostDetailRow, request: Request, 
     "__D1_POST_PUBLISHED_TIME__": escapeHtml(post.pubDate),
     "__D1_POST_DATE__": formatDate(post.pubDate),
     "__D1_POST_UPDATED__": updated,
+    "__D1_POST_ORIGIN__": renderContentOriginBadge(post),
     "__D1_POST_TAGS__": renderTagLinks(tags),
     "__D1_POST_LAYOUT_CLASS__": toc ? "has-toc" : "no-toc",
     "__D1_POST_TOC__": toc,
     "__D1_POST_CONTENT__": renderedPost.html,
+    "__D1_POST_CREATION_STATEMENT__": renderCreationStatement(post),
     "__D1_POST_NAV__": renderPostNavigation(publishedPosts, post.slug),
     "https://sinxy-sai.github.io/dynamic-template/post/": publicUrl,
     "/dynamic-template/post/": `/blog/${post.slug}/`,
@@ -1174,6 +1315,7 @@ async function getPublishedPostList(env: Env) {
         LEFT JOIN post_tags ON post_tags.post_id = posts.id
         LEFT JOIN tags ON tags.id = post_tags.tag_id
         WHERE posts.status = 'PUBLISHED'
+          AND posts.visibility = 'PUBLIC'
         GROUP BY posts.id
         ORDER BY posts.pub_date DESC
       `,
@@ -1340,6 +1482,7 @@ async function handleSearch(request: Request, env: Env) {
           LEFT JOIN post_tags all_post_tags ON all_post_tags.post_id = posts.id
           LEFT JOIN tags ON tags.id = all_post_tags.tag_id
           WHERE posts.status = 'PUBLISHED'
+            AND posts.visibility = 'PUBLIC'
             AND (
               posts.title LIKE ? ESCAPE '\\'
               OR posts.description LIKE ? ESCAPE '\\'
@@ -1391,6 +1534,9 @@ function normalizeAdminPost(row: AdminPostRow) {
     tags: row.tags ? row.tags.split(",").filter(Boolean) : [],
     coverAssetId: row.coverAssetId,
     coverAssetKey: row.coverAssetKey,
+    contentOrigin: row.contentOrigin || "ORIGINAL",
+    creationStatement: row.creationStatement || "NONE",
+    visibility: row.visibility || "PUBLIC",
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     url: `/blog/${row.slug}/`,
@@ -1411,6 +1557,9 @@ async function getAdminPostById(id: string, env: Env) {
           posts.pub_date AS pubDate,
           posts.updated_at AS updatedDate,
           posts.cover_asset_id AS coverAssetId,
+          posts.content_origin AS contentOrigin,
+          posts.creation_statement AS creationStatement,
+          posts.visibility,
           assets.r2_key AS coverAssetKey,
           posts.created_at AS createdAt,
           posts.updated_at AS updatedAt,
@@ -1443,6 +1592,9 @@ async function listAdminPosts(env: Env) {
           posts.pub_date AS pubDate,
           posts.updated_at AS updatedDate,
           posts.cover_asset_id AS coverAssetId,
+          posts.content_origin AS contentOrigin,
+          posts.creation_statement AS creationStatement,
+          posts.visibility,
           assets.r2_key AS coverAssetKey,
           posts.created_at AS createdAt,
           posts.updated_at AS updatedAt,
@@ -1511,6 +1663,9 @@ async function handleCreateAdminPost(request: Request, env: Env) {
     );
     const pubDate = body.pubDate ? asIsoDate(body.pubDate, "pubDate") : new Date().toISOString();
     const coverAssetId = asOptionalString(body.coverAssetId, "coverAssetId", 120);
+    const contentOrigin = normalizeContentOrigin(body.contentOrigin);
+    const creationStatement = normalizeCreationStatement(body.creationStatement);
+    const visibility = normalizeVisibility(body.visibility);
     const tags = normalizeTags(body.tags) ?? [];
 
     if (!slug) {
@@ -1539,8 +1694,11 @@ async function handleCreateAdminPost(request: Request, env: Env) {
             content_markdown,
             cover_asset_id,
             status,
-            pub_date
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            pub_date,
+            content_origin,
+            creation_statement,
+            visibility
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
       )
       .bind(
@@ -1552,6 +1710,9 @@ async function handleCreateAdminPost(request: Request, env: Env) {
         coverAssetId,
         status,
         pubDate,
+        contentOrigin,
+        creationStatement,
+        visibility,
       )
       .run();
 
@@ -1598,6 +1759,16 @@ async function handleUpdateAdminPost(request: Request, env: Env, id: string) {
       body.coverAssetId === undefined
         ? existing.coverAssetId
         : asOptionalString(body.coverAssetId, "coverAssetId", 120);
+    const contentOrigin =
+      body.contentOrigin === undefined
+        ? existing.contentOrigin
+        : normalizeContentOrigin(body.contentOrigin);
+    const creationStatement =
+      body.creationStatement === undefined
+        ? existing.creationStatement
+        : normalizeCreationStatement(body.creationStatement);
+    const visibility =
+      body.visibility === undefined ? existing.visibility : normalizeVisibility(body.visibility);
     const tags = normalizeTags(body.tags);
 
     if (!slug) {
@@ -1627,6 +1798,9 @@ async function handleUpdateAdminPost(request: Request, env: Env, id: string) {
             cover_asset_id = ?,
             status = ?,
             pub_date = ?,
+            content_origin = ?,
+            creation_statement = ?,
+            visibility = ?,
             updated_at = CURRENT_TIMESTAMP
           WHERE id = ?
         `,
@@ -1639,6 +1813,9 @@ async function handleUpdateAdminPost(request: Request, env: Env, id: string) {
         coverAssetId,
         status,
         pubDate,
+        contentOrigin,
+        creationStatement,
+        visibility,
         id,
       )
       .run();
@@ -1767,6 +1944,30 @@ async function listAssets(env: Env) {
   return results.map(normalizeAsset);
 }
 
+async function getAssetById(id: string, env: Env) {
+  const row = await env.sinxy_sai_blog_db
+    .prepare(
+      `
+        SELECT
+          id,
+          r2_key AS r2Key,
+          filename,
+          content_type AS contentType,
+          byte_size AS byteSize,
+          width,
+          height,
+          alt,
+          created_at AS createdAt
+        FROM assets
+        WHERE id = ?
+      `,
+    )
+    .bind(id)
+    .first<AssetRow>();
+
+  return row ? normalizeAsset(row) : null;
+}
+
 async function handleAssets(request: Request, env: Env) {
   if (request.method !== "GET") return methodNotAllowed(["GET"]);
 
@@ -1789,6 +1990,9 @@ async function getPublishedPostBySlug(slug: string, env: Env) {
           posts.content_markdown AS contentMarkdown,
           posts.pub_date AS pubDate,
           posts.updated_at AS updatedDate,
+          posts.content_origin AS contentOrigin,
+          posts.creation_statement AS creationStatement,
+          posts.visibility,
           assets.r2_key AS coverAssetKey,
           group_concat(tags.name, ',') AS tags
         FROM posts
@@ -1796,6 +2000,7 @@ async function getPublishedPostBySlug(slug: string, env: Env) {
         LEFT JOIN post_tags ON post_tags.post_id = posts.id
         LEFT JOIN tags ON tags.id = post_tags.tag_id
         WHERE posts.status = 'PUBLISHED'
+          AND posts.visibility = 'PUBLIC'
           AND posts.slug = ?
         GROUP BY posts.id
       `,
@@ -1823,6 +2028,7 @@ async function getPublishedPostsByTag(tag: string, env: Env) {
         LEFT JOIN post_tags all_post_tags ON all_post_tags.post_id = posts.id
         LEFT JOIN tags all_tags ON all_tags.id = all_post_tags.tag_id
         WHERE posts.status = 'PUBLISHED'
+          AND posts.visibility = 'PUBLIC'
           AND selected_tags.name = ?
         GROUP BY posts.id
         ORDER BY posts.pub_date DESC
@@ -1952,11 +2158,55 @@ function createAssetKey(filename: string) {
   };
 }
 
-async function handleAdminAssets(request: Request, env: Env) {
-  if (request.method !== "POST") return methodNotAllowed(["POST"]);
+async function handleDeleteAdminAsset(request: Request, env: Env, id: string) {
+  if (request.method !== "DELETE") return methodNotAllowed(["DELETE"]);
 
+  const existing = await getAssetById(id, env);
+  if (!existing) return notFound();
+
+  try {
+    await env.sinxy_sai_blog_db
+      .prepare("UPDATE posts SET cover_asset_id = NULL WHERE cover_asset_id = ?")
+      .bind(id)
+      .run();
+
+    await env.sinxy_sai_blog_db
+      .prepare("DELETE FROM post_assets WHERE asset_id = ?")
+      .bind(id)
+      .run();
+
+    await env.sinxy_sai_blog_db
+      .prepare("DELETE FROM assets WHERE id = ?")
+      .bind(id)
+      .run();
+
+    await env.sinxy_sai_blog_media.delete(existing.r2Key);
+
+    return json({ data: { id, filename: existing.filename } });
+  } catch (error) {
+    console.error("Failed to delete asset", error);
+    return internalError();
+  }
+}
+
+async function handleAdminAssets(request: Request, env: Env) {
   if (!env.ADMIN_TOKEN) return notConfigured("ADMIN_TOKEN secret");
   if (!isAuthorizedAdmin(request, env)) return unauthorized();
+
+  const { pathname } = new URL(request.url);
+  const itemMatch = pathname.match(/^\/api\/admin\/assets\/([^/]+)$/);
+
+  if (itemMatch) {
+    const id = decodeURIComponent(itemMatch[1]);
+    if (request.method === "DELETE") return handleDeleteAdminAsset(request, env, id);
+    return methodNotAllowed(["DELETE"]);
+  }
+
+  if (request.method === "GET") {
+    return json({ data: await listAssets(env) });
+  }
+
+  if (request.method !== "POST") return methodNotAllowed(["GET", "POST"]);
 
   const contentLength = Number(request.headers.get("content-length") ?? "0");
   if (contentLength > maxUploadBytes + 2048) {
@@ -2083,7 +2333,9 @@ function handleApi(request: Request, env: Env) {
   if (pathname === "/api/search") return handleSearch(request, env);
   if (pathname === "/api/assets") return handleAssets(request, env);
   if (pathname === "/api/rss.xml") return handleRss(request, env);
-  if (pathname === "/api/admin/assets") return handleAdminAssets(request, env);
+  if (pathname === "/api/admin/assets" || pathname.startsWith("/api/admin/assets/")) {
+    return handleAdminAssets(request, env);
+  }
   if (pathname === "/api/admin/posts" || pathname.startsWith("/api/admin/posts/")) {
     return handleAdminPosts(request, env);
   }
@@ -2092,8 +2344,20 @@ function handleApi(request: Request, env: Env) {
 }
 
 export default {
-  fetch(request: Request, env: Env) {
+  async fetch(request: Request, env: Env) {
     const { pathname } = new URL(request.url);
+    const usesPosts =
+      pathname === "/rss.xml" ||
+      pathname === "/api/rss.xml" ||
+      pathname === "/api/posts" ||
+      pathname === "/api/search" ||
+      pathname.startsWith("/api/admin/posts") ||
+      pathname.startsWith("/blog/") ||
+      pathname.startsWith("/tags/");
+
+    if (usesPosts) {
+      await ensurePostPublishingColumns(env);
+    }
 
     if (pathname.startsWith("/api/")) {
       return handleApi(request, env);

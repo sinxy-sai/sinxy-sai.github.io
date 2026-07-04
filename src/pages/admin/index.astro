@@ -1,18 +1,21 @@
 ---
 import {
   Bold,
+  ChevronDown,
   Clock3,
   Code2,
+  Columns2,
   Eye,
   FilePlus,
   PanelLeftClose,
   PanelLeftOpen,
-  Heading2,
+  Images,
   ImagePlus,
   Italic,
   KeyRound,
   Link,
   List,
+  ListOrdered,
   PencilLine,
   Quote,
   RefreshCw,
@@ -21,8 +24,10 @@ import {
   Search,
   Send,
   SlidersHorizontal,
+  Strikethrough,
   Trash2,
   Upload,
+  X,
 } from "lucide-astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 ---
@@ -93,6 +98,14 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
             <SlidersHorizontal size={17} aria-hidden="true" />
             <span>设置</span>
           </button>
+          <button class="rail-button" type="button" data-open-media aria-label="打开媒体资源管理" aria-pressed="false">
+            <Images size={17} aria-hidden="true" />
+            <span>媒体</span>
+          </button>
+          <button class="rail-button" type="button" data-open-toc aria-label="打开文章目录" aria-pressed="false">
+            <List size={17} aria-hidden="true" />
+            <span>目录</span>
+          </button>
         </nav>
       </aside>
 
@@ -153,6 +166,46 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
               </label>
             </div>
 
+            <div class="publishing-meta-grid">
+              <fieldset class="settings-choice-group">
+                <legend>文章类型</legend>
+                <label>
+                  <input name="contentOrigin" type="radio" value="ORIGINAL" checked />
+                  原创
+                </label>
+                <label>
+                  <input name="contentOrigin" type="radio" value="REPOST" />
+                  转载
+                </label>
+                <label>
+                  <input name="contentOrigin" type="radio" value="TRANSLATION" />
+                  翻译
+                </label>
+              </fieldset>
+
+              <label class="statement-field">
+                <span>创作声明</span>
+                <select name="creationStatement">
+                  <option value="NONE">无声明</option>
+                  <option value="AI_ASSISTED">部分内容由 AI 辅助生成</option>
+                  <option value="AGGREGATED">内容来源网络，进行整合/再创作</option>
+                  <option value="PERSONAL_VIEW">个人观点，仅供参考</option>
+                </select>
+              </label>
+
+              <fieldset class="settings-choice-group">
+                <legend>可见范围</legend>
+                <label>
+                  <input name="visibility" type="radio" value="PUBLIC" checked />
+                  全部可见
+                </label>
+                <label>
+                  <input name="visibility" type="radio" value="PRIVATE" />
+                  仅我可见
+                </label>
+              </fieldset>
+            </div>
+
             <div class="publish-strip secondary">
               <label>
                 <span>标签</span>
@@ -196,6 +249,58 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
             </section>
           </section>
 
+          <section class="media-view" data-media-view hidden>
+            <div class="settings-head">
+              <div>
+                <p class="section-kicker">Media Library</p>
+                <h2>媒体资源管理</h2>
+              </div>
+              <div class="button-row">
+                <button class="admin-button" type="button" data-refresh-assets>
+                  <RefreshCw size={16} aria-hidden="true" />
+                  刷新
+                </button>
+                <button class="admin-button" type="button" data-open-editor>
+                  <PencilLine size={16} aria-hidden="true" />
+                  返回编辑区
+                </button>
+              </div>
+            </div>
+
+            <div class="media-toolbar">
+              <div class="media-upload-card" data-media-asset-form>
+                <label>
+                  <span>上传文件</span>
+                  <input name="file" type="file" accept="image/jpeg,image/png,image/webp,image/gif" />
+                </label>
+                <label>
+                  <span>替代文本（alt）</span>
+                  <input name="alt" type="text" maxlength="240" placeholder="图片无法显示时的说明文字" />
+                </label>
+                <button class="admin-button primary" type="button" data-upload-media-asset>
+                  <Upload size={16} aria-hidden="true" />
+                  上传文件
+                </button>
+              </div>
+
+              <label class="search-field media-search">
+                <Search size={16} aria-hidden="true" />
+                <input type="search" placeholder="搜索文件名、类型、alt" data-media-filter />
+              </label>
+            </div>
+
+            <div class="media-file-manager">
+              <div class="media-table-head" aria-hidden="true">
+                <span>文件名</span>
+                <span>大小</span>
+                <span>文件类型</span>
+                <span>上传时间</span>
+                <span>操作</span>
+              </div>
+              <div class="media-list" data-media-list></div>
+            </div>
+          </section>
+
           <section class="editor-view" data-editor-view>
             <div class="markdown-toolbar" aria-label="Markdown 快捷工具栏">
               <button class="tool-button" type="button" data-md-action="bold" title="加粗">
@@ -204,36 +309,148 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
               <button class="tool-button" type="button" data-md-action="italic" title="斜体">
                 <Italic size={16} aria-hidden="true" />
               </button>
-              <button class="tool-button" type="button" data-md-action="heading" title="标题">
-                <Heading2 size={16} aria-hidden="true" />
+              <button class="tool-button" type="button" data-md-action="strike" title="删除线">
+                <Strikethrough size={16} aria-hidden="true" />
               </button>
+              <div class="toolbar-menu" data-toolbar-menu>
+                <button class="toolbar-menu-trigger" type="button" data-menu-trigger aria-haspopup="true" aria-expanded="false">
+                  <span class="heading-trigger-label" aria-hidden="true">H</span>
+                  <ChevronDown size={13} aria-hidden="true" />
+                </button>
+                <div class="toolbar-menu-list" data-menu-list hidden>
+                  <button class="heading-option" type="button" data-heading-level="1">一级标题</button>
+                  <button class="heading-option" type="button" data-heading-level="2">二级标题</button>
+                  <button class="heading-option" type="button" data-heading-level="3">三级标题</button>
+                  <button class="heading-option" type="button" data-heading-level="4">四级标题</button>
+                </div>
+              </div>
               <button class="tool-button" type="button" data-md-action="quote" title="引用">
                 <Quote size={16} aria-hidden="true" />
               </button>
-              <button class="tool-button" type="button" data-md-action="list" title="列表">
-                <List size={16} aria-hidden="true" />
-              </button>
-              <button class="tool-button" type="button" data-md-action="code" title="代码块">
-                <Code2 size={16} aria-hidden="true" />
-              </button>
-              <button class="tool-button" type="button" data-md-action="link" title="链接">
+              <div class="toolbar-menu" data-toolbar-menu>
+                <button class="toolbar-menu-trigger" type="button" data-menu-trigger aria-haspopup="true" aria-expanded="false">
+                  <List size={16} aria-hidden="true" />
+                  <ChevronDown size={13} aria-hidden="true" />
+                </button>
+                <div class="toolbar-menu-list" data-menu-list hidden>
+                  <button type="button" data-list-type="unordered">
+                    <List size={16} aria-hidden="true" />
+                    无序列表
+                  </button>
+                  <button type="button" data-list-type="ordered">
+                    <ListOrdered size={16} aria-hidden="true" />
+                    有序列表
+                  </button>
+                </div>
+              </div>
+              <div class="toolbar-menu" data-toolbar-menu>
+                <button class="toolbar-menu-trigger" type="button" data-menu-trigger aria-haspopup="true" aria-expanded="false">
+                  <Code2 size={16} aria-hidden="true" />
+                  <ChevronDown size={13} aria-hidden="true" />
+                </button>
+                <div class="toolbar-menu-list wide" data-menu-list hidden>
+                  <button type="button" data-code-language="text">纯文本</button>
+                  <button type="button" data-code-language="javascript">JavaScript</button>
+                  <button type="button" data-code-language="typescript">TypeScript</button>
+                  <button type="button" data-code-language="html">HTML</button>
+                  <button type="button" data-code-language="css">CSS</button>
+                  <button type="button" data-code-language="bash">Bash</button>
+                  <button type="button" data-code-language="python">Python</button>
+                </div>
+              </div>
+              <button class="tool-button" type="button" data-open-link-dialog title="链接">
                 <Link size={16} aria-hidden="true" />
               </button>
-              <button class="tool-button" type="button" data-insert-cover-image title="插入封面图">
+              <button class="tool-button" type="button" data-open-image-dialog title="插入图片">
                 <ImagePlus size={16} aria-hidden="true" />
               </button>
               <span class="toolbar-spacer"></span>
+              <div class="toolbar-view-mode" role="group" aria-label="编辑预览模式">
+                <button class="view-mode-button" type="button" data-editor-mode-button="markdown" aria-pressed="false">
+                  <Code2 size={16} aria-hidden="true" />
+                  Markdown
+                </button>
+                <button class="view-mode-button is-active" type="button" data-editor-mode-button="compare" aria-pressed="true">
+                  <Columns2 size={16} aria-hidden="true" />
+                  比对
+                </button>
+                <button class="view-mode-button" type="button" data-editor-mode-button="preview" aria-pressed="false">
+                  <Eye size={16} aria-hidden="true" />
+                  预览
+                </button>
+              </div>
               <button class="tool-button text-tool" type="button" data-open-settings title="发布设置">
                 <SlidersHorizontal size={16} aria-hidden="true" />
                 设置
               </button>
-              <span class="preview-badge">
-                <Eye size={15} aria-hidden="true" />
-                实时预览
-              </span>
             </div>
 
-            <div class="editor-split">
+            <dialog class="editor-dialog" data-link-dialog aria-label="插入链接">
+              <div class="dialog-head">
+                <div>
+                  <p class="section-kicker">Link</p>
+                  <h3>插入链接</h3>
+                </div>
+                <button class="icon-button" type="button" data-close-dialog aria-label="关闭链接弹窗">×</button>
+              </div>
+              <div class="dialog-grid">
+                <label>
+                  <span>链接文字</span>
+                  <input name="linkText" type="text" data-link-text placeholder="链接文本" />
+                </label>
+                <label>
+                  <span>链接地址</span>
+                  <input name="linkUrl" type="url" data-link-url placeholder="https://example.com" />
+                </label>
+              </div>
+              <div class="dialog-actions">
+                <button class="admin-button ghost" type="button" data-close-dialog>取消</button>
+                <button class="admin-button primary" type="button" data-insert-link>插入链接</button>
+              </div>
+            </dialog>
+
+            <dialog class="editor-dialog image-dialog" data-image-dialog aria-label="插入图片">
+              <div class="dialog-head">
+                <div>
+                  <p class="section-kicker">Image</p>
+                  <h3>插入图片</h3>
+                </div>
+                <button class="icon-button" type="button" data-close-dialog aria-label="关闭图片弹窗">×</button>
+              </div>
+              <div class="image-insert-grid">
+                <section class="image-insert-card">
+                  <h4>本地上传</h4>
+                  <label>
+                    <span>图片文件</span>
+                    <input data-inline-image-file type="file" accept="image/jpeg,image/png,image/webp,image/gif" />
+                  </label>
+                  <label>
+                    <span>替代文本（alt）</span>
+                    <input data-inline-image-alt type="text" maxlength="240" placeholder="图片无法显示时的说明文字" />
+                  </label>
+                  <small>支持 JPG、JPEG、PNG、WEBP、GIF，单张最大 5MB。</small>
+                  <button class="admin-button primary full" type="button" data-upload-inline-image>
+                    <Upload size={16} aria-hidden="true" />
+                    上传并插入
+                  </button>
+                </section>
+                <section class="image-insert-card">
+                  <h4>链接添加</h4>
+                  <label>
+                    <span>图片地址</span>
+                    <input data-image-url type="url" placeholder="https://example.com/image.png" />
+                  </label>
+                  <label>
+                    <span>替代文本（alt）</span>
+                    <input data-image-alt type="text" maxlength="240" placeholder="图片无法显示时的说明文字" />
+                  </label>
+                  <small>适合已经上传到图床或外部站点的图片。</small>
+                  <button class="admin-button full" type="button" data-insert-image-url>插入链接图片</button>
+                </section>
+              </div>
+            </dialog>
+
+            <div class="editor-split" data-editor-split data-editor-mode="compare">
               <label class="markdown-column">
                 <span>Markdown</span>
                 <textarea name="contentMarkdown" rows="26" required data-markdown-input></textarea>
@@ -253,7 +470,12 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
             <p class="section-kicker">Outline</p>
             <h2>文章目录</h2>
           </div>
-          <span class="preview-badge" data-toc-count>0 节</span>
+          <div class="icon-actions">
+            <span class="preview-badge" data-toc-count>0 节</span>
+            <button class="icon-button" type="button" data-close-toc aria-label="关闭文章目录">
+              <X size={16} aria-hidden="true" />
+            </button>
+          </div>
         </div>
 
         <nav class="toc-list" data-editor-toc></nav>
@@ -294,10 +516,15 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     const statusEl = app?.querySelector("[data-admin-status]");
     const postForm = app?.querySelector("[data-post-form]");
     const assetForm = app?.querySelector("[data-asset-form]");
+    const mediaAssetForm = app?.querySelector("[data-media-asset-form]");
     const postList = app?.querySelector("[data-post-list]");
     const assetList = app?.querySelector("[data-asset-list]");
+    const mediaList = app?.querySelector("[data-media-list]");
+    const mediaFilterInput = app?.querySelector("[data-media-filter]");
     const markdownPreview = app?.querySelector("[data-markdown-preview]");
     const markdownInput = app?.querySelector("[data-markdown-input]");
+    const editorSplit = app?.querySelector("[data-editor-split]");
+    const editorModeButtons = app?.querySelectorAll("[data-editor-mode-button]") || [];
     const tocList = app?.querySelector("[data-editor-toc]");
     const tocCountEl = app?.querySelector("[data-toc-count]");
     const postFilterInput = app?.querySelector("[data-post-filter]");
@@ -311,13 +538,20 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     const clearCoverButton = app?.querySelector("[data-clear-cover]");
     const editorView = app?.querySelector("[data-editor-view]");
     const settingsView = app?.querySelector("[data-settings-view]");
+    const mediaView = app?.querySelector("[data-media-view]");
     const openEditorButtons = app?.querySelectorAll("[data-open-editor]") || [];
     const openSettingsButtons = app?.querySelectorAll("[data-open-settings]") || [];
+    const openMediaButtons = app?.querySelectorAll("[data-open-media]") || [];
+    const openTocButtons = app?.querySelectorAll("[data-open-toc]") || [];
+    const closeTocButton = app?.querySelector("[data-close-toc]");
+    const linkDialog = app?.querySelector("[data-link-dialog]");
+    const imageDialog = app?.querySelector("[data-image-dialog]");
 
     let postsCache = [];
     let assetsCache = [];
     let isSyncingScroll = false;
     let activeWorkspaceView = "editor";
+    let activeEditorMode = "compare";
 
     const setStatus = (message, type = "neutral") => {
       if (!statusEl) return;
@@ -364,10 +598,23 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       }
     }
 
+    function safeMarkdownUrl(value) {
+      const url = String(value || "").trim();
+      if (/^(https?:|\/|\.\/|\.\.\/|#|mailto:)/i.test(url)) return escapeHtml(url);
+      return "#";
+    }
+
     function renderInlineText(value) {
       return escapeHtml(value)
+        .replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (_, alt, url) => (
+          `<img src="${safeMarkdownUrl(url)}" alt="${alt}" loading="lazy" />`
+        ))
+        .replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (_, text, url) => (
+          `<a href="${safeMarkdownUrl(url)}" target="_blank" rel="noreferrer">${text}</a>`
+        ))
         .replace(/`([^`]+)`/g, "<code>$1</code>")
         .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+        .replace(/~~([^~]+)~~/g, "<del>$1</del>")
         .replace(/\*([^*]+)\*/g, "<em>$1</em>");
     }
 
@@ -476,7 +723,10 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       let headingCursor = 0;
       let paragraph = [];
       let code = [];
+      let codeLanguage = "";
       let inCode = false;
+      let listType = "";
+      let listItems = [];
       let displayMath = [];
       let inDisplayMath = false;
 
@@ -487,8 +737,18 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       };
 
       const flushCode = () => {
-        html.push(`<pre><code>${escapeHtml(code.join("\n"))}</code></pre>`);
+        const languageClass = codeLanguage ? ` class="language-${escapeHtml(codeLanguage)}"` : "";
+        html.push(`<pre><code${languageClass}>${escapeHtml(code.join("\n"))}</code></pre>`);
         code = [];
+        codeLanguage = "";
+      };
+
+      const flushList = () => {
+        if (!listItems.length || !listType) return;
+        const tag = listType === "ordered" ? "ol" : "ul";
+        html.push(`<${tag}>${listItems.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join("")}</${tag}>`);
+        listItems = [];
+        listType = "";
       };
 
       const flushDisplayMath = () => {
@@ -497,12 +757,15 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       };
 
       for (const line of String(markdown || "").replace(/\r\n/g, "\n").split("\n")) {
-        if (/^```/.test(line)) {
+        const codeFence = line.match(/^```\s*([A-Za-z0-9_-]+)?\s*$/);
+        if (codeFence) {
           if (inCode) {
             flushCode();
             inCode = false;
           } else {
             flushParagraph();
+            flushList();
+            codeLanguage = codeFence[1] || "";
             inCode = true;
           }
           continue;
@@ -516,6 +779,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
             inDisplayMath = false;
           } else {
             flushParagraph();
+            flushList();
             inDisplayMath = true;
           }
           continue;
@@ -534,12 +798,14 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         const singleLineDisplayMath = trimmed.match(/^\$\$(.+)\$\$$/);
         if (singleLineDisplayMath) {
           flushParagraph();
+          flushList();
           html.push(renderMath(singleLineDisplayMath[1], true));
           continue;
         }
 
         if (!trimmed) {
           flushParagraph();
+          flushList();
           continue;
         }
 
@@ -548,6 +814,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
           const headingText = getPlainHeadingText(heading[2]);
           if (!headingText) continue;
           flushParagraph();
+          flushList();
           const depth = heading[1].length;
           const currentHeading = headings[headingCursor];
           headingCursor += 1;
@@ -556,11 +823,23 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
           continue;
         }
 
+        const unorderedListItem = line.match(/^\s*[-*+]\s+(.+)$/);
+        const orderedListItem = line.match(/^\s*\d+\.\s+(.+)$/);
+        if (unorderedListItem || orderedListItem) {
+          flushParagraph();
+          const nextType = orderedListItem ? "ordered" : "unordered";
+          if (listType && listType !== nextType) flushList();
+          listType = nextType;
+          listItems.push((orderedListItem || unorderedListItem)[1].trim());
+          continue;
+        }
+
         paragraph.push(line.trim());
       }
 
       if (inCode) flushCode();
       if (inDisplayMath) flushDisplayMath();
+      flushList();
       flushParagraph();
       return html.join("");
     }
@@ -611,18 +890,48 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       toggleLibraryButton.setAttribute("aria-pressed", String(isCollapsed));
     }
 
-    function setWorkspaceView(view) {
-      if (!(editorView instanceof HTMLElement) || !(settingsView instanceof HTMLElement)) return;
-      activeWorkspaceView = view === "settings" ? "settings" : "editor";
-      const showSettings = activeWorkspaceView === "settings";
+    function setTocVisible(visible) {
+      if (!app) return;
+      app.classList.toggle("is-toc-collapsed", !visible);
+      openTocButtons.forEach((button) => {
+        button.classList.toggle("is-active", visible);
+        button.setAttribute("aria-pressed", String(visible));
+      });
+    }
 
-      editorView.hidden = showSettings;
+    function closeTocPanel() {
+      if (!app) return;
+      app.classList.add("is-library-collapsed");
+      toggleLibraryButton?.setAttribute("aria-label", "展开文章库");
+      toggleLibraryButton?.setAttribute("aria-pressed", "true");
+      setTocVisible(false);
+    }
+
+    function toggleTocPanel() {
+      if (!app) return;
+      setTocVisible(app.classList.contains("is-toc-collapsed"));
+    }
+
+    function setWorkspaceView(view) {
+      if (
+        !(editorView instanceof HTMLElement) ||
+        !(settingsView instanceof HTMLElement) ||
+        !(mediaView instanceof HTMLElement)
+      ) return;
+      activeWorkspaceView = ["settings", "media"].includes(view) ? view : "editor";
+      const showSettings = activeWorkspaceView === "settings";
+      const showMedia = activeWorkspaceView === "media";
+      const showEditor = activeWorkspaceView === "editor";
+
+      editorView.hidden = !showEditor;
       settingsView.hidden = !showSettings;
+      mediaView.hidden = !showMedia;
       app?.classList.toggle("is-settings-view", showSettings);
+      app?.classList.toggle("is-media-view", showMedia);
 
       openEditorButtons.forEach((button) => {
-        button.classList.toggle("is-active", !showSettings);
-        button.setAttribute("aria-pressed", String(!showSettings));
+        button.classList.toggle("is-active", showEditor);
+        button.setAttribute("aria-pressed", String(showEditor));
       });
 
       openSettingsButtons.forEach((button) => {
@@ -630,7 +939,31 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         button.setAttribute("aria-pressed", String(showSettings));
       });
 
-      if (!showSettings) {
+      openMediaButtons.forEach((button) => {
+        button.classList.toggle("is-active", showMedia);
+        button.setAttribute("aria-pressed", String(showMedia));
+      });
+
+      if (showEditor) {
+        window.requestAnimationFrame(syncPreviewScroll);
+      }
+    }
+
+    function setEditorMode(mode) {
+      const safeMode = ["markdown", "compare", "preview"].includes(mode) ? mode : "compare";
+      activeEditorMode = safeMode;
+
+      if (editorSplit instanceof HTMLElement) {
+        editorSplit.dataset.editorMode = safeMode;
+      }
+
+      editorModeButtons.forEach((button) => {
+        const isActive = button.dataset.editorModeButton === safeMode;
+        button.classList.toggle("is-active", isActive);
+        button.setAttribute("aria-pressed", String(isActive));
+      });
+
+      if (safeMode !== "markdown") {
         window.requestAnimationFrame(syncPreviewScroll);
       }
     }
@@ -736,6 +1069,11 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       if (input) input.checked = true;
     }
 
+    function setRadioValue(name, value) {
+      const input = postForm?.querySelector(`input[name="${name}"][value="${value}"]`);
+      if (input) input.checked = true;
+    }
+
     function currentPostId() {
       return postForm?.elements.id.value || "";
     }
@@ -747,6 +1085,9 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       if (postForm?.elements.pubDate) postForm.elements.pubDate.value = localDateTimeValue();
       if (postForm?.elements.updatedAt) postForm.elements.updatedAt.value = "";
       setPostStatus("DRAFT");
+      setRadioValue("contentOrigin", "ORIGINAL");
+      setRadioValue("visibility", "PUBLIC");
+      if (postForm?.elements.creationStatement) postForm.elements.creationStatement.value = "NONE";
       if (deleteButton) deleteButton.hidden = true;
       updateCoverSummary();
       updatePreview();
@@ -760,6 +1101,9 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       postForm.elements.slug.value = post.slug || "";
       postForm.elements.description.value = post.description || "";
       setPostStatus(post.status || "DRAFT");
+      setRadioValue("contentOrigin", post.contentOrigin || "ORIGINAL");
+      setRadioValue("visibility", post.visibility || "PUBLIC");
+      postForm.elements.creationStatement.value = post.creationStatement || "NONE";
       postForm.elements.pubDate.value = postDateTimeInputValue(post.pubDate);
       postForm.elements.updatedAt.value = formatAdminDate(post.updatedAt || post.updatedDate);
       postForm.elements.coverAssetId.value = post.coverAssetId || "";
@@ -786,6 +1130,9 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         description: String(data.get("description") || "").trim(),
         contentMarkdown: String(data.get("contentMarkdown") || ""),
         status: String(data.get("status") || "DRAFT"),
+        contentOrigin: String(data.get("contentOrigin") || "ORIGINAL"),
+        creationStatement: String(data.get("creationStatement") || "NONE"),
+        visibility: String(data.get("visibility") || "PUBLIC"),
         pubDate,
         coverAssetId: String(data.get("coverAssetId") || "").trim() || null,
         tags,
@@ -912,16 +1259,54 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 
     async function loadAssets() {
       try {
-        assetsCache = await readJson(await fetch("/api/assets")) || [];
+        assetsCache = [];
         renderAssets(assetsCache);
+        renderMediaAssets(assetsCache);
+        updateCoverSummary();
+        assetsCache = await readJson(await fetch("/api/admin/assets", {
+          headers: adminHeaders(),
+        })) || [];
+        renderAssets(assetsCache);
+        renderMediaAssets(assetsCache);
         updateCoverSummary();
       } catch (error) {
+        assetsCache = [];
+        renderAssets(assetsCache);
+        renderMediaAssets(assetsCache);
+        updateCoverSummary();
         setStatus(error.message, "error");
       }
     }
 
     function markdownForAsset(asset) {
       return `![${asset.alt || asset.filename}](${asset.url})`;
+    }
+
+    function browserUrlForAsset(asset) {
+      return new URL(asset.url, window.location.origin).href;
+    }
+
+    function formatFileSize(bytes) {
+      const value = Number(bytes) || 0;
+      if (value >= 1024 * 1024) return `${(value / 1024 / 1024).toFixed(2)} MB`;
+      if (value >= 1024) return `${Math.round(value / 1024)} KB`;
+      return `${value} B`;
+    }
+
+    function formatAssetType(asset) {
+      return String(asset.contentType || "").replace(/^image\//, "").toUpperCase() || "FILE";
+    }
+
+    function filterAssets(assets) {
+      const query = String(mediaFilterInput?.value || "").trim().toLocaleLowerCase();
+      if (!query) return assets;
+      return assets.filter((asset) => [
+        asset.filename,
+        asset.alt,
+        asset.contentType,
+        asset.id,
+        asset.r2Key,
+      ].join(" ").toLocaleLowerCase().includes(query));
     }
 
     function insertMarkdown(text) {
@@ -939,6 +1324,13 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       updatePreview();
     }
 
+    function selectedMarkdownText() {
+      if (!(markdownInput instanceof HTMLTextAreaElement)) return "";
+      const start = markdownInput.selectionStart ?? markdownInput.value.length;
+      const end = markdownInput.selectionEnd ?? markdownInput.value.length;
+      return markdownInput.value.slice(start, end);
+    }
+
     function replaceSelection(formatter) {
       if (!(markdownInput instanceof HTMLTextAreaElement)) return;
       const start = markdownInput.selectionStart ?? markdownInput.value.length;
@@ -950,15 +1342,145 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       updatePreview();
     }
 
+    function closeToolbarMenus(except = null) {
+      app?.querySelectorAll("[data-toolbar-menu]").forEach((menu) => {
+        if (menu === except) return;
+        const trigger = menu.querySelector("[data-menu-trigger]");
+        const list = menu.querySelector("[data-menu-list]");
+        if (trigger instanceof HTMLElement) trigger.setAttribute("aria-expanded", "false");
+        if (list instanceof HTMLElement) list.hidden = true;
+      });
+    }
+
+    function toggleToolbarMenu(menu) {
+      if (!(menu instanceof HTMLElement)) return;
+      const trigger = menu.querySelector("[data-menu-trigger]");
+      const list = menu.querySelector("[data-menu-list]");
+      if (!(trigger instanceof HTMLElement) || !(list instanceof HTMLElement)) return;
+      const willOpen = list.hidden;
+      closeToolbarMenus(menu);
+      list.hidden = !willOpen;
+      trigger.setAttribute("aria-expanded", String(willOpen));
+    }
+
+    function applyHeading(level) {
+      const depth = Number(level);
+      if (!depth) return;
+      replaceSelection((selected) => `${"#".repeat(depth)} ${selected || "标题"}`);
+    }
+
+    function applyList(type) {
+      if (!type) return;
+      replaceSelection((selected) => {
+        const lines = (selected || "列表项").split("\n").filter((line) => line.trim());
+        return lines.map((line, index) => (
+          type === "ordered" ? `${index + 1}. ${line.trim()}` : `- ${line.trim()}`
+        )).join("\n");
+      });
+    }
+
+    function applyCodeBlock(language) {
+      if (!language) return;
+      const lang = language === "text" ? "" : language;
+      replaceSelection((selected) => `\`\`\`${lang}\n${selected || "代码内容"}\n\`\`\``);
+    }
+
+    function closeEditorDialog(dialog) {
+      if (dialog instanceof HTMLDialogElement && dialog.open) dialog.close();
+    }
+
+    function openLinkDialog() {
+      if (!(linkDialog instanceof HTMLDialogElement)) return;
+      const selected = selectedMarkdownText();
+      const textInput = linkDialog.querySelector("[data-link-text]");
+      const urlInput = linkDialog.querySelector("[data-link-url]");
+      if (textInput instanceof HTMLInputElement) textInput.value = selected || "";
+      if (urlInput instanceof HTMLInputElement) urlInput.value = "";
+      linkDialog.showModal();
+      window.requestAnimationFrame(() => {
+        if (urlInput instanceof HTMLInputElement) urlInput.focus();
+      });
+    }
+
+    function insertLinkFromDialog() {
+      if (!(linkDialog instanceof HTMLDialogElement)) return;
+      const textInput = linkDialog.querySelector("[data-link-text]");
+      const urlInput = linkDialog.querySelector("[data-link-url]");
+      const text = textInput instanceof HTMLInputElement ? textInput.value.trim() : "";
+      const url = urlInput instanceof HTMLInputElement ? urlInput.value.trim() : "";
+      if (!url) {
+        setStatus("请填写链接地址。", "error");
+        return;
+      }
+      insertMarkdown(`[${text || "链接文本"}](${url})`);
+      closeEditorDialog(linkDialog);
+    }
+
+    function openImageDialog() {
+      if (!(imageDialog instanceof HTMLDialogElement)) return;
+      imageDialog.showModal();
+    }
+
+    function validateInlineImageFile(file) {
+      const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+      const maxBytes = 5 * 1024 * 1024;
+      if (!(file instanceof File) || !file.size) throw new Error("请选择图片文件。");
+      if (!allowedTypes.has(file.type)) throw new Error("仅支持 JPG、JPEG、PNG、WEBP、GIF 图片。");
+      if (file.size > maxBytes) throw new Error("单张图片最大支持 5MB。");
+    }
+
+    async function uploadInlineImage() {
+      try {
+        if (!(imageDialog instanceof HTMLElement)) return;
+        const fileInput = imageDialog.querySelector("[data-inline-image-file]");
+        const altInput = imageDialog.querySelector("[data-inline-image-alt]");
+        const file = fileInput instanceof HTMLInputElement ? fileInput.files?.[0] : null;
+        validateInlineImageFile(file);
+
+        const data = new FormData();
+        data.set("file", file);
+        data.set("alt", altInput instanceof HTMLInputElement ? altInput.value : "");
+
+        setStatus("正在上传图片...");
+        const uploaded = await readJson(await fetch("/api/admin/assets", {
+          method: "POST",
+          headers: adminHeaders(),
+          body: data,
+        }));
+        assetsCache = [uploaded, ...assetsCache.filter((asset) => asset.id !== uploaded.id)];
+        renderAssets(assetsCache);
+        insertMarkdown(markdownForAsset(uploaded));
+        if (fileInput instanceof HTMLInputElement) fileInput.value = "";
+        if (altInput instanceof HTMLInputElement) altInput.value = "";
+        closeEditorDialog(imageDialog);
+        setStatus(`已上传并插入：${uploaded.filename}`, "success");
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
+    }
+
+    function insertImageUrlFromDialog() {
+      if (!(imageDialog instanceof HTMLDialogElement)) return;
+      const urlInput = imageDialog.querySelector("[data-image-url]");
+      const altInput = imageDialog.querySelector("[data-image-alt]");
+      const url = urlInput instanceof HTMLInputElement ? urlInput.value.trim() : "";
+      const alt = altInput instanceof HTMLInputElement ? altInput.value.trim() : "";
+      if (!url) {
+        setStatus("请填写图片地址。", "error");
+        return;
+      }
+      insertMarkdown(`![${alt || "图片"}](${url})`);
+      if (urlInput instanceof HTMLInputElement) urlInput.value = "";
+      if (altInput instanceof HTMLInputElement) altInput.value = "";
+      closeEditorDialog(imageDialog);
+    }
+
     function runMarkdownAction(action) {
       const fallback = {
         bold: "加粗文本",
         italic: "斜体文本",
-        heading: "标题",
+        strike: "删除线文本",
         quote: "引用内容",
-        list: "列表项",
-        code: "代码内容",
-        link: "链接文本",
       };
 
       const selectedOr = (selected, key) => selected || fallback[key];
@@ -966,15 +1488,10 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       const actions = {
         bold: (selected) => `**${selectedOr(selected, "bold")}**`,
         italic: (selected) => `*${selectedOr(selected, "italic")}*`,
-        heading: (selected) => `## ${selectedOr(selected, "heading")}`,
+        strike: (selected) => `~~${selectedOr(selected, "strike")}~~`,
         quote: (selected) => selected
           ? selected.split("\n").map((line) => `> ${line}`).join("\n")
           : `> ${fallback.quote}`,
-        list: (selected) => selected
-          ? selected.split("\n").map((line) => `- ${line}`).join("\n")
-          : `- ${fallback.list}`,
-        code: (selected) => `\`\`\`\n${selectedOr(selected, "code")}\n\`\`\``,
-        link: (selected) => `[${selectedOr(selected, "link")}](https://)`,
       };
 
       const formatter = actions[action];
@@ -1001,7 +1518,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
                 ${asset.id === selectedCoverId ? "当前封面" : "设封面"}
               </button>
               <button class="mini-button" type="button" data-insert-asset="${escapeHtml(asset.id)}">插入</button>
-              <button class="mini-button" type="button" data-copy-url="${escapeHtml(asset.url)}">复制 URL</button>
+              <button class="mini-button" type="button" data-copy-url="${escapeHtml(browserUrlForAsset(asset))}">复制 URL</button>
             </div>
           </div>
         </article>
@@ -1033,11 +1550,62 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       });
     }
 
-    async function uploadAsset() {
+    function renderMediaAssets(assets) {
+      if (!mediaList) return;
+      const visibleAssets = filterAssets(assets);
+
+      if (!visibleAssets.length) {
+        mediaList.innerHTML = `<div class="admin-empty">暂无匹配的媒体资源。</div>`;
+        return;
+      }
+
+      mediaList.innerHTML = visibleAssets.map((asset) => `
+        <article class="media-row">
+          <a class="media-file" href="${escapeHtml(asset.url)}" target="_blank" rel="noreferrer">
+            <img src="${escapeHtml(asset.url)}" alt="${escapeHtml(asset.alt || asset.filename)}" loading="lazy" />
+            <span>
+              <strong>${escapeHtml(asset.filename)}</strong>
+              <small>${escapeHtml(asset.r2Key || asset.id)}</small>
+            </span>
+          </a>
+          <span>${escapeHtml(formatFileSize(asset.byteSize))}</span>
+          <span>${escapeHtml(formatAssetType(asset))}</span>
+          <span>${escapeHtml(formatAdminDate(asset.createdAt))}</span>
+          <span class="media-actions">
+            <button class="mini-button" type="button" data-media-copy-url="${escapeHtml(browserUrlForAsset(asset))}">复制 URL</button>
+            <button class="mini-button" type="button" data-media-insert="${escapeHtml(asset.id)}">插入</button>
+            <button class="mini-button danger" type="button" data-delete-asset="${escapeHtml(asset.id)}">删除</button>
+          </span>
+        </article>
+      `).join("");
+
+      mediaList.querySelectorAll("[data-media-copy-url]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          await navigator.clipboard?.writeText(button.dataset.mediaCopyUrl || "");
+          setStatus("已复制资源 URL。", "success");
+        });
+      });
+
+      mediaList.querySelectorAll("[data-media-insert]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const asset = assetsCache.find((item) => item.id === button.dataset.mediaInsert);
+          if (!asset) return;
+          setWorkspaceView("editor");
+          insertMarkdown(markdownForAsset(asset));
+          setStatus("已插入图片 Markdown。", "success");
+        });
+      });
+
+      mediaList.querySelectorAll("[data-delete-asset]").forEach((button) => {
+        button.addEventListener("click", () => deleteAsset(button.dataset.deleteAsset));
+      });
+    }
+
+    async function uploadAssetFromForm(formElement) {
       try {
-        if (!(assetForm instanceof HTMLElement)) throw new Error("Asset form is missing.");
-        const fileInput = assetForm.querySelector('input[name="file"]');
-        const altInput = assetForm.querySelector('input[name="alt"]');
+        if (!(formElement instanceof HTMLElement)) throw new Error("Asset form is missing.");
+        const fileInput = formElement.querySelector('input[name="file"]');
+        const altInput = formElement.querySelector('input[name="alt"]');
         const file = fileInput instanceof HTMLInputElement ? fileInput.files?.[0] : null;
         if (!(file instanceof File) || !file.size) {
           throw new Error("请选择图片文件。");
@@ -1057,6 +1625,38 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         if (fileInput instanceof HTMLInputElement) fileInput.value = "";
         if (altInput instanceof HTMLInputElement) altInput.value = "";
         await loadAssets();
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
+    }
+
+    function uploadAsset() {
+      uploadAssetFromForm(assetForm);
+    }
+
+    function uploadMediaAsset() {
+      uploadAssetFromForm(mediaAssetForm);
+    }
+
+    async function deleteAsset(id) {
+      const asset = assetsCache.find((item) => item.id === id);
+      if (!asset) return;
+      if (!window.confirm(`确定删除媒体资源「${asset.filename}」吗？这会同时删除数据库记录和 R2 文件。`)) return;
+
+      try {
+        setStatus("正在删除媒体资源...");
+        await readJson(await fetch(`/api/admin/assets/${encodeURIComponent(id)}`, {
+          method: "DELETE",
+          headers: adminHeaders(),
+        }));
+        if (postForm?.elements.coverAssetId?.value === id) {
+          postForm.elements.coverAssetId.value = "";
+        }
+        assetsCache = assetsCache.filter((item) => item.id !== id);
+        renderAssets(assetsCache);
+        renderMediaAssets(assetsCache);
+        updateCoverSummary();
+        setStatus(`已删除媒体资源：${asset.filename}`, "success");
       } catch (error) {
         setStatus(error.message, "error");
       }
@@ -1088,9 +1688,47 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     app?.querySelector("[data-new-post]")?.addEventListener("click", resetPostForm);
     app?.querySelector("[data-reset-post]")?.addEventListener("click", resetPostForm);
     app?.querySelector("[data-upload-asset]")?.addEventListener("click", uploadAsset);
-    app?.querySelector("[data-refresh-assets]")?.addEventListener("click", loadAssets);
+    app?.querySelector("[data-upload-media-asset]")?.addEventListener("click", uploadMediaAsset);
+    app?.querySelectorAll("[data-refresh-assets]").forEach((button) => {
+      button.addEventListener("click", loadAssets);
+    });
     app?.querySelector("[data-refresh-posts]")?.addEventListener("click", loadPosts);
-    app?.querySelector("[data-insert-cover-image]")?.addEventListener("click", insertCoverImage);
+    app?.querySelector("[data-open-link-dialog]")?.addEventListener("click", openLinkDialog);
+    app?.querySelector("[data-insert-link]")?.addEventListener("click", insertLinkFromDialog);
+    app?.querySelector("[data-open-image-dialog]")?.addEventListener("click", openImageDialog);
+    app?.querySelector("[data-upload-inline-image]")?.addEventListener("click", uploadInlineImage);
+    app?.querySelector("[data-insert-image-url]")?.addEventListener("click", insertImageUrlFromDialog);
+    app?.querySelectorAll("[data-menu-trigger]").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        toggleToolbarMenu(button.closest("[data-toolbar-menu]"));
+      });
+    });
+    app?.querySelectorAll("[data-heading-level]").forEach((button) => {
+      button.addEventListener("click", () => {
+        applyHeading(button.dataset.headingLevel);
+        closeToolbarMenus();
+      });
+    });
+    app?.querySelectorAll("[data-list-type]").forEach((button) => {
+      button.addEventListener("click", () => {
+        applyList(button.dataset.listType);
+        closeToolbarMenus();
+      });
+    });
+    app?.querySelectorAll("[data-code-language]").forEach((button) => {
+      button.addEventListener("click", () => {
+        applyCodeBlock(button.dataset.codeLanguage);
+        closeToolbarMenus();
+      });
+    });
+    document.addEventListener("click", (event) => {
+      if (event.target instanceof Element && event.target.closest("[data-toolbar-menu]")) return;
+      closeToolbarMenus();
+    });
+    app?.querySelectorAll("[data-close-dialog]").forEach((button) => {
+      button.addEventListener("click", () => closeEditorDialog(button.closest("dialog")));
+    });
     clearCoverButton?.addEventListener("click", () => {
       if (postForm?.elements.coverAssetId) postForm.elements.coverAssetId.value = "";
       updateCoverSummary();
@@ -1104,6 +1742,17 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     openSettingsButtons.forEach((button) => {
       button.addEventListener("click", toggleSettingsView);
     });
+    openMediaButtons.forEach((button) => {
+      button.addEventListener("click", () => setWorkspaceView("media"));
+    });
+    openTocButtons.forEach((button) => {
+      button.addEventListener("click", toggleTocPanel);
+    });
+    closeTocButton?.addEventListener("click", closeTocPanel);
+    mediaFilterInput?.addEventListener("input", () => renderMediaAssets(assetsCache));
+    editorModeButtons.forEach((button) => {
+      button.addEventListener("click", () => setEditorMode(button.dataset.editorModeButton));
+    });
     markdownInput?.addEventListener("scroll", () => withScrollSync(syncPreviewScroll));
     markdownPreview?.addEventListener("scroll", () => withScrollSync(syncMarkdownScroll));
     tocList?.addEventListener("click", (event) => {
@@ -1114,10 +1763,15 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     app?.querySelectorAll("[data-md-action]").forEach((button) => {
       button.addEventListener("click", () => runMarkdownAction(button.dataset.mdAction));
     });
-    tokenInput?.addEventListener("change", loadPosts);
+    tokenInput?.addEventListener("change", () => {
+      loadPosts();
+      loadAssets();
+    });
 
     resetPostForm();
     setWorkspaceView("editor");
+    setEditorMode(activeEditorMode);
+    setTocVisible(true);
     loadAssets();
   </script>
 
@@ -1278,6 +1932,14 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       grid-template-columns: 58px minmax(620px, 1fr) minmax(280px, 330px);
     }
 
+    .admin-shell.is-toc-collapsed .admin-workbench {
+      grid-template-columns: minmax(260px, 310px) minmax(620px, 1fr);
+    }
+
+    .admin-shell.is-library-collapsed.is-toc-collapsed .admin-workbench {
+      grid-template-columns: 58px minmax(620px, 1fr);
+    }
+
     .admin-panel {
       min-width: 0;
       min-height: 0;
@@ -1299,6 +1961,10 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 
     .toc-panel {
       grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .admin-shell.is-toc-collapsed .toc-panel {
+      display: none;
     }
 
     .editor-panel {
@@ -1416,9 +2082,11 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 
     .post-form,
     .asset-upload,
+    .media-upload-card,
     .library-tools,
     .post-list,
-    .asset-list {
+    .asset-list,
+    .media-list {
       display: grid;
       gap: 10px;
     }
@@ -1430,18 +2098,20 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     }
 
     .editor-view,
-    .settings-view {
+    .settings-view,
+    .media-view {
       min-height: 0;
     }
 
     .editor-view {
       display: grid;
-      grid-template-rows: 42px minmax(0, 1fr);
+      grid-template-rows: auto minmax(0, 1fr);
       gap: 12px;
-      overflow: hidden;
+      overflow: visible;
     }
 
-    .settings-view {
+    .settings-view,
+    .media-view {
       display: grid;
       align-content: start;
       gap: 18px;
@@ -1450,7 +2120,8 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     }
 
     .editor-view[hidden],
-    .settings-view[hidden] {
+    .settings-view[hidden],
+    .media-view[hidden] {
       display: none;
     }
 
@@ -1493,6 +2164,156 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     .settings-media-card .asset-upload {
       grid-template-columns: minmax(0, 1fr) minmax(180px, 0.55fr) auto;
       align-items: end;
+    }
+
+    .media-view {
+      grid-template-rows: auto auto minmax(0, 1fr);
+      align-content: stretch;
+      overflow: hidden;
+    }
+
+    .media-toolbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+      gap: 12px;
+      align-items: end;
+    }
+
+    .media-upload-card {
+      grid-template-columns: minmax(180px, 0.7fr) minmax(220px, 1fr) auto;
+      align-items: end;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.026);
+      padding: 12px;
+    }
+
+    .media-upload-card label {
+      display: grid;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 780;
+      min-width: 0;
+    }
+
+    .media-search {
+      align-self: stretch;
+    }
+
+    .media-search input {
+      height: 100%;
+    }
+
+    .media-file-manager {
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: color-mix(in srgb, var(--surface) 86%, transparent);
+      overflow: hidden;
+    }
+
+    .media-table-head,
+    :global(.media-row) {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) 96px 112px 150px minmax(220px, auto);
+      gap: 14px;
+      align-items: center;
+      padding: 10px 14px;
+    }
+
+    .media-table-head {
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.76rem;
+      font-weight: 860;
+    }
+
+    .media-list {
+      min-height: 0;
+      overflow: auto;
+      gap: 0;
+    }
+
+    :global(.media-row) {
+      min-height: 72px;
+      border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    :global(.media-row:hover) {
+      background: rgba(117, 201, 165, 0.06);
+    }
+
+    :global(.media-file) {
+      min-width: 0;
+      display: grid;
+      grid-template-columns: 44px minmax(0, 1fr);
+      gap: 12px;
+      align-items: center;
+      color: inherit;
+      text-decoration: none;
+    }
+
+    :global(.media-file img) {
+      width: 44px;
+      height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--bg-soft);
+      object-fit: cover;
+    }
+
+    :global(.media-file strong),
+    :global(.media-file small) {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    :global(.media-file strong) {
+      color: var(--text);
+      font-size: 0.88rem;
+      font-weight: 860;
+    }
+
+    :global(.media-file small) {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 0.7rem;
+    }
+
+    :global(.media-actions) {
+      display: flex;
+      justify-content: flex-end;
+      gap: 7px;
+      flex-wrap: wrap;
+    }
+
+    :global(.media-actions .mini-button) {
+      min-height: 30px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.76rem;
+      padding: 5px 9px;
+    }
+
+    :global(.media-actions .mini-button:hover) {
+      border-color: rgba(117, 201, 165, 0.46);
+      color: var(--accent-strong);
+    }
+
+    :global(.media-actions .mini-button.danger) {
+      background: rgba(218, 91, 91, 0.07);
+      color: #ffb0b0;
     }
 
     .cover-current {
@@ -1613,16 +2434,76 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       color: var(--accent-strong);
     }
 
+    .publishing-meta-grid {
+      display: grid;
+      grid-template-columns: minmax(280px, 0.95fr) minmax(260px, 1fr) minmax(260px, 0.8fr);
+      gap: 12px;
+      align-items: end;
+    }
+
+    .settings-choice-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 48px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--admin-panel-strong);
+      margin: 0;
+      padding: 9px 10px;
+    }
+
+    .settings-choice-group legend,
+    .statement-field > span {
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 780;
+    }
+
+    .settings-choice-group legend {
+      padding: 0 4px;
+    }
+
+    .settings-choice-group label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 0.84rem;
+      font-weight: 820;
+      white-space: nowrap;
+    }
+
+    .settings-choice-group input {
+      width: 15px;
+      height: 15px;
+      accent-color: var(--accent-strong);
+    }
+
+    .settings-choice-group label:has(input:checked) {
+      color: var(--accent-strong);
+    }
+
+    .statement-field {
+      display: grid;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 780;
+    }
+
     .markdown-toolbar {
       position: static;
-      z-index: auto;
+      z-index: 20;
       align-self: start;
       min-height: 42px;
       border: 1px solid var(--line);
       border-radius: 14px;
       background: color-mix(in srgb, var(--surface) 96%, transparent);
       padding: 6px;
-      overflow-x: auto;
+      overflow: visible;
+      flex-wrap: wrap;
     }
 
     .toolbar-spacer {
@@ -1646,10 +2527,242 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       font-size: 0.78rem;
     }
 
+    .toolbar-view-mode {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex: 0 0 auto;
+    }
+
+    .view-mode-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      min-width: 72px;
+      height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--admin-panel-strong);
+      color: var(--muted);
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 860;
+      padding: 0 10px;
+      white-space: nowrap;
+    }
+
+    .view-mode-button:hover {
+      border-color: rgba(117, 201, 165, 0.62);
+      color: var(--accent-strong);
+    }
+
+    .view-mode-button.is-active {
+      border-color: var(--text);
+      background: var(--text);
+      color: var(--surface);
+    }
+
+    .toolbar-menu {
+      position: relative;
+      flex: 0 0 auto;
+      z-index: 30;
+    }
+
+    .toolbar-menu:has(.toolbar-menu-list:not([hidden])) {
+      z-index: 90;
+    }
+
+    .toolbar-menu-trigger {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      min-width: 48px;
+      height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--admin-panel-strong);
+      color: var(--text);
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 820;
+      padding: 0 8px;
+      white-space: nowrap;
+    }
+
+    .heading-trigger-label {
+      font-size: 0.98rem;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .toolbar-menu-trigger:hover,
+    .toolbar-menu-trigger[aria-expanded="true"] {
+      border-color: rgba(117, 201, 165, 0.62);
+      background: var(--accent-soft);
+      color: var(--accent-strong);
+    }
+
+    .toolbar-menu-list {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      z-index: 80;
+      min-width: 128px;
+      display: grid;
+      gap: 3px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--surface);
+      box-shadow: 0 14px 38px rgba(0, 0, 0, 0.18);
+      padding: 6px;
+    }
+
+    .toolbar-menu-list[hidden] {
+      display: none;
+    }
+
+    .toolbar-menu-list.wide {
+      min-width: 156px;
+    }
+
+    .toolbar-menu-list button {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 30px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text);
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.8rem;
+      font-weight: 760;
+      padding: 6px 9px;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    .toolbar-menu-list .heading-option {
+      line-height: 1.2;
+    }
+
+    .toolbar-menu-list .heading-option[data-heading-level="1"] {
+      font-size: 1rem;
+      font-weight: 900;
+    }
+
+    .toolbar-menu-list .heading-option[data-heading-level="2"] {
+      font-size: 0.92rem;
+      font-weight: 860;
+    }
+
+    .toolbar-menu-list .heading-option[data-heading-level="3"] {
+      font-size: 0.84rem;
+      font-weight: 820;
+    }
+
+    .toolbar-menu-list .heading-option[data-heading-level="4"] {
+      font-size: 0.78rem;
+      font-weight: 780;
+    }
+
+    .toolbar-menu-list button:hover {
+      background: var(--accent-soft);
+      color: var(--accent-strong);
+    }
+
+    .editor-dialog {
+      width: min(680px, calc(100vw - 32px));
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--surface);
+      color: var(--text);
+      padding: 16px;
+      box-shadow: 0 20px 70px rgba(0, 0, 0, 0.24);
+    }
+
+    .editor-dialog::backdrop {
+      background: rgba(12, 23, 19, 0.38);
+      backdrop-filter: blur(3px);
+    }
+
+    .dialog-head,
+    .dialog-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .dialog-head {
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 12px;
+    }
+
+    .dialog-head h3,
+    .image-insert-card h4 {
+      margin: 4px 0 0;
+    }
+
+    .dialog-grid,
+    .image-insert-grid {
+      display: grid;
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .dialog-grid label,
+    .image-insert-card label {
+      display: grid;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 780;
+    }
+
+    .dialog-actions {
+      justify-content: flex-end;
+      margin-top: 16px;
+    }
+
+    .image-insert-grid {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .image-insert-card {
+      display: grid;
+      align-content: start;
+      gap: 10px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.026);
+      padding: 12px;
+    }
+
+    .image-insert-card small {
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
     .editor-split {
       grid-template-columns: minmax(0, 1fr) minmax(300px, 0.82fr);
       min-height: 0;
       overflow: hidden;
+    }
+
+    .editor-split[data-editor-mode="markdown"],
+    .editor-split[data-editor-mode="preview"] {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .editor-split[data-editor-mode="markdown"] .preview-column,
+    .editor-split[data-editor-mode="preview"] .markdown-column {
+      display: none;
     }
 
     .markdown-column,
@@ -1695,6 +2808,42 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 
     .markdown-preview :global(code) {
       font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+    }
+
+    .markdown-preview :global(strong) {
+      color: color-mix(in srgb, var(--text) 82%, var(--accent-strong));
+      font-weight: 950;
+    }
+
+    .markdown-preview :global(del) {
+      color: var(--muted);
+      text-decoration-color: rgba(218, 91, 91, 0.82);
+      text-decoration-thickness: 2px;
+    }
+
+    .markdown-preview :global(a) {
+      color: var(--accent-strong);
+      font-weight: 840;
+      text-decoration: underline;
+      text-underline-offset: 0.18em;
+    }
+
+    .markdown-preview :global(img) {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      margin: 1rem 0;
+    }
+
+    .markdown-preview :global(ul),
+    .markdown-preview :global(ol) {
+      padding-left: 1.35rem;
+    }
+
+    .markdown-preview :global(li + li) {
+      margin-top: 0.35rem;
     }
 
     .markdown-preview :global(h1),
@@ -2238,6 +3387,14 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       .admin-shell.is-library-collapsed .admin-workbench {
         grid-template-columns: 58px minmax(500px, 1fr) minmax(240px, 280px);
       }
+
+      .admin-shell.is-toc-collapsed .admin-workbench {
+        grid-template-columns: minmax(220px, 260px) minmax(500px, 1fr);
+      }
+
+      .admin-shell.is-library-collapsed.is-toc-collapsed .admin-workbench {
+        grid-template-columns: 58px minmax(500px, 1fr);
+      }
     }
 
     @media (max-width: 1040px) {
@@ -2246,10 +3403,27 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       .title-row,
       .publish-strip,
       .publish-strip.secondary,
+      .publishing-meta-grid,
       .settings-media-card .asset-upload,
+      .media-toolbar,
+      .media-upload-card,
       .cover-current,
+      .image-insert-grid,
       .editor-split {
         grid-template-columns: 1fr;
+      }
+
+      .media-table-head {
+        display: none;
+      }
+
+      :global(.media-row) {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 8px;
+      }
+
+      :global(.media-actions) {
+        justify-content: flex-start;
       }
 
       .post-library,
@@ -2261,6 +3435,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 
       .post-list,
       .asset-list,
+      .media-list,
       .toc-list {
         max-height: 420px;
       }
