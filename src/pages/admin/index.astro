@@ -1,10 +1,27 @@
 ---
 import {
+  Bold,
+  Clock3,
+  Code2,
   Eye,
+  FilePlus,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Heading2,
+  ImagePlus,
+  Italic,
   KeyRound,
+  Link,
+  List,
+  PencilLine,
+  Quote,
   RefreshCw,
   RotateCcw,
   Save,
+  Search,
+  Send,
+  SlidersHorizontal,
+  Trash2,
   Upload,
 } from "lucide-astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
@@ -16,164 +33,262 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
   robots="noindex, nofollow"
 >
   <section class="admin-shell" data-admin-app>
-    <header class="admin-hero">
-      <div>
-        <p class="section-kicker">Admin Workspace</p>
-        <h1>发布与资源管理</h1>
-        <p>文章、图片和发布状态集中在一个工作台里处理。</p>
+    <header class="admin-editor-bar">
+      <a class="back-link" href="/" aria-label="返回网站首页">‹ 返回</a>
+      <div class="editor-title">
+        <span class="section-kicker">Admin Workspace</span>
+        <strong>发布文章</strong>
+        <small data-word-count>0 字</small>
       </div>
-      <div class="admin-token-panel">
-        <label for="admin-token">
-          <KeyRound size={16} aria-hidden="true" />
-          <span>Admin Token</span>
-        </label>
-        <input
-          id="admin-token"
-          name="token"
-          type="password"
-          autocomplete="off"
-          placeholder="Bearer token"
-          data-admin-token
-        />
-      </div>
+      <label class="token-field" for="admin-token">
+        <KeyRound size={15} aria-hidden="true" />
+        <span>Token</span>
+        <input id="admin-token" type="password" autocomplete="off" data-admin-token />
+      </label>
     </header>
 
-    <div class="admin-status" data-admin-status role="status">等待连接后端。</div>
+    <div class="admin-status" data-admin-status role="status">等待 Admin Token。</div>
 
-    <div class="admin-grid">
-      <section class="admin-panel admin-editor">
-        <div class="admin-panel-head">
+    <div class="admin-workbench">
+      <aside class="admin-panel post-library" aria-label="后台文章列表">
+        <div class="panel-head">
           <div>
-            <p class="section-kicker">Editor</p>
-            <h2>文章编辑</h2>
+            <p class="section-kicker">Posts</p>
+            <h2>文章库</h2>
           </div>
-          <div class="admin-actions">
-            <button class="admin-button ghost" type="button" data-reset-post>
-              <RotateCcw size={16} aria-hidden="true" />
-              <span>重置</span>
+          <div class="icon-actions">
+            <button class="icon-button" type="button" data-toggle-library aria-label="收起文章库">
+              <PanelLeftClose class="library-icon-collapse" size={16} aria-hidden="true" />
+              <PanelLeftOpen class="library-icon-expand" size={16} aria-hidden="true" />
             </button>
-            <button class="admin-button primary" type="button" data-save-post>
-              <Save size={16} aria-hidden="true" />
-              <span>保存文章</span>
+            <button class="icon-button" type="button" data-new-post aria-label="新建文章">
+              <FilePlus size={16} aria-hidden="true" />
+            </button>
+            <button class="icon-button" type="button" data-refresh-posts aria-label="刷新文章">
+              <RefreshCw size={16} aria-hidden="true" />
             </button>
           </div>
         </div>
 
-        <form class="admin-form" data-post-form>
+        <div class="library-tools">
+          <label class="search-field">
+            <Search size={16} aria-hidden="true" />
+            <input type="search" placeholder="搜索标题、slug、标签" data-post-filter />
+          </label>
+          <select data-status-filter aria-label="按状态筛选">
+            <option value="ALL">全部状态</option>
+            <option value="PUBLISHED">已发布</option>
+            <option value="DRAFT">草稿</option>
+          </select>
+        </div>
+
+        <div class="post-list" data-post-list></div>
+
+        <nav class="library-rail" aria-label="后台功能区">
+          <button class="rail-button is-active" type="button" data-open-editor aria-label="打开编辑区" aria-pressed="true">
+            <PencilLine size={17} aria-hidden="true" />
+            <span>编辑</span>
+          </button>
+          <button class="rail-button" type="button" data-open-settings aria-label="打开发布设置" aria-pressed="false">
+            <SlidersHorizontal size={17} aria-hidden="true" />
+            <span>设置</span>
+          </button>
+        </nav>
+      </aside>
+
+      <main class="admin-panel editor-panel">
+        <form class="post-form" data-post-form>
           <input type="hidden" name="id" data-post-id />
-          <div class="admin-form-row two">
-            <label>
-              <span>标题</span>
-              <input name="title" type="text" maxlength="180" required />
-            </label>
-            <label>
-              <span>Slug</span>
-              <input name="slug" type="text" maxlength="120" placeholder="留空时由标题生成" />
-            </label>
-          </div>
-          <label>
-            <span>描述</span>
-            <input name="description" type="text" maxlength="320" required />
-          </label>
-          <div class="admin-form-row three">
-            <label>
-              <span>状态</span>
-              <select name="status">
-                <option value="DRAFT">DRAFT</option>
-                <option value="PUBLISHED">PUBLISHED</option>
-              </select>
-            </label>
-            <label>
-              <span>发布时间</span>
-              <input name="pubDate" type="datetime-local" />
-            </label>
-            <label>
-              <span>封面资源 ID</span>
-              <input name="coverAssetId" type="text" placeholder="从资源列表选择" />
-            </label>
-          </div>
-          <label class="admin-readonly-field">
-            <span>最后编辑时间</span>
-            <input name="updatedAt" type="text" placeholder="保存后自动记录" readonly />
-          </label>
-          <label>
-            <span>标签</span>
-            <input name="tags" type="text" placeholder="Backend, D1, Cloudflare" />
-          </label>
-          <label>
-            <span>Markdown</span>
-            <textarea name="contentMarkdown" rows="18" required></textarea>
-          </label>
-        </form>
-      </section>
+          <input type="hidden" name="coverAssetId" data-cover-asset-id />
 
-      <aside class="admin-panel admin-side">
-        <div class="admin-panel-head compact">
-          <div>
-            <p class="section-kicker">Media</p>
-            <h2>图片上传</h2>
-          </div>
-        </div>
-        <form class="asset-upload" data-asset-form>
-          <label>
-            <span>图片文件</span>
-            <input name="file" type="file" accept="image/jpeg,image/png,image/webp,image/gif" />
-          </label>
-          <label>
-            <span>替代文本</span>
-            <input name="alt" type="text" maxlength="240" />
-          </label>
-          <button class="admin-button primary" type="button" data-upload-asset>
-            <Upload size={16} aria-hidden="true" />
-            <span>上传图片</span>
-          </button>
-        </form>
+          <section class="settings-view" data-settings-view hidden>
+            <div class="settings-head">
+              <div>
+                <p class="section-kicker">Publish Settings</p>
+                <h2>发布设置</h2>
+              </div>
+              <button class="admin-button" type="button" data-open-editor>
+                <PencilLine size={16} aria-hidden="true" />
+                返回编辑区
+              </button>
+            </div>
 
-        <div class="admin-panel-head compact with-gap">
+            <div class="title-row">
+              <label>
+                <span>文章标题</span>
+                <input name="title" type="text" maxlength="180" required placeholder="请输入文章标题" />
+              </label>
+              <label>
+                <span>Slug</span>
+                <input name="slug" type="text" maxlength="120" placeholder="留空时由标题生成" />
+              </label>
+            </div>
+
+            <label class="description-field">
+              <span>摘要描述</span>
+              <input name="description" type="text" maxlength="320" required placeholder="用于首页、RSS 和搜索结果展示" />
+            </label>
+
+            <div class="publish-strip">
+              <fieldset class="status-toggle">
+                <legend>发布状态</legend>
+                <label>
+                  <input name="status" type="radio" value="DRAFT" checked />
+                  <Clock3 size={15} aria-hidden="true" />
+                  草稿
+                </label>
+                <label>
+                  <input name="status" type="radio" value="PUBLISHED" />
+                  <Send size={15} aria-hidden="true" />
+                  发布
+                </label>
+              </fieldset>
+              <label>
+                <span>发布时间</span>
+                <input name="pubDate" type="datetime-local" />
+              </label>
+              <label>
+                <span>最后编辑</span>
+                <input name="updatedAt" type="text" placeholder="保存后自动记录" readonly />
+              </label>
+            </div>
+
+            <div class="publish-strip secondary">
+              <label>
+                <span>标签</span>
+                <input name="tags" type="text" placeholder="Backend, D1, Cloudflare" />
+              </label>
+            </div>
+
+            <section class="settings-media-card" aria-label="封面与图片资源">
+              <div class="settings-card-head">
+                <div>
+                  <p class="section-kicker">Cover Media</p>
+                  <h3>封面与图片资源</h3>
+                </div>
+                <button class="icon-button" type="button" data-refresh-assets aria-label="刷新资源">
+                  <RefreshCw size={16} aria-hidden="true" />
+                </button>
+              </div>
+
+              <div class="cover-current" data-cover-summary>
+                <span>当前封面</span>
+                <strong>未选择封面</strong>
+                <button class="mini-button" type="button" data-clear-cover hidden>清除封面</button>
+              </div>
+
+              <div class="asset-upload" data-asset-form>
+                <label>
+                  <span>图片文件</span>
+                  <input name="file" type="file" accept="image/jpeg,image/png,image/webp,image/gif" />
+                </label>
+                <label>
+                  <span>替代文本（alt）</span>
+                  <input name="alt" type="text" maxlength="240" placeholder="图片无法显示时的说明文字" />
+                </label>
+                <button class="admin-button primary full" type="button" data-upload-asset>
+                  <Upload size={16} aria-hidden="true" />
+                  上传图片
+                </button>
+              </div>
+
+              <div class="asset-list" data-asset-list></div>
+            </section>
+          </section>
+
+          <section class="editor-view" data-editor-view>
+            <div class="markdown-toolbar" aria-label="Markdown 快捷工具栏">
+              <button class="tool-button" type="button" data-md-action="bold" title="加粗">
+                <Bold size={16} aria-hidden="true" />
+              </button>
+              <button class="tool-button" type="button" data-md-action="italic" title="斜体">
+                <Italic size={16} aria-hidden="true" />
+              </button>
+              <button class="tool-button" type="button" data-md-action="heading" title="标题">
+                <Heading2 size={16} aria-hidden="true" />
+              </button>
+              <button class="tool-button" type="button" data-md-action="quote" title="引用">
+                <Quote size={16} aria-hidden="true" />
+              </button>
+              <button class="tool-button" type="button" data-md-action="list" title="列表">
+                <List size={16} aria-hidden="true" />
+              </button>
+              <button class="tool-button" type="button" data-md-action="code" title="代码块">
+                <Code2 size={16} aria-hidden="true" />
+              </button>
+              <button class="tool-button" type="button" data-md-action="link" title="链接">
+                <Link size={16} aria-hidden="true" />
+              </button>
+              <button class="tool-button" type="button" data-insert-cover-image title="插入封面图">
+                <ImagePlus size={16} aria-hidden="true" />
+              </button>
+              <span class="toolbar-spacer"></span>
+              <button class="tool-button text-tool" type="button" data-open-settings title="发布设置">
+                <SlidersHorizontal size={16} aria-hidden="true" />
+                设置
+              </button>
+              <span class="preview-badge">
+                <Eye size={15} aria-hidden="true" />
+                实时预览
+              </span>
+            </div>
+
+            <div class="editor-split">
+              <label class="markdown-column">
+                <span>Markdown</span>
+                <textarea name="contentMarkdown" rows="26" required data-markdown-input></textarea>
+              </label>
+              <section class="preview-column" aria-label="正文预览">
+                <span>Preview</span>
+                <article class="markdown-preview" data-markdown-preview></article>
+              </section>
+            </div>
+          </section>
+        </form>
+      </main>
+
+      <aside class="admin-panel toc-panel" aria-label="文章目录">
+        <div class="panel-head">
           <div>
-            <p class="section-kicker">Assets</p>
-            <h2>资源列表</h2>
+            <p class="section-kicker">Outline</p>
+            <h2>文章目录</h2>
           </div>
-          <button class="admin-icon-button" type="button" data-refresh-assets aria-label="刷新资源">
-            <RefreshCw size={16} aria-hidden="true" />
-          </button>
+          <span class="preview-badge" data-toc-count>0 节</span>
         </div>
-        <div class="asset-list" data-asset-list></div>
+
+        <nav class="toc-list" data-editor-toc></nav>
       </aside>
     </div>
 
-    <div class="admin-grid lower">
-      <section class="admin-panel">
-        <div class="admin-panel-head">
-          <div>
-            <p class="section-kicker">Posts</p>
-            <h2>文章列表</h2>
-          </div>
-          <button class="admin-button ghost" type="button" data-refresh-posts>
-            <RefreshCw size={16} aria-hidden="true" />
-            <span>刷新</span>
-          </button>
-        </div>
-        <div class="admin-list" data-post-list></div>
-      </section>
-
-      <section class="admin-panel">
-        <div class="admin-panel-head">
-          <div>
-            <p class="section-kicker">Preview</p>
-            <h2>正文预览</h2>
-          </div>
-          <span class="admin-preview-badge">
-            <Eye size={16} aria-hidden="true" />
-            Live
-          </span>
-        </div>
-        <article class="admin-preview" data-markdown-preview></article>
-      </section>
-    </div>
+    <footer class="admin-action-bar">
+      <div>
+        <strong data-action-title>新文章</strong>
+        <span data-action-meta>草稿 · 未保存</span>
+      </div>
+      <div class="button-row">
+        <button class="admin-button ghost" type="button" data-reset-post>
+          <RotateCcw size={16} aria-hidden="true" />
+          重置
+        </button>
+        <button class="admin-button danger" type="button" data-delete-post hidden>
+          <Trash2 size={16} aria-hidden="true" />
+          删除
+        </button>
+        <button class="admin-button" type="button" data-save-post>
+          <Save size={16} aria-hidden="true" />
+          保存草稿
+        </button>
+        <button class="admin-button primary" type="button" data-publish-post>
+          <Send size={16} aria-hidden="true" />
+          发布文章
+        </button>
+      </div>
+    </footer>
   </section>
 
-  <script is:inline>
+  <script>
+    import katex from "katex";
+
     const app = document.querySelector("[data-admin-app]");
     const tokenInput = app?.querySelector("[data-admin-token]");
     const statusEl = app?.querySelector("[data-admin-status]");
@@ -182,6 +297,27 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     const postList = app?.querySelector("[data-post-list]");
     const assetList = app?.querySelector("[data-asset-list]");
     const markdownPreview = app?.querySelector("[data-markdown-preview]");
+    const markdownInput = app?.querySelector("[data-markdown-input]");
+    const tocList = app?.querySelector("[data-editor-toc]");
+    const tocCountEl = app?.querySelector("[data-toc-count]");
+    const postFilterInput = app?.querySelector("[data-post-filter]");
+    const statusFilterInput = app?.querySelector("[data-status-filter]");
+    const deleteButton = app?.querySelector("[data-delete-post]");
+    const wordCountEl = app?.querySelector("[data-word-count]");
+    const actionTitleEl = app?.querySelector("[data-action-title]");
+    const actionMetaEl = app?.querySelector("[data-action-meta]");
+    const toggleLibraryButton = app?.querySelector("[data-toggle-library]");
+    const coverSummary = app?.querySelector("[data-cover-summary]");
+    const clearCoverButton = app?.querySelector("[data-clear-cover]");
+    const editorView = app?.querySelector("[data-editor-view]");
+    const settingsView = app?.querySelector("[data-settings-view]");
+    const openEditorButtons = app?.querySelectorAll("[data-open-editor]") || [];
+    const openSettingsButtons = app?.querySelectorAll("[data-open-settings]") || [];
+
+    let postsCache = [];
+    let assetsCache = [];
+    let isSyncingScroll = false;
+    let activeWorkspaceView = "editor";
 
     const setStatus = (message, type = "neutral") => {
       if (!statusEl) return;
@@ -206,7 +342,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     }
 
     function escapeHtml(value) {
-      return String(value).replace(/[&<>"']/g, (char) => ({
+      return String(value ?? "").replace(/[&<>"']/g, (char) => ({
         "&": "&amp;",
         "<": "&lt;",
         ">": "&gt;",
@@ -215,18 +351,134 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       })[char]);
     }
 
-    function renderInlineMarkdown(value) {
+    function renderMath(latex, displayMode) {
+      try {
+        return katex.renderToString(String(latex || "").trim(), {
+          displayMode,
+          throwOnError: false,
+          strict: false,
+          output: "html",
+        });
+      } catch {
+        return `<code>${escapeHtml(latex)}</code>`;
+      }
+    }
+
+    function renderInlineText(value) {
       return escapeHtml(value)
         .replace(/`([^`]+)`/g, "<code>$1</code>")
         .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
         .replace(/\*([^*]+)\*/g, "<em>$1</em>");
     }
 
+    function renderInlineMarkdown(value) {
+      const source = String(value || "");
+      let html = "";
+      let cursor = 0;
+      const inlineMath = /(^|[^\\])\$([^$\n]+?)\$/g;
+      let match;
+
+      while ((match = inlineMath.exec(source))) {
+        const mathStart = match.index + match[1].length;
+        html += renderInlineText(source.slice(cursor, mathStart));
+        html += renderMath(match[2], false);
+        cursor = inlineMath.lastIndex;
+      }
+
+      html += renderInlineText(source.slice(cursor));
+      return html;
+    }
+
+    function getPlainHeadingText(value) {
+      return String(value || "")
+        .replace(/`([^`]+)`/g, "$1")
+        .replace(/\*\*([^*]+)\*\*/g, "$1")
+        .replace(/\*([^*]+)\*/g, "$1")
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+        .replace(/\$([^$]+)\$/g, "$1")
+        .replace(/#+\s*$/g, "")
+        .trim();
+    }
+
+    function slugifyHeading(value, index) {
+      const slug = getPlainHeadingText(value)
+        .toLowerCase()
+        .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      return `heading-${index + 1}${slug ? `-${slug}` : ""}`;
+    }
+
+    function extractHeadings(markdown) {
+      const headings = [];
+      let inCode = false;
+      let inDisplayMath = false;
+
+      String(markdown || "").replace(/\r\n/g, "\n").split("\n").forEach((line, lineIndex) => {
+        if (/^```/.test(line)) {
+          inCode = !inCode;
+          return;
+        }
+
+        const trimmed = line.trim();
+        if (!inCode && trimmed === "$$") {
+          inDisplayMath = !inDisplayMath;
+          return;
+        }
+
+        if (inCode || inDisplayMath) return;
+
+        const heading = line.match(/^(#{1,4})\s+(.+?)\s*#*\s*$/);
+        if (!heading) return;
+
+        const text = getPlainHeadingText(heading[2]);
+        if (!text) return;
+
+        headings.push({
+          depth: heading[1].length,
+          id: slugifyHeading(text, headings.length),
+          lineIndex,
+          text,
+        });
+      });
+
+      return headings;
+    }
+
+    function renderToc(markdown) {
+      if (!(tocList instanceof HTMLElement)) return;
+      const headings = extractHeadings(markdown);
+
+      if (tocCountEl) {
+        tocCountEl.textContent = `${headings.length} 节`;
+      }
+
+      if (!headings.length) {
+        tocList.innerHTML = `<p class="admin-empty toc-empty">正文里添加 Markdown 标题后会生成目录。</p>`;
+        return;
+      }
+
+      tocList.innerHTML = headings.map((heading) => `
+        <button
+          class="toc-item depth-${heading.depth}"
+          type="button"
+          data-toc-line="${heading.lineIndex}"
+          data-toc-heading="${escapeHtml(heading.id)}"
+          title="${escapeHtml(heading.text)}"
+        >
+          <span>${escapeHtml(heading.text)}</span>
+        </button>
+      `).join("");
+    }
+
     function renderMarkdown(markdown) {
       const html = [];
+      const headings = extractHeadings(markdown);
+      let headingCursor = 0;
       let paragraph = [];
       let code = [];
       let inCode = false;
+      let displayMath = [];
+      let inDisplayMath = false;
 
       const flushParagraph = () => {
         if (!paragraph.length) return;
@@ -237,6 +489,11 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       const flushCode = () => {
         html.push(`<pre><code>${escapeHtml(code.join("\n"))}</code></pre>`);
         code = [];
+      };
+
+      const flushDisplayMath = () => {
+        html.push(renderMath(displayMath.join("\n"), true));
+        displayMath = [];
       };
 
       for (const line of String(markdown || "").replace(/\r\n/g, "\n").split("\n")) {
@@ -251,21 +508,51 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
           continue;
         }
 
+        const trimmed = line.trim();
+
+        if (!inCode && trimmed === "$$") {
+          if (inDisplayMath) {
+            flushDisplayMath();
+            inDisplayMath = false;
+          } else {
+            flushParagraph();
+            inDisplayMath = true;
+          }
+          continue;
+        }
+
+        if (!inCode && inDisplayMath) {
+          displayMath.push(line);
+          continue;
+        }
+
         if (inCode) {
           code.push(line);
           continue;
         }
 
-        if (!line.trim()) {
+        const singleLineDisplayMath = trimmed.match(/^\$\$(.+)\$\$$/);
+        if (singleLineDisplayMath) {
+          flushParagraph();
+          html.push(renderMath(singleLineDisplayMath[1], true));
+          continue;
+        }
+
+        if (!trimmed) {
           flushParagraph();
           continue;
         }
 
-        const heading = line.match(/^(#{1,3})\s+(.+)$/);
+        const heading = line.match(/^(#{1,4})\s+(.+?)\s*#*\s*$/);
         if (heading) {
+          const headingText = getPlainHeadingText(heading[2]);
+          if (!headingText) continue;
           flushParagraph();
           const depth = heading[1].length;
-          html.push(`<h${depth}>${renderInlineMarkdown(heading[2])}</h${depth}>`);
+          const currentHeading = headings[headingCursor];
+          headingCursor += 1;
+          const id = currentHeading?.id || slugifyHeading(heading[2], headingCursor);
+          html.push(`<h${depth} id="${escapeHtml(id)}" data-heading-id="${escapeHtml(id)}">${renderInlineMarkdown(heading[2])}</h${depth}>`);
           continue;
         }
 
@@ -273,6 +560,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       }
 
       if (inCode) flushCode();
+      if (inDisplayMath) flushDisplayMath();
       flushParagraph();
       return html.join("");
     }
@@ -280,7 +568,139 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     function updatePreview() {
       if (!markdownPreview || !postForm) return;
       const data = new FormData(postForm);
-      markdownPreview.innerHTML = renderMarkdown(data.get("contentMarkdown") || "");
+      const content = data.get("contentMarkdown") || "";
+      markdownPreview.innerHTML = renderMarkdown(content);
+      renderToc(content);
+      updateEditorMeta();
+      syncPreviewScroll();
+    }
+
+    function scrollRatio(element) {
+      const max = element.scrollHeight - element.clientHeight;
+      return max > 0 ? element.scrollTop / max : 0;
+    }
+
+    function applyScrollRatio(element, ratio) {
+      const max = element.scrollHeight - element.clientHeight;
+      element.scrollTop = max > 0 ? ratio * max : 0;
+    }
+
+    function syncPreviewScroll() {
+      if (!(markdownInput instanceof HTMLTextAreaElement) || !(markdownPreview instanceof HTMLElement)) return;
+      applyScrollRatio(markdownPreview, scrollRatio(markdownInput));
+    }
+
+    function syncMarkdownScroll() {
+      if (!(markdownInput instanceof HTMLTextAreaElement) || !(markdownPreview instanceof HTMLElement)) return;
+      applyScrollRatio(markdownInput, scrollRatio(markdownPreview));
+    }
+
+    function withScrollSync(callback) {
+      if (isSyncingScroll) return;
+      isSyncingScroll = true;
+      callback();
+      window.requestAnimationFrame(() => {
+        isSyncingScroll = false;
+      });
+    }
+
+    function toggleLibrary() {
+      if (!app || !toggleLibraryButton) return;
+      const isCollapsed = app.classList.toggle("is-library-collapsed");
+      toggleLibraryButton.setAttribute("aria-label", isCollapsed ? "展开文章库" : "收起文章库");
+      toggleLibraryButton.setAttribute("aria-pressed", String(isCollapsed));
+    }
+
+    function setWorkspaceView(view) {
+      if (!(editorView instanceof HTMLElement) || !(settingsView instanceof HTMLElement)) return;
+      activeWorkspaceView = view === "settings" ? "settings" : "editor";
+      const showSettings = activeWorkspaceView === "settings";
+
+      editorView.hidden = showSettings;
+      settingsView.hidden = !showSettings;
+      app?.classList.toggle("is-settings-view", showSettings);
+
+      openEditorButtons.forEach((button) => {
+        button.classList.toggle("is-active", !showSettings);
+        button.setAttribute("aria-pressed", String(!showSettings));
+      });
+
+      openSettingsButtons.forEach((button) => {
+        button.classList.toggle("is-active", showSettings);
+        button.setAttribute("aria-pressed", String(showSettings));
+      });
+
+      if (!showSettings) {
+        window.requestAnimationFrame(syncPreviewScroll);
+      }
+    }
+
+    function toggleSettingsView() {
+      setWorkspaceView(activeWorkspaceView === "settings" ? "editor" : "settings");
+    }
+
+    function scrollMarkdownToLine(lineIndex) {
+      if (!(markdownInput instanceof HTMLTextAreaElement)) return;
+      const lines = markdownInput.value.replace(/\r\n/g, "\n").split("\n");
+      const safeLineIndex = Math.max(0, Math.min(Number(lineIndex) || 0, lines.length - 1));
+      const position = lines.slice(0, safeLineIndex).join("\n").length + (safeLineIndex > 0 ? 1 : 0);
+      const lineHeight = Number.parseFloat(getComputedStyle(markdownInput).lineHeight) || 24;
+
+      markdownInput.focus();
+      markdownInput.setSelectionRange(position, position);
+      markdownInput.scrollTop = Math.max(0, safeLineIndex * lineHeight - markdownInput.clientHeight * 0.18);
+    }
+
+    function scrollPreviewToHeading(headingId) {
+      if (!(markdownPreview instanceof HTMLElement)) return;
+      const heading = markdownPreview.querySelector(`[data-heading-id="${headingId}"]`);
+      if (!(heading instanceof HTMLElement)) return;
+      markdownPreview.scrollTop = Math.max(0, heading.offsetTop - markdownPreview.offsetTop - 12);
+    }
+
+    function goToTocHeading(lineIndex, headingId) {
+      setWorkspaceView("editor");
+      window.requestAnimationFrame(() => {
+        isSyncingScroll = true;
+        scrollMarkdownToLine(lineIndex);
+        scrollPreviewToHeading(headingId);
+        window.requestAnimationFrame(() => {
+          isSyncingScroll = false;
+        });
+      });
+    }
+
+    function updateEditorMeta() {
+      if (!postForm) return;
+      const data = new FormData(postForm);
+      const title = String(data.get("title") || "").trim() || "新文章";
+      const status = String(data.get("status") || "DRAFT") === "PUBLISHED" ? "已发布" : "草稿";
+      const pubDate = String(data.get("pubDate") || "").replace("T", " ") || "未设置发布时间";
+      const content = String(data.get("contentMarkdown") || "").trim();
+      const textCount = content.replace(/\s/g, "").length;
+
+      if (wordCountEl) wordCountEl.textContent = `${textCount} 字`;
+      if (actionTitleEl) actionTitleEl.textContent = title;
+      if (actionMetaEl) actionMetaEl.textContent = `${status} · ${pubDate}`;
+    }
+
+    function currentCoverAssetId() {
+      return String(postForm?.elements.coverAssetId?.value || "").trim();
+    }
+
+    function updateCoverSummary() {
+      if (!(coverSummary instanceof HTMLElement)) return;
+      const coverId = currentCoverAssetId();
+      const asset = assetsCache.find((item) => item.id === coverId);
+      const title = coverSummary.querySelector("strong");
+
+      coverSummary.classList.toggle("has-cover", Boolean(coverId));
+      if (title) {
+        title.textContent = asset?.filename || (coverId ? "已选择封面" : "未选择封面");
+      }
+      if (clearCoverButton instanceof HTMLElement) {
+        clearCoverButton.hidden = !coverId;
+      }
     }
 
     function localDateTimeValue(date = new Date()) {
@@ -291,16 +711,6 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     function postDateTimeInputValue(value) {
       if (!value) return "";
       return String(value).replace(" ", "T").slice(0, 16);
-    }
-
-    function resetPostForm() {
-      postForm?.reset();
-      const idInput = postForm?.querySelector("[data-post-id]");
-      if (idInput) idInput.value = "";
-      const pubDateInput = postForm?.querySelector("input[name='pubDate']");
-      if (pubDateInput) pubDateInput.value = localDateTimeValue();
-      if (postForm?.elements.updatedAt) postForm.elements.updatedAt.value = "";
-      updatePreview();
     }
 
     function formatAdminDate(value) {
@@ -321,20 +731,44 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       return inputValue ? inputValue.replace("T", " ") : "未记录";
     }
 
+    function setPostStatus(value) {
+      const input = postForm?.querySelector(`input[name="status"][value="${value}"]`);
+      if (input) input.checked = true;
+    }
+
+    function currentPostId() {
+      return postForm?.elements.id.value || "";
+    }
+
+    function resetPostForm() {
+      postForm?.reset();
+      if (postForm?.elements.id) postForm.elements.id.value = "";
+      if (postForm?.elements.coverAssetId) postForm.elements.coverAssetId.value = "";
+      if (postForm?.elements.pubDate) postForm.elements.pubDate.value = localDateTimeValue();
+      if (postForm?.elements.updatedAt) postForm.elements.updatedAt.value = "";
+      setPostStatus("DRAFT");
+      if (deleteButton) deleteButton.hidden = true;
+      updateCoverSummary();
+      updatePreview();
+      renderPosts(postsCache);
+    }
+
     function fillPostForm(post) {
       if (!postForm) return;
       postForm.elements.id.value = post.id || "";
       postForm.elements.title.value = post.title || "";
       postForm.elements.slug.value = post.slug || "";
       postForm.elements.description.value = post.description || "";
-      postForm.elements.status.value = post.status || "DRAFT";
+      setPostStatus(post.status || "DRAFT");
       postForm.elements.pubDate.value = postDateTimeInputValue(post.pubDate);
       postForm.elements.updatedAt.value = formatAdminDate(post.updatedAt || post.updatedDate);
       postForm.elements.coverAssetId.value = post.coverAssetId || "";
       postForm.elements.tags.value = Array.isArray(post.tags) ? post.tags.join(", ") : "";
       postForm.elements.contentMarkdown.value = post.contentMarkdown || "";
+      if (deleteButton) deleteButton.hidden = false;
+      updateCoverSummary();
       updatePreview();
-      postForm.scrollIntoView({ block: "start", behavior: "smooth" });
+      renderPosts(postsCache);
     }
 
     function getPostPayload() {
@@ -358,57 +792,84 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       };
     }
 
-    async function loadPosts() {
-      try {
-        setStatus("正在读取文章列表...");
-        const posts = await readJson(await fetch("/api/admin/posts", {
-          headers: adminHeaders(),
-        }));
-        renderPosts(posts || []);
-        setStatus(`已读取 ${posts?.length || 0} 篇文章。`, "success");
-      } catch (error) {
-        setStatus(error.message, "error");
-      }
+    function filterPosts(posts) {
+      const query = String(postFilterInput?.value || "").trim().toLocaleLowerCase();
+      const status = String(statusFilterInput?.value || "ALL");
+
+      return posts.filter((post) => {
+        const matchesStatus = status === "ALL" || post.status === status;
+        const haystack = [
+          post.title,
+          post.slug,
+          post.description,
+          ...(post.tags || []),
+        ].join(" ").toLocaleLowerCase();
+        return matchesStatus && (!query || haystack.includes(query));
+      });
     }
 
     function renderPosts(posts) {
       if (!postList) return;
-      if (!posts.length) {
-        postList.innerHTML = `<div class="admin-empty">暂无文章。</div>`;
+      const visiblePosts = filterPosts(posts);
+
+      if (!visiblePosts.length) {
+        postList.innerHTML = `<div class="admin-empty">没有匹配的文章。</div>`;
         return;
       }
 
-      postList.innerHTML = posts.map((post) => `
-        <article class="admin-post-item">
-          <div>
-            <span class="admin-pill">${escapeHtml(post.status)}</span>
-            <h3>${escapeHtml(post.title)}</h3>
-            <p>${escapeHtml(post.description || "")}</p>
-            <small>
-              ${escapeHtml(post.slug)}
-              · 发布时间 ${escapeHtml(formatAdminPublishDate(post.pubDate))}
-              · 最后编辑 ${escapeHtml(formatAdminDate(post.updatedAt || post.updatedDate))}
-            </small>
-          </div>
-          <div class="admin-item-actions">
-            <a class="admin-icon-link" href="${escapeHtml(post.url)}" target="_blank" rel="noreferrer" aria-label="打开文章">↗</a>
-            <button class="admin-small-button" type="button" data-edit-post="${escapeHtml(post.id)}">编辑</button>
+      const selectedId = currentPostId();
+      postList.innerHTML = visiblePosts.map((post) => `
+        <article class="post-item${post.id === selectedId ? " is-active" : ""}">
+          <button class="post-select" type="button" data-edit-post="${escapeHtml(post.id)}">
+            <span class="post-title-line">
+              <span class="post-state ${post.status === "PUBLISHED" ? "published" : "draft"}">
+                ${post.status === "PUBLISHED" ? "已发布" : "草稿"}
+              </span>
+              <strong>${escapeHtml(post.title)}</strong>
+            </span>
+            <small>${escapeHtml(formatAdminPublishDate(post.pubDate))} · ${escapeHtml(post.slug)}</small>
+            <span class="post-description">${escapeHtml(post.description || "暂无摘要")}</span>
+          </button>
+          <div class="post-actions">
+            <a class="icon-link open-post-link" href="${escapeHtml(post.url)}" target="_blank" rel="noreferrer" aria-label="打开文章">
+              打开 ↗
+            </a>
+            <button class="mini-button danger" type="button" data-delete-list-post="${escapeHtml(post.id)}">
+              删除
+            </button>
           </div>
         </article>
       `).join("");
 
       postList.querySelectorAll("[data-edit-post]").forEach((button) => {
         button.addEventListener("click", () => {
-          const post = posts.find((item) => item.id === button.dataset.editPost);
+          const post = postsCache.find((item) => item.id === button.dataset.editPost);
           if (post) fillPostForm(post);
         });
       });
+
+      postList.querySelectorAll("[data-delete-list-post]").forEach((button) => {
+        button.addEventListener("click", () => deletePost(button.dataset.deleteListPost));
+      });
+    }
+
+    async function loadPosts() {
+      try {
+        setStatus("正在读取文章列表...");
+        postsCache = await readJson(await fetch("/api/admin/posts", {
+          headers: adminHeaders(),
+        })) || [];
+        renderPosts(postsCache);
+        setStatus(`已读取 ${postsCache.length} 篇文章。`, "success");
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
     }
 
     async function savePost() {
       try {
         setStatus("正在保存文章...");
-        const id = postForm?.elements.id.value;
+        const id = currentPostId();
         const response = await fetch(id ? `/api/admin/posts/${encodeURIComponent(id)}` : "/api/admin/posts", {
           method: id ? "PATCH" : "POST",
           headers: {
@@ -419,7 +880,30 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         });
         const saved = await readJson(response);
         setStatus(`已保存：${saved.title}`, "success");
+        await loadPosts();
         fillPostForm(saved);
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
+    }
+
+    async function deletePost(id = currentPostId()) {
+      const post = postsCache.find((item) => item.id === id);
+      if (!id || !post) {
+        setStatus("请先选择要删除的文章。", "error");
+        return;
+      }
+
+      if (!window.confirm(`确认删除「${post.title}」？这个操作不能撤销。`)) return;
+
+      try {
+        setStatus("正在删除文章...");
+        await readJson(await fetch(`/api/admin/posts/${encodeURIComponent(id)}`, {
+          method: "DELETE",
+          headers: adminHeaders(),
+        }));
+        setStatus(`已删除：${post.title}`, "success");
+        resetPostForm();
         await loadPosts();
       } catch (error) {
         setStatus(error.message, "error");
@@ -428,30 +912,96 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 
     async function loadAssets() {
       try {
-        const assets = await readJson(await fetch("/api/assets"));
-        renderAssets(assets || []);
+        assetsCache = await readJson(await fetch("/api/assets")) || [];
+        renderAssets(assetsCache);
+        updateCoverSummary();
       } catch (error) {
         setStatus(error.message, "error");
       }
+    }
+
+    function markdownForAsset(asset) {
+      return `![${asset.alt || asset.filename}](${asset.url})`;
+    }
+
+    function insertMarkdown(text) {
+      if (!(markdownInput instanceof HTMLTextAreaElement)) return;
+      const start = markdownInput.selectionStart ?? markdownInput.value.length;
+      const end = markdownInput.selectionEnd ?? markdownInput.value.length;
+      const prefix = markdownInput.value.slice(0, start);
+      const suffix = markdownInput.value.slice(end);
+      const separatorBefore = prefix && !prefix.endsWith("\n") ? "\n\n" : "";
+      const separatorAfter = suffix && !suffix.startsWith("\n") ? "\n\n" : "";
+      markdownInput.value = `${prefix}${separatorBefore}${text}${separatorAfter}${suffix}`;
+      const cursor = (prefix + separatorBefore + text).length;
+      markdownInput.focus();
+      markdownInput.setSelectionRange(cursor, cursor);
+      updatePreview();
+    }
+
+    function replaceSelection(formatter) {
+      if (!(markdownInput instanceof HTMLTextAreaElement)) return;
+      const start = markdownInput.selectionStart ?? markdownInput.value.length;
+      const end = markdownInput.selectionEnd ?? markdownInput.value.length;
+      const selected = markdownInput.value.slice(start, end);
+      const replacement = formatter(selected);
+      markdownInput.setRangeText(replacement, start, end, "end");
+      markdownInput.focus();
+      updatePreview();
+    }
+
+    function runMarkdownAction(action) {
+      const fallback = {
+        bold: "加粗文本",
+        italic: "斜体文本",
+        heading: "标题",
+        quote: "引用内容",
+        list: "列表项",
+        code: "代码内容",
+        link: "链接文本",
+      };
+
+      const selectedOr = (selected, key) => selected || fallback[key];
+
+      const actions = {
+        bold: (selected) => `**${selectedOr(selected, "bold")}**`,
+        italic: (selected) => `*${selectedOr(selected, "italic")}*`,
+        heading: (selected) => `## ${selectedOr(selected, "heading")}`,
+        quote: (selected) => selected
+          ? selected.split("\n").map((line) => `> ${line}`).join("\n")
+          : `> ${fallback.quote}`,
+        list: (selected) => selected
+          ? selected.split("\n").map((line) => `- ${line}`).join("\n")
+          : `- ${fallback.list}`,
+        code: (selected) => `\`\`\`\n${selectedOr(selected, "code")}\n\`\`\``,
+        link: (selected) => `[${selectedOr(selected, "link")}](https://)`,
+      };
+
+      const formatter = actions[action];
+      if (formatter) replaceSelection(formatter);
     }
 
     function renderAssets(assets) {
       if (!assetList) return;
       if (!assets.length) {
         assetList.innerHTML = `<div class="admin-empty">暂无资源。</div>`;
+        updateCoverSummary();
         return;
       }
 
+      const selectedCoverId = currentCoverAssetId();
       assetList.innerHTML = assets.map((asset) => `
-        <article class="asset-item">
+        <article class="asset-item${asset.id === selectedCoverId ? " is-cover" : ""}">
           <img src="${escapeHtml(asset.url)}" alt="${escapeHtml(asset.alt || asset.filename)}" loading="lazy" />
           <div>
             <strong>${escapeHtml(asset.filename)}</strong>
-            <small>${Math.round((asset.byteSize || 0) / 1024)} KB</small>
-            <code>${escapeHtml(asset.id)}</code>
-            <div class="admin-item-actions">
-              <button class="admin-small-button" type="button" data-cover-id="${escapeHtml(asset.id)}">封面</button>
-              <button class="admin-small-button" type="button" data-copy-url="${escapeHtml(asset.url)}">复制 URL</button>
+            <small>${Math.round((asset.byteSize || 0) / 1024)} KB · ${escapeHtml(asset.id)}</small>
+            <div class="asset-actions">
+              <button class="mini-button" type="button" data-cover-id="${escapeHtml(asset.id)}">
+                ${asset.id === selectedCoverId ? "当前封面" : "设封面"}
+              </button>
+              <button class="mini-button" type="button" data-insert-asset="${escapeHtml(asset.id)}">插入</button>
+              <button class="mini-button" type="button" data-copy-url="${escapeHtml(asset.url)}">复制 URL</button>
             </div>
           </div>
         </article>
@@ -460,7 +1010,18 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       assetList.querySelectorAll("[data-cover-id]").forEach((button) => {
         button.addEventListener("click", () => {
           if (postForm) postForm.elements.coverAssetId.value = button.dataset.coverId || "";
-          setStatus("已填入封面资源 ID。", "success");
+          updateCoverSummary();
+          renderAssets(assetsCache);
+          setStatus("已设置封面资源。", "success");
+        });
+      });
+
+      assetList.querySelectorAll("[data-insert-asset]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const asset = assetsCache.find((item) => item.id === button.dataset.insertAsset);
+          if (!asset) return;
+          insertMarkdown(markdownForAsset(asset));
+          setStatus("已插入图片 Markdown。", "success");
         });
       });
 
@@ -474,12 +1035,17 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 
     async function uploadAsset() {
       try {
-        if (!assetForm) throw new Error("Asset form is missing.");
-        const data = new FormData(assetForm);
-        const file = data.get("file");
+        if (!(assetForm instanceof HTMLElement)) throw new Error("Asset form is missing.");
+        const fileInput = assetForm.querySelector('input[name="file"]');
+        const altInput = assetForm.querySelector('input[name="alt"]');
+        const file = fileInput instanceof HTMLInputElement ? fileInput.files?.[0] : null;
         if (!(file instanceof File) || !file.size) {
           throw new Error("请选择图片文件。");
         }
+
+        const data = new FormData();
+        data.set("file", file);
+        data.set("alt", altInput instanceof HTMLInputElement ? altInput.value : "");
 
         setStatus("正在上传图片...");
         const uploaded = await readJson(await fetch("/api/admin/assets", {
@@ -488,202 +1054,668 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
           body: data,
         }));
         setStatus(`已上传：${uploaded.filename}`, "success");
-        assetForm.reset();
+        if (fileInput instanceof HTMLInputElement) fileInput.value = "";
+        if (altInput instanceof HTMLInputElement) altInput.value = "";
         await loadAssets();
       } catch (error) {
         setStatus(error.message, "error");
       }
     }
 
+    function insertCoverImage() {
+      const id = postForm?.elements.coverAssetId.value;
+      const asset = assetsCache.find((item) => item.id === id);
+      if (!asset) {
+        setStatus("请先从资源列表设置封面。", "error");
+        return;
+      }
+      insertMarkdown(markdownForAsset(asset));
+      setStatus("已插入封面图片 Markdown。", "success");
+    }
+
+    function publishPost() {
+      setPostStatus("PUBLISHED");
+      updateEditorMeta();
+      savePost();
+    }
+
     postForm?.addEventListener("input", updatePreview);
+    postFilterInput?.addEventListener("input", () => renderPosts(postsCache));
+    statusFilterInput?.addEventListener("change", () => renderPosts(postsCache));
     app?.querySelector("[data-save-post]")?.addEventListener("click", savePost);
+    app?.querySelector("[data-publish-post]")?.addEventListener("click", publishPost);
+    app?.querySelector("[data-delete-post]")?.addEventListener("click", () => deletePost());
+    app?.querySelector("[data-new-post]")?.addEventListener("click", resetPostForm);
     app?.querySelector("[data-reset-post]")?.addEventListener("click", resetPostForm);
     app?.querySelector("[data-upload-asset]")?.addEventListener("click", uploadAsset);
     app?.querySelector("[data-refresh-assets]")?.addEventListener("click", loadAssets);
     app?.querySelector("[data-refresh-posts]")?.addEventListener("click", loadPosts);
+    app?.querySelector("[data-insert-cover-image]")?.addEventListener("click", insertCoverImage);
+    clearCoverButton?.addEventListener("click", () => {
+      if (postForm?.elements.coverAssetId) postForm.elements.coverAssetId.value = "";
+      updateCoverSummary();
+      renderAssets(assetsCache);
+      setStatus("已清除封面。", "success");
+    });
+    toggleLibraryButton?.addEventListener("click", toggleLibrary);
+    openEditorButtons.forEach((button) => {
+      button.addEventListener("click", () => setWorkspaceView("editor"));
+    });
+    openSettingsButtons.forEach((button) => {
+      button.addEventListener("click", toggleSettingsView);
+    });
+    markdownInput?.addEventListener("scroll", () => withScrollSync(syncPreviewScroll));
+    markdownPreview?.addEventListener("scroll", () => withScrollSync(syncMarkdownScroll));
+    tocList?.addEventListener("click", (event) => {
+      const button = event.target instanceof Element ? event.target.closest("[data-toc-heading]") : null;
+      if (!(button instanceof HTMLElement)) return;
+      goToTocHeading(button.dataset.tocLine, button.dataset.tocHeading || "");
+    });
+    app?.querySelectorAll("[data-md-action]").forEach((button) => {
+      button.addEventListener("click", () => runMarkdownAction(button.dataset.mdAction));
+    });
     tokenInput?.addEventListener("change", loadPosts);
 
     resetPostForm();
+    setWorkspaceView("editor");
     loadAssets();
   </script>
 
   <style>
-    .admin-shell {
-      display: grid;
-      gap: 22px;
-      padding-top: 34px;
+    :global(body:has([data-admin-app])) {
+      overflow: hidden;
+      background: #eef1ef;
     }
 
-    .admin-hero,
-    .admin-panel {
-      border: 1px solid var(--line);
-      background: var(--surface);
-      box-shadow: var(--shadow);
+    :global(body:has([data-admin-app]) .site-header),
+    :global(body:has([data-admin-app]) .site-footer),
+    :global(body:has([data-admin-app]) .corner-pet) {
+      display: none;
+    }
+
+    :global(body:has([data-admin-app]) main) {
+      width: 100%;
+      max-width: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    :global(html[data-theme="dark"] body:has([data-admin-app])) {
+      background: #0d1714;
+    }
+
+    .admin-shell {
+      --admin-bg: color-mix(in srgb, var(--bg) 86%, #eef1ef);
+      --admin-panel: color-mix(in srgb, var(--surface) 92%, transparent);
+      --admin-panel-strong: color-mix(in srgb, var(--surface-control) 94%, transparent);
+      height: 100vh;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr) auto;
+      gap: 12px;
+      padding: 12px 16px 84px;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.4), transparent 220px),
+        var(--admin-bg);
+    }
+
+    .admin-editor-bar,
+    .admin-status,
+    .admin-panel,
+    .admin-action-bar {
+      border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+      background: var(--admin-panel);
+      box-shadow: 0 18px 46px rgba(0, 0, 0, 0.08);
       backdrop-filter: blur(18px);
     }
 
-    .admin-hero {
+    .admin-editor-bar {
+      position: sticky;
+      top: 10px;
+      z-index: 20;
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
-      gap: 22px;
-      align-items: end;
-      border-radius: 30px;
-      padding: clamp(24px, 5vw, 42px);
-    }
-
-    .admin-hero h1 {
-      margin: 0;
-      font-size: clamp(2.1rem, 6vw, 4.6rem);
-      line-height: 1.04;
-      letter-spacing: 0;
-    }
-
-    .admin-hero p:not(.section-kicker) {
-      max-width: 620px;
-      margin: 14px 0 0;
-      color: var(--muted);
-      line-height: 1.75;
-    }
-
-    .admin-token-panel,
-    .admin-form,
-    .asset-upload {
-      display: grid;
-      gap: 14px;
-    }
-
-    .admin-token-panel label,
-    .admin-form label,
-    .asset-upload label {
-      display: grid;
-      gap: 8px;
-      color: var(--muted);
-      font-size: 0.88rem;
-      font-weight: 760;
-    }
-
-    .admin-token-panel label {
-      display: flex;
+      grid-template-columns: auto minmax(0, 1fr) minmax(260px, 360px);
+      gap: 18px;
       align-items: center;
-    }
-
-    .admin-form input,
-    .admin-form select,
-    .admin-form textarea,
-    .asset-upload input,
-    .admin-token-panel input {
-      width: 100%;
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      background: var(--surface-control);
-      color: var(--text);
-      font: inherit;
-      padding: 12px 14px;
-    }
-
-    .admin-form textarea {
-      min-height: 430px;
-      resize: vertical;
-      font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
-      font-size: 0.92rem;
-      line-height: 1.7;
-    }
-
-    .admin-readonly-field input {
-      color: var(--muted);
-      cursor: default;
-      opacity: 0.86;
-    }
-
-    .admin-status {
-      border: 1px solid var(--line);
+      min-height: 62px;
       border-radius: 18px;
-      background: var(--surface-control);
-      color: var(--muted);
-      padding: 12px 16px;
-      font-size: 0.92rem;
-      font-weight: 720;
+      padding: 10px 14px;
     }
 
-    .admin-status[data-type="success"] {
-      border-color: rgba(47, 143, 112, 0.42);
-      color: var(--accent-strong);
-    }
-
-    .admin-status[data-type="error"] {
-      border-color: rgba(208, 96, 96, 0.42);
-      color: #c85050;
-    }
-
-    .admin-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 360px;
-      gap: 22px;
-      align-items: start;
-    }
-
-    .admin-grid.lower {
-      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-    }
-
-    .admin-panel {
-      border-radius: 28px;
-      padding: 22px;
-    }
-
-    .admin-panel-head {
-      display: flex;
-      gap: 16px;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 18px;
-    }
-
-    .admin-panel-head.compact {
-      margin-bottom: 14px;
-    }
-
-    .admin-panel-head.with-gap {
-      margin-top: 24px;
-    }
-
-    .admin-panel h2 {
-      margin: 0;
-      font-size: 1.2rem;
-    }
-
-    .admin-actions,
-    .admin-item-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-    }
-
+    .back-link,
     .admin-button,
-    .admin-icon-button,
-    .admin-small-button,
-    .admin-icon-link {
+    .icon-button,
+    .mini-button,
+    .icon-link,
+    .tool-button {
       display: inline-flex;
       align-items: center;
       justify-content: center;
       border: 1px solid var(--line);
-      background: var(--surface-control);
+      background: var(--admin-panel-strong);
       color: var(--text);
       cursor: pointer;
       font: inherit;
       font-weight: 780;
-      transition:
-        transform 180ms ease,
-        border-color 180ms ease,
-        background 180ms ease;
+      text-decoration: none;
+      transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+    }
+
+    .back-link {
+      min-height: 38px;
+      border-radius: 999px;
+      padding: 7px 13px;
+    }
+
+    .editor-title {
+      min-width: 0;
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+    }
+
+    .editor-title strong {
+      font-size: 1.15rem;
+      white-space: nowrap;
+    }
+
+    .editor-title small,
+    .admin-action-bar span,
+    .post-select small,
+    .post-description,
+    .asset-item small {
+      color: var(--muted);
+    }
+
+    .section-kicker {
+      margin: 0;
+      color: var(--accent-strong);
+      font-size: 0.72rem;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .token-field {
+      display: grid;
+      grid-template-columns: auto auto minmax(0, 1fr);
+      gap: 8px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 0.86rem;
+      font-weight: 820;
+    }
+
+    .admin-status {
+      border-radius: 14px;
+      color: var(--muted);
+      padding: 9px 14px;
+      font-size: 0.88rem;
+      font-weight: 760;
+    }
+
+    .admin-status[data-type="success"] {
+      border-color: rgba(47, 143, 112, 0.5);
+      color: var(--accent-strong);
+    }
+
+    .admin-status[data-type="error"] {
+      border-color: rgba(218, 91, 91, 0.52);
+      color: #ff9a9a;
+    }
+
+    .admin-workbench {
+      min-height: 0;
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: minmax(260px, 310px) minmax(620px, 1fr) minmax(280px, 330px);
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .admin-shell.is-library-collapsed .admin-workbench {
+      grid-template-columns: 58px minmax(620px, 1fr) minmax(280px, 330px);
+    }
+
+    .admin-panel {
+      min-width: 0;
+      min-height: 0;
+      border-radius: 18px;
+      padding: 14px;
+      overflow: hidden;
+    }
+
+    .post-library,
+    .toc-panel {
+      height: 100%;
+      display: grid;
+      gap: 12px;
+    }
+
+    .post-library {
+      grid-template-rows: auto auto minmax(0, 1fr);
+    }
+
+    .toc-panel {
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .editor-panel {
+      display: grid;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .panel-head,
+    .button-row,
+    .icon-actions,
+    .post-actions,
+    .asset-actions,
+    .markdown-toolbar,
+    .preview-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-head {
+      justify-content: space-between;
+    }
+
+    .panel-head h2 {
+      margin: 4px 0 0;
+      font-size: 1.08rem;
+    }
+
+    .library-icon-expand {
+      display: none;
+    }
+
+    .library-rail {
+      display: none;
+    }
+
+    .admin-shell.is-library-collapsed .post-library {
+      padding: 10px;
+      grid-template-rows: auto auto;
+      align-content: start;
+    }
+
+    .admin-shell.is-library-collapsed .post-library .panel-head {
+      justify-content: center;
+    }
+
+    .admin-shell.is-library-collapsed .post-library .panel-head > div:first-child,
+    .admin-shell.is-library-collapsed .post-library [data-new-post],
+    .admin-shell.is-library-collapsed .post-library [data-refresh-posts],
+    .admin-shell.is-library-collapsed .library-tools,
+    .admin-shell.is-library-collapsed .post-list {
+      display: none;
+    }
+
+    .admin-shell.is-library-collapsed .library-icon-collapse {
+      display: none;
+    }
+
+    .admin-shell.is-library-collapsed .library-icon-expand {
+      display: block;
+    }
+
+    .admin-shell.is-library-collapsed .library-rail {
+      display: grid;
+      gap: 10px;
+      justify-items: center;
+      margin-top: 12px;
+    }
+
+    .rail-button {
+      display: grid;
+      width: 38px;
+      min-height: 48px;
+      place-items: center;
+      gap: 3px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--admin-panel-strong);
+      color: var(--muted);
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.65rem;
+      font-weight: 850;
+      transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+    }
+
+    .rail-button.is-active,
+    .rail-button:hover {
+      border-color: rgba(117, 201, 165, 0.62);
+      background: var(--accent-soft);
+      color: var(--accent-strong);
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--admin-panel-strong);
+      color: var(--text);
+      font: inherit;
+      padding: 10px 12px;
+      outline: none;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: color-mix(in srgb, var(--accent-strong) 70%, white);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-strong) 18%, transparent);
+    }
+
+    .post-form,
+    .asset-upload,
+    .library-tools,
+    .post-list,
+    .asset-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .post-form {
+      grid-template-rows: minmax(0, 1fr);
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .editor-view,
+    .settings-view {
+      min-height: 0;
+    }
+
+    .editor-view {
+      display: grid;
+      grid-template-rows: 42px minmax(0, 1fr);
+      gap: 12px;
+      overflow: hidden;
+    }
+
+    .settings-view {
+      display: grid;
+      align-content: start;
+      gap: 18px;
+      overflow: auto;
+      padding: 4px;
+    }
+
+    .editor-view[hidden],
+    .settings-view[hidden] {
+      display: none;
+    }
+
+    .settings-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 14px;
+    }
+
+    .settings-head h2 {
+      margin: 4px 0 0;
+      font-size: 1.25rem;
+    }
+
+    .settings-media-card {
+      display: grid;
+      gap: 12px;
+      min-height: 0;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: color-mix(in srgb, var(--admin-panel-strong) 72%, transparent);
+      padding: 14px;
+    }
+
+    .settings-card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .settings-card-head h3 {
+      margin: 4px 0 0;
+      font-size: 1rem;
+    }
+
+    .settings-media-card .asset-upload {
+      grid-template-columns: minmax(0, 1fr) minmax(180px, 0.55fr) auto;
+      align-items: end;
+    }
+
+    .cover-current {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--admin-panel-strong);
+      padding: 10px 12px;
+    }
+
+    .cover-current span {
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 820;
+    }
+
+    .cover-current strong {
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 0.88rem;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .cover-current.has-cover {
+      border-color: rgba(47, 143, 112, 0.36);
+      background: var(--accent-soft);
+    }
+
+    .cover-current.has-cover strong {
+      color: var(--accent-strong);
+    }
+
+    .post-form label,
+    .asset-upload label,
+    .markdown-column,
+    .preview-column {
+      display: grid;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 780;
+      min-width: 0;
+    }
+
+    .title-row,
+    .publish-strip,
+    .editor-split {
+      display: grid;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .title-row {
+      grid-template-columns: minmax(0, 1fr) minmax(180px, 260px);
+    }
+
+    .description-field input,
+    .title-row input[name="title"] {
+      font-weight: 820;
+    }
+
+    .title-row input[name="title"] {
+      min-height: 48px;
+      font-size: 1.18rem;
+    }
+
+    .publish-strip {
+      grid-template-columns: minmax(210px, 0.8fr) minmax(190px, 0.65fr) minmax(190px, 0.65fr);
+    }
+
+    .publish-strip.secondary {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .status-toggle {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      border: 0;
+      margin: 0;
+      padding: 0;
+    }
+
+    .status-toggle legend {
+      grid-column: 1 / -1;
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 780;
+    }
+
+    .status-toggle label {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--admin-panel-strong);
+      color: var(--muted);
+      cursor: pointer;
+      font-weight: 820;
+    }
+
+    .status-toggle input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .status-toggle label:has(input:checked) {
+      border-color: rgba(47, 143, 112, 0.52);
+      background: var(--accent-soft);
+      color: var(--accent-strong);
+    }
+
+    .markdown-toolbar {
+      position: static;
+      z-index: auto;
+      align-self: start;
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: color-mix(in srgb, var(--surface) 96%, transparent);
+      padding: 6px;
+      overflow-x: auto;
+    }
+
+    .toolbar-spacer {
+      flex: 1 1 auto;
+    }
+
+    .tool-button,
+    .icon-button,
+    .icon-link {
+      width: 34px;
+      height: 34px;
+      flex: 0 0 auto;
+      border-radius: 10px;
+      padding: 0;
+    }
+
+    .tool-button.text-tool {
+      width: auto;
+      gap: 6px;
+      padding: 0 10px;
+      font-size: 0.78rem;
+    }
+
+    .editor-split {
+      grid-template-columns: minmax(0, 1fr) minmax(300px, 0.82fr);
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .markdown-column,
+    .preview-column {
+      min-height: 0;
+      grid-template-rows: auto minmax(0, 1fr);
+      overflow: hidden;
+    }
+
+    textarea {
+      height: 100%;
+      min-height: 0;
+      overflow: auto;
+      resize: none;
+      font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+      font-size: 0.94rem;
+      line-height: 1.78;
+    }
+
+    .markdown-preview {
+      height: 100%;
+      min-height: 0;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--admin-panel-strong);
+      padding: 18px;
+      color: var(--text);
+      line-height: 1.85;
+    }
+
+    .markdown-preview :global(:first-child) {
+      margin-top: 0;
+    }
+
+    .markdown-preview :global(pre) {
+      overflow-x: auto;
+      border-radius: 12px;
+      background: var(--code-bg);
+      color: #edf7f1;
+      padding: 14px;
+    }
+
+    .markdown-preview :global(code) {
+      font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+    }
+
+    .markdown-preview :global(h1),
+    .markdown-preview :global(h2),
+    .markdown-preview :global(h3),
+    .markdown-preview :global(h4) {
+      color: var(--text);
+      line-height: 1.35;
+    }
+
+    .markdown-preview :global(.katex-display) {
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 0.35rem 0;
     }
 
     .admin-button {
-      min-height: 42px;
+      min-height: 38px;
       gap: 8px;
-      border-radius: 999px;
-      padding: 9px 14px;
+      border-radius: 12px;
+      padding: 8px 13px;
     }
 
     .admin-button.primary {
@@ -692,160 +1724,576 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       color: var(--bg);
     }
 
-    .admin-icon-button,
-    .admin-icon-link {
-      width: 38px;
-      height: 38px;
-      border-radius: 999px;
+    .admin-button.danger,
+    .mini-button.danger {
+      border-color: rgba(218, 91, 91, 0.38);
+      color: #ffb0b0;
     }
 
-    .admin-small-button {
-      min-height: 32px;
-      border-radius: 999px;
-      padding: 6px 10px;
-      font-size: 0.82rem;
+    .admin-button.full {
+      width: 100%;
+    }
+
+    .mini-button {
+      min-height: 28px;
+      border-radius: 9px;
+      padding: 5px 8px;
+      font-size: 0.76rem;
+    }
+
+    .post-actions .icon-link,
+    .post-actions .mini-button {
+      background: transparent;
+      color: var(--muted);
+    }
+
+    .post-actions .open-post-link {
+      width: auto;
+      min-height: 30px;
+      border-color: rgba(117, 201, 165, 0.34);
+      background: rgba(117, 201, 165, 0.08) !important;
+      color: var(--accent-strong);
+      font-size: 0.76rem;
+      font-weight: 820;
+      padding: 5px 9px;
+      white-space: nowrap;
+    }
+
+    .post-actions .icon-link:hover {
+      color: var(--accent-strong);
+    }
+
+    .post-actions .mini-button.danger {
+      background: rgba(218, 91, 91, 0.07) !important;
     }
 
     .admin-button:hover,
-    .admin-icon-button:hover,
-    .admin-small-button:hover,
-    .admin-icon-link:hover {
+    .icon-button:hover,
+    .mini-button:hover,
+    .icon-link:hover,
+    .tool-button:hover,
+    .back-link:hover {
       transform: translateY(-1px);
       border-color: rgba(117, 201, 165, 0.62);
       background: var(--accent-soft);
     }
 
-    .admin-form-row {
+    .search-field {
+      position: relative;
+      display: block;
+    }
+
+    .search-field svg {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+    }
+
+    .search-field input {
+      padding-left: 38px;
+    }
+
+    .post-list,
+    .asset-list {
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    .settings-media-card .asset-list {
+      max-height: 360px;
+    }
+
+    .post-item,
+    .asset-item {
       display: grid;
-      gap: 14px;
-    }
-
-    .admin-form-row.two {
-      grid-template-columns: 1fr 0.7fr;
-    }
-
-    .admin-form-row.three {
-      grid-template-columns: 0.55fr 0.8fr 1fr;
-    }
-
-    .asset-list,
-    .admin-list {
-      display: grid;
-      gap: 10px;
-    }
-
-    .asset-item,
-    .admin-post-item {
-      display: grid;
-      gap: 12px;
+      gap: 9px;
       border: 1px solid var(--line);
-      border-radius: 20px;
-      background: var(--surface-control);
-      padding: 12px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.018);
+      padding: 10px;
+    }
+
+    .post-item {
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: start;
+      padding: 11px;
+      transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+    }
+
+    .post-item:hover {
+      border-color: rgba(117, 201, 165, 0.34);
+      background: rgba(117, 201, 165, 0.075);
+    }
+
+    .post-item.is-active {
+      border-color: rgba(117, 201, 165, 0.62);
+      background: rgba(117, 201, 165, 0.11);
+      box-shadow: inset 3px 0 0 var(--accent-strong);
+    }
+
+    .post-select {
+      min-width: 0;
+      display: grid;
+      gap: 6px;
+      border: 0;
+      background: transparent !important;
+      color: inherit;
+      cursor: pointer;
+      font: inherit;
+      padding: 0;
+      text-align: left;
+    }
+
+    .post-title-line {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .post-select strong,
+    .asset-item strong {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .post-select strong {
+      color: var(--text);
+      font-size: 0.92rem;
+      line-height: 1.35;
+    }
+
+    .post-select small,
+    .post-description,
+    .asset-item small {
+      line-height: 1.45;
+    }
+
+    .post-select small {
+      font-size: 0.72rem;
+    }
+
+    .post-description {
+      display: -webkit-box;
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 0.78rem;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+
+    .post-state,
+    .preview-badge {
+      width: fit-content;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 820;
+      padding: 3px 8px;
+    }
+
+    .post-state {
+      flex: 0 0 auto;
+      border-radius: 8px;
+      font-size: 0.66rem;
+      line-height: 1;
+      padding: 4px 6px;
+    }
+
+    .post-state.published {
+      border-color: rgba(47, 143, 112, 0.5);
+      background: rgba(117, 201, 165, 0.12);
+      color: var(--accent-strong);
+    }
+
+    .post-actions {
+      flex-direction: row;
+      align-items: flex-end;
+      gap: 6px;
+    }
+
+    .post-actions .mini-button {
+      min-height: 30px;
+      padding-inline: 9px;
     }
 
     .asset-item {
       grid-template-columns: 82px minmax(0, 1fr);
     }
 
+    .asset-item.is-cover {
+      border-color: rgba(47, 143, 112, 0.52);
+      box-shadow: 0 0 0 3px rgba(117, 201, 165, 0.1);
+    }
+
     .asset-item img {
       width: 82px;
       height: 82px;
-      border-radius: 16px;
+      border-radius: 12px;
       object-fit: cover;
       background: var(--bg-soft);
     }
 
-    .asset-item strong,
-    .admin-post-item h3 {
-      display: block;
-      margin: 0;
-      line-height: 1.32;
-    }
-
-    .asset-item small,
-    .admin-post-item small,
-    .admin-post-item p {
-      color: var(--muted);
-    }
-
-    .asset-item code {
-      display: block;
-      overflow: hidden;
-      margin: 6px 0;
-      color: var(--muted);
-      font-size: 0.72rem;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .admin-post-item {
-      grid-template-columns: minmax(0, 1fr) auto;
-      align-items: center;
-    }
-
-    .admin-post-item p {
-      margin: 6px 0;
-      line-height: 1.55;
-    }
-
-    .admin-pill,
-    .admin-preview-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      border: 1px solid rgba(117, 201, 165, 0.3);
-      border-radius: 999px;
-      background: var(--accent-soft);
-      color: var(--accent-strong);
-      font-size: 0.74rem;
-      font-weight: 820;
-      padding: 4px 9px;
-    }
-
-    .admin-preview {
-      min-height: 360px;
-      border: 1px solid var(--line);
-      border-radius: 22px;
-      background: var(--surface-control);
-      padding: 20px;
-      line-height: 1.85;
-    }
-
-    .admin-preview :first-child {
-      margin-top: 0;
-    }
-
-    .admin-preview pre {
-      overflow-x: auto;
-      border-radius: 16px;
-      background: var(--code-bg);
-      color: #edf7f1;
-      padding: 16px;
-    }
-
-    .admin-preview code {
-      font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+    .asset-actions {
+      flex-wrap: wrap;
+      margin-top: 7px;
     }
 
     .admin-empty {
       border: 1px dashed var(--line);
-      border-radius: 18px;
+      border-radius: 14px;
       color: var(--muted);
-      padding: 18px;
+      padding: 16px;
       text-align: center;
     }
 
-    @media (max-width: 980px) {
-      .admin-hero,
-      .admin-grid,
-      .admin-grid.lower {
+    .toc-list {
+      min-height: 0;
+      overflow: auto;
+      display: grid;
+      align-content: start;
+      gap: 3px;
+      padding-right: 2px;
+    }
+
+    .toc-item {
+      width: 100%;
+      min-height: 32px;
+      border: 1px solid transparent;
+      border-left-color: color-mix(in srgb, var(--line) 72%, transparent);
+      border-radius: 0 9px 9px 0;
+      background: transparent !important;
+      color: var(--muted);
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.8rem;
+      font-weight: 760;
+      line-height: 1.35;
+      padding: 6px 8px;
+      text-align: left;
+      transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+    }
+
+    .toc-item:hover {
+      border-color: rgba(117, 201, 165, 0.46);
+      background: rgba(117, 201, 165, 0.09) !important;
+      color: var(--accent-strong);
+    }
+
+    .toc-item span {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .toc-item.depth-2 {
+      margin-left: 12px;
+      width: calc(100% - 12px);
+    }
+
+    .toc-item.depth-3 {
+      margin-left: 24px;
+      width: calc(100% - 24px);
+      font-size: 0.78rem;
+    }
+
+    .toc-item.depth-4 {
+      margin-left: 36px;
+      width: calc(100% - 36px);
+      font-size: 0.76rem;
+    }
+
+    .toc-empty {
+      margin: 0;
+      text-align: left;
+    }
+
+    :global(.post-item),
+    :global(.asset-item) {
+      display: grid;
+      gap: 9px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: transparent;
+      padding: 10px;
+    }
+
+    :global(.post-item) {
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: start;
+      padding: 11px;
+      transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+    }
+
+    :global(.post-item:hover) {
+      border-color: rgba(117, 201, 165, 0.34);
+      background: rgba(117, 201, 165, 0.055);
+    }
+
+    :global(.post-item.is-active) {
+      border-color: rgba(117, 201, 165, 0.62);
+      background: rgba(117, 201, 165, 0.08);
+      box-shadow: inset 3px 0 0 var(--accent-strong);
+    }
+
+    :global(.post-select) {
+      min-width: 0;
+      display: grid;
+      gap: 6px;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      font: inherit;
+      padding: 0;
+      text-align: left;
+    }
+
+    :global(.post-title-line) {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    :global(.post-select strong),
+    :global(.asset-item strong) {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    :global(.post-select strong) {
+      color: var(--text);
+      font-size: 0.92rem;
+      line-height: 1.35;
+    }
+
+    :global(.post-select small),
+    :global(.post-description),
+    :global(.asset-item small) {
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    :global(.post-select small) {
+      font-size: 0.72rem;
+    }
+
+    :global(.post-description) {
+      display: -webkit-box;
+      overflow: hidden;
+      font-size: 0.78rem;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+
+    :global(.post-state) {
+      flex: 0 0 auto;
+      width: fit-content;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--muted);
+      font-size: 0.66rem;
+      font-weight: 820;
+      line-height: 1;
+      padding: 4px 6px;
+    }
+
+    :global(.post-state.published) {
+      border-color: rgba(47, 143, 112, 0.5);
+      background: rgba(117, 201, 165, 0.12);
+      color: var(--accent-strong);
+    }
+
+    :global(.post-actions) {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-end;
+      gap: 6px;
+    }
+
+    :global(.post-actions .icon-link),
+    :global(.post-actions .mini-button) {
+      min-height: 30px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: 0.76rem;
+      padding: 5px 9px;
+      text-decoration: none;
+    }
+
+    :global(.post-actions .open-post-link) {
+      width: auto;
+      border-color: rgba(117, 201, 165, 0.34);
+      background: rgba(117, 201, 165, 0.08);
+      color: var(--accent-strong);
+      font-weight: 820;
+      white-space: nowrap;
+    }
+
+    :global(.post-actions .mini-button.danger) {
+      background: rgba(218, 91, 91, 0.07);
+      color: #ffb0b0;
+    }
+
+    :global(.toc-item) {
+      width: 100%;
+      min-height: 32px;
+      border: 1px solid transparent;
+      border-left-color: color-mix(in srgb, var(--line) 72%, transparent);
+      border-radius: 0 9px 9px 0;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.8rem;
+      font-weight: 760;
+      line-height: 1.35;
+      padding: 6px 8px;
+      text-align: left;
+      transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+    }
+
+    :global(.toc-item:hover) {
+      border-color: rgba(117, 201, 165, 0.46);
+      background: rgba(117, 201, 165, 0.09);
+      color: var(--accent-strong);
+    }
+
+    :global(.toc-item span) {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    :global(.toc-item.depth-2) {
+      margin-left: 12px;
+      width: calc(100% - 12px);
+    }
+
+    :global(.toc-item.depth-3) {
+      margin-left: 24px;
+      width: calc(100% - 24px);
+      font-size: 0.78rem;
+    }
+
+    :global(.toc-item.depth-4) {
+      margin-left: 36px;
+      width: calc(100% - 36px);
+      font-size: 0.76rem;
+    }
+
+    :global(.admin-empty) {
+      border: 1px dashed var(--line);
+      border-radius: 14px;
+      color: var(--muted);
+      padding: 16px;
+      text-align: center;
+    }
+
+    .admin-action-bar {
+      position: fixed;
+      right: 16px;
+      bottom: 12px;
+      left: 16px;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      min-height: 60px;
+      border-radius: 18px;
+      padding: 10px 14px;
+    }
+
+    .admin-action-bar > div:first-child {
+      min-width: 0;
+      display: grid;
+      gap: 2px;
+    }
+
+    .admin-action-bar strong {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 1380px) {
+      .admin-workbench {
+        grid-template-columns: minmax(220px, 260px) minmax(500px, 1fr) minmax(240px, 280px);
+      }
+
+      .admin-shell.is-library-collapsed .admin-workbench {
+        grid-template-columns: 58px minmax(500px, 1fr) minmax(240px, 280px);
+      }
+    }
+
+    @media (max-width: 1040px) {
+      .admin-editor-bar,
+      .admin-workbench,
+      .title-row,
+      .publish-strip,
+      .publish-strip.secondary,
+      .settings-media-card .asset-upload,
+      .cover-current,
+      .editor-split {
         grid-template-columns: 1fr;
       }
 
-      .admin-form-row.two,
-      .admin-form-row.three {
-        grid-template-columns: 1fr;
+      .post-library,
+      .toc-panel {
+        position: static;
+        height: auto;
+        max-height: none;
+      }
+
+      .post-list,
+      .asset-list,
+      .toc-list {
+        max-height: 420px;
+      }
+
+      textarea,
+      .markdown-preview {
+        min-height: 420px;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .admin-shell {
+        padding: 10px 10px 132px;
+      }
+
+      .editor-title {
+        display: grid;
+        gap: 2px;
+      }
+
+      .admin-action-bar,
+      .button-row {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .admin-action-bar {
+        left: 10px;
+        right: 10px;
+      }
+
+      .button-row .admin-button {
+        width: 100%;
       }
     }
   </style>

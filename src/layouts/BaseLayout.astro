@@ -82,7 +82,7 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
       })();
     </script>
   </head>
-  <body data-pagefind-ignore>
+  <body>
     <AmbientFlow />
     <CornerPet />
 
@@ -96,7 +96,7 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
           <small>notes, code, and tiny discoveries</small>
         </span>
       </a>
-      <form class="header-search" role="search" data-pagefind-ignore>
+      <form class="header-search" role="search">
         <label class="header-search-label" for="site-search-input">搜索文章</label>
         <div class="header-search-field">
           <Search size={18} aria-hidden="true" />
@@ -215,80 +215,6 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
       function closeSiteSearch() {
         if (siteSearchPanel) siteSearchPanel.hidden = true;
       }
-
-      function renderD1SearchResult(post) {
-        return `
-          <a class="header-search-result" href="${post.url}">
-            <strong>${escapeSearchHtml(post.title || "Untitled")}</strong>
-            <span>${escapeSearchHtml(post.description || "D1 动态文章")}</span>
-          </a>
-        `;
-      }
-
-      async function runSiteSearch(query) {
-        const currentRequest = ++siteSearchRequestId;
-        const trimmed = query.trim();
-
-        if (!trimmed) {
-          closeSiteSearch();
-          if (siteSearchResults) siteSearchResults.innerHTML = "";
-          return;
-        }
-
-        if (siteSearchPanel) siteSearchPanel.hidden = false;
-        if (siteSearchStatus) siteSearchStatus.textContent = "正在搜索...";
-
-        let pagefindFailed = false;
-        let pagefindTotal = 0;
-        let resultData = [];
-        let d1Matches = [];
-
-        try {
-          const search = await (await loadSitePagefind()).search(trimmed);
-          if (currentRequest !== siteSearchRequestId) return;
-
-          resultData = await Promise.all(
-            search.results.slice(0, 6).map((result) => result.data()),
-          );
-          pagefindTotal = search.results.length;
-        } catch (error) {
-          console.error("Pagefind search failed:", error);
-          pagefindFailed = true;
-        }
-
-        try {
-          d1Matches = getD1SearchMatches(await loadD1Posts(), trimmed);
-        } catch {
-          d1Matches = [];
-        }
-
-        if (currentRequest !== siteSearchRequestId) return;
-
-        const staticUrls = new Set(resultData.map((item) => item.url));
-        const uniqueD1Matches = d1Matches.filter((post) => !staticUrls.has(post.url));
-        const total = pagefindTotal + uniqueD1Matches.length;
-
-        if (siteSearchStatus) {
-          siteSearchStatus.textContent = total
-            ? `找到 ${total} 条结果`
-            : pagefindFailed
-              ? "没有找到匹配的动态文章，静态索引需要先运行构建。"
-              : "没有找到匹配的文章";
-        }
-
-        if (siteSearchResults) {
-          siteSearchResults.innerHTML = [
-            ...resultData.map((item) => `
-              <a class="header-search-result" href="${item.url}">
-                <strong>${escapeSearchHtml(item.meta.title || "Untitled")}</strong>
-                <span>${item.excerpt || ""}</span>
-              </a>
-            `),
-            ...uniqueD1Matches.map(renderD1SearchResult),
-          ].join("");
-        }
-      }
-
       function renderArticleSearchResult(post) {
         return `
           <a class="header-search-result" href="${post.url}">
@@ -596,7 +522,7 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
 
             if (existing) {
               const text = existing.textContent || "";
-              const match = text.match(/^(.*?)(?:\s*[路·]\s*(\d+))?$/);
+              const match = text.match(/^(.*?)(?:\s*[·]\s*(\d+))?$/);
               const currentCount = Number(match?.[2] || "0");
               existing.textContent = `${tag} · ${currentCount + count}`;
             } else {

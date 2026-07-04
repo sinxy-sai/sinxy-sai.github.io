@@ -85,6 +85,14 @@ const timeWidgetPosts = posts
 <script>
   import * as THREE from "three";
 
+  function configureCanvasTexture(texture) {
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.generateMipmaps = false;
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    return texture;
+  }
+
   function createClockLabel(text) {
     const textureCanvas = document.createElement("canvas");
     const size = 128;
@@ -101,8 +109,7 @@ const timeWidgetPosts = posts
     context.textBaseline = "middle";
     context.fillText(text, size / 2, size / 2);
 
-    const texture = new THREE.CanvasTexture(textureCanvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
+    const texture = configureCanvasTexture(new THREE.CanvasTexture(textureCanvas));
 
     const material = new THREE.SpriteMaterial({
       map: texture,
@@ -116,12 +123,13 @@ const timeWidgetPosts = posts
 
   function createThreeClock(canvas) {
     let renderer;
+    const MAX_RENDER_PIXELS = 1200 * 1200;
 
     try {
       renderer = new THREE.WebGLRenderer({
         canvas,
         alpha: true,
-        antialias: true,
+        antialias: false,
         powerPreference: "high-performance",
       });
     } catch {
@@ -130,10 +138,13 @@ const timeWidgetPosts = posts
     }
 
     renderer.setClearColor(0x000000, 0);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setPixelRatio(1);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.12;
+
+    const gl = renderer.getContext();
+    const maxRenderbufferSize = gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) || 4096;
 
     const scene = new THREE.Scene();
     const camera = new THREE.OrthographicCamera(-1.75, 1.75, 1.75, -1.75, 0.1, 20);
@@ -275,8 +286,7 @@ const timeWidgetPosts = posts
       meteorTextureContext.fill();
     }
 
-    const meteorTexture = new THREE.CanvasTexture(meteorTextureCanvas);
-    meteorTexture.colorSpace = THREE.SRGBColorSpace;
+    const meteorTexture = configureCanvasTexture(new THREE.CanvasTexture(meteorTextureCanvas));
     const meteorColors = [0xb8e7ff, 0xf6b8cc, 0xf8d996, 0xd7c6ff];
 
     const nightVeilCanvas = document.createElement("canvas");
@@ -301,8 +311,7 @@ const timeWidgetPosts = posts
       nightVeilContext.fillRect(0, 0, 512, 512);
     }
 
-    const nightVeilTexture = new THREE.CanvasTexture(nightVeilCanvas);
-    nightVeilTexture.colorSpace = THREE.SRGBColorSpace;
+    const nightVeilTexture = configureCanvasTexture(new THREE.CanvasTexture(nightVeilCanvas));
 
     const glassDisc = new THREE.Mesh(
       new THREE.CylinderGeometry(1.18, 1.24, 0.16, 128, 1, false),
@@ -525,8 +534,7 @@ const timeWidgetPosts = posts
       glareContext.fill();
     }
 
-    const glareTexture = new THREE.CanvasTexture(glareTextureCanvas);
-    glareTexture.colorSpace = THREE.SRGBColorSpace;
+    const glareTexture = configureCanvasTexture(new THREE.CanvasTexture(glareTextureCanvas));
     const glare = new THREE.Mesh(
       new THREE.PlaneGeometry(1.5, 1),
       new THREE.MeshBasicMaterial({
@@ -571,10 +579,29 @@ const timeWidgetPosts = posts
 
     function resize() {
       const rect = canvas.getBoundingClientRect();
-      const width = Math.max(1, Math.floor(rect.width));
-      const height = Math.max(1, Math.floor(rect.height));
+      if (rect.width < 1 || rect.height < 1) return;
 
-      renderer.setSize(width, height, false);
+      const width = Math.max(1, Math.min(720, Math.floor(rect.width)));
+      const height = Math.max(1, Math.min(720, Math.floor(rect.height)));
+      const pixelRatio = Math.max(
+        0.75,
+        Math.min(
+          window.devicePixelRatio || 1,
+          1.25,
+          maxRenderbufferSize / width,
+          maxRenderbufferSize / height,
+          Math.sqrt(MAX_RENDER_PIXELS / Math.max(1, width * height)),
+        ),
+      );
+
+      try {
+        renderer.setPixelRatio(pixelRatio);
+        renderer.setSize(width, height, false);
+      } catch (error) {
+        console.warn("3D clock disabled after resize failure.", error);
+        canvas.closest(".clock-stage")?.classList.add("is-three-unavailable");
+        return;
+      }
 
       const aspect = width / height;
       const frustum = 3.16;

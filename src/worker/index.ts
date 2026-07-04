@@ -1653,6 +1653,35 @@ async function handleUpdateAdminPost(request: Request, env: Env, id: string) {
   }
 }
 
+async function handleDeleteAdminPost(request: Request, env: Env, id: string) {
+  if (request.method !== "DELETE") return methodNotAllowed(["DELETE"]);
+
+  const existing = await getAdminPostById(id, env);
+  if (!existing) return notFound();
+
+  try {
+    await env.sinxy_sai_blog_db
+      .prepare("DELETE FROM post_tags WHERE post_id = ?")
+      .bind(id)
+      .run();
+
+    await env.sinxy_sai_blog_db
+      .prepare("DELETE FROM post_assets WHERE post_id = ?")
+      .bind(id)
+      .run();
+
+    await env.sinxy_sai_blog_db
+      .prepare("DELETE FROM posts WHERE id = ?")
+      .bind(id)
+      .run();
+
+    return json({ data: { id, title: existing.title } });
+  } catch (error) {
+    console.error("Failed to delete post", error);
+    return internalError();
+  }
+}
+
 async function handleAdminPosts(request: Request, env: Env) {
   if (!env.ADMIN_TOKEN) return notConfigured("ADMIN_TOKEN secret");
   if (!isAuthorizedAdmin(request, env)) return unauthorized();
@@ -1685,7 +1714,11 @@ async function handleAdminPosts(request: Request, env: Env) {
         return handleUpdateAdminPost(request, env, id);
       }
 
-      return methodNotAllowed(["GET", "PATCH"]);
+      if (request.method === "DELETE") {
+        return handleDeleteAdminPost(request, env, id);
+      }
+
+      return methodNotAllowed(["GET", "PATCH", "DELETE"]);
     }
 
     return notFound();

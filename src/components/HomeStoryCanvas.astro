@@ -45,6 +45,11 @@ const {
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     if (context) {
+      const MAX_CANVAS_WIDTH = 1600;
+      const MAX_CANVAS_HEIGHT = 900;
+      const MAX_CANVAS_PIXELS = 1600 * 900;
+      const MAX_TEXT_SAMPLE_PIXELS = 900_000;
+
       const state = {
         width: 0,
         height: 0,
@@ -71,12 +76,18 @@ const {
         const textContext = textCanvas.getContext("2d", { willReadFrequently: true });
         if (!textContext) return [];
 
-        const width = Math.max(360, Math.floor(state.width));
-        const height = Math.max(240, Math.floor(state.height));
+        const sampleScale = Math.min(
+          1,
+          MAX_CANVAS_WIDTH / Math.max(1, state.width),
+          MAX_CANVAS_HEIGHT / Math.max(1, state.height),
+          Math.sqrt(MAX_TEXT_SAMPLE_PIXELS / Math.max(1, state.width * state.height)),
+        );
+        const width = Math.max(1, Math.floor(state.width * sampleScale));
+        const height = Math.max(1, Math.floor(state.height * sampleScale));
         textCanvas.width = width;
         textCanvas.height = height;
 
-        const fontSize = getWelcomeFontSize();
+        const fontSize = getWelcomeFontSize() * sampleScale;
         textContext.clearRect(0, 0, width, height);
         textContext.fillStyle = "#ffffff";
         textContext.font = `900 ${fontSize}px Inter, ui-sans-serif, system-ui`;
@@ -84,7 +95,14 @@ const {
         textContext.textBaseline = "middle";
         textContext.fillText("Welcome", width / 2, height * 0.5);
 
-        const image = textContext.getImageData(0, 0, width, height).data;
+        let image;
+        try {
+          image = textContext.getImageData(0, 0, width, height).data;
+        } catch (error) {
+          console.warn("Story canvas target generation skipped.", error);
+          return [];
+        }
+
         const step = Math.max(6, Math.floor(fontSize / 13));
         const targets = [];
 
@@ -92,7 +110,7 @@ const {
           for (let x = 0; x < width; x += step) {
             const alpha = image[(y * width + x) * 4 + 3];
             if (alpha > 90 && Math.random() > 0.18) {
-              targets.push({ x, y });
+              targets.push({ x: x / sampleScale, y: y / sampleScale });
             }
           }
         }
@@ -166,11 +184,17 @@ const {
 
       function resize() {
         const rect = canvas.getBoundingClientRect();
-        state.width = Math.max(1, rect.width);
-        state.height = Math.max(1, rect.height);
-        state.dpr = Math.min(window.devicePixelRatio || 1, 2);
-        canvas.width = Math.floor(state.width * state.dpr);
-        canvas.height = Math.floor(state.height * state.dpr);
+        if (rect.width < 1 || rect.height < 1) return;
+
+        state.width = Math.max(1, Math.min(MAX_CANVAS_WIDTH, rect.width));
+        state.height = Math.max(1, Math.min(MAX_CANVAS_HEIGHT, rect.height));
+        state.dpr = Math.min(
+          window.devicePixelRatio || 1,
+          1.5,
+          Math.sqrt(MAX_CANVAS_PIXELS / Math.max(1, state.width * state.height)),
+        );
+        canvas.width = Math.max(1, Math.floor(state.width * state.dpr));
+        canvas.height = Math.max(1, Math.floor(state.height * state.dpr));
         context.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
         resetParticles();
         createOutlineSegments();
@@ -448,8 +472,8 @@ const {
 
       function setPointer(event) {
         const rect = canvas.getBoundingClientRect();
-        state.pointer.x = event.clientX - rect.left;
-        state.pointer.y = event.clientY - rect.top;
+        state.pointer.x = (event.clientX - rect.left) * (state.width / Math.max(1, rect.width));
+        state.pointer.y = (event.clientY - rect.top) * (state.height / Math.max(1, rect.height));
         state.pointer.inside = true;
 
         if (state.pointer.active) {
