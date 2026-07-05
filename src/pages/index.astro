@@ -17,7 +17,12 @@ import ProfileCard from "../components/ProfileCard.astro";
       postCount={0}
       tagCount={0}
     />
-    <HomeTimeWidget posts={[]} />
+    <div class="home-side-stack">
+      <aside class="home-profile-panel">
+        <ProfileCard />
+      </aside>
+      <HomeTimeWidget posts={[]} />
+    </div>
   </section>
 
   <section class="content-grid" aria-label="Recent posts">
@@ -26,8 +31,7 @@ import ProfileCard from "../components/ProfileCard.astro";
     </div>
 
     <aside class="sidebar-panel">
-      <ProfileCard />
-      <div class="side-section-title">
+      <div class="side-section-title side-section-title-first">
         <p class="section-kicker">Topics</p>
         <h2>常写主题</h2>
       </div>
@@ -38,16 +42,78 @@ import ProfileCard from "../components/ProfileCard.astro";
   <style>
     .home-hero {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(340px, 430px);
+      grid-template-columns: minmax(0, 1fr) minmax(300px, 370px);
       align-items: start;
-      gap: clamp(22px, 4vw, 46px);
-      min-height: calc(100vh - 160px);
+      gap: clamp(20px, 3.4vw, 40px);
+      min-height: calc(100vh - 150px);
+    }
+
+    .home-side-stack {
+      display: grid;
+      gap: 14px;
+      align-self: start;
+    }
+
+    .home-profile-panel {
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: var(--surface);
+      color: var(--text);
+      padding: 18px;
+      box-shadow: 0 16px 42px rgba(74, 116, 98, 0.1);
+      backdrop-filter: blur(18px);
+    }
+
+    .home-profile-panel :global(.profile-card) {
+      gap: 12px;
+    }
+
+    .home-profile-panel :global(.profile-head) {
+      grid-template-columns: 60px minmax(0, 1fr);
+      gap: 12px;
+    }
+
+    .home-profile-panel :global(.profile-avatar) {
+      width: 60px;
+      height: 60px;
+      border-radius: 20px;
+    }
+
+    .home-profile-panel :global(.profile-head h2) {
+      font-size: 1.1rem;
+    }
+
+    .home-profile-panel :global(.profile-bio) {
+      font-size: 0.88rem;
+      line-height: 1.65;
+    }
+
+    .home-profile-panel :global(.profile-location) {
+      font-size: 0.84rem;
+    }
+
+    .home-profile-panel :global(.social-links a) {
+      min-height: 34px;
+      font-size: 0.82rem;
+      padding: 6px 10px;
+    }
+
+    .side-section-title-first {
+      margin-top: 0;
+      padding-top: 0;
+      border-top: 0;
     }
 
     @media (max-width: 1080px) {
       .home-hero {
         grid-template-columns: 1fr;
         min-height: 0;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .home-profile-panel {
+        padding: 16px;
       }
     }
   </style>

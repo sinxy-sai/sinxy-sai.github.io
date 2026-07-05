@@ -1057,14 +1057,14 @@ const timeWidgetPosts = posts
     --calendar-post-text: #7d6070;
     --today-inner-ring: rgba(255, 255, 250, 0.74);
     display: grid;
-    gap: 18px;
+    gap: 12px;
     border: 1px solid var(--line);
-    border-radius: 28px;
+    border-radius: 24px;
     background:
       radial-gradient(circle at 18% 18%, rgba(255, 217, 138, 0.34), transparent 34%),
       radial-gradient(circle at 84% 22%, rgba(246, 182, 200, 0.24), transparent 28%),
       rgba(255, 255, 250, 0.84);
-    padding: 20px;
+    padding: 16px;
     box-shadow: var(--shadow);
     backdrop-filter: blur(18px);
     transition:
@@ -1106,7 +1106,7 @@ const timeWidgetPosts = posts
   .time-widget-head,
   .calendar-head {
     justify-content: space-between;
-    gap: 12px;
+    gap: 10px;
   }
 
   .time-widget-head .section-kicker {
@@ -1123,7 +1123,7 @@ const timeWidgetPosts = posts
     --tick-radius: 102px;
     position: relative;
     display: grid;
-    width: min(252px, 100%);
+    width: min(196px, 78%);
     aspect-ratio: 1;
     place-items: center;
     justify-self: center;
@@ -1480,26 +1480,26 @@ const timeWidgetPosts = posts
   .time-readout strong {
     color: var(--text);
     font-family: "SFMono-Regular", Consolas, ui-monospace, monospace;
-    font-size: clamp(1.9rem, 4vw, 2.7rem);
+    font-size: clamp(1.6rem, 3vw, 2.08rem);
     line-height: 1;
     letter-spacing: 0;
   }
 
   .time-readout span {
     color: var(--muted);
-    font-size: 0.9rem;
+    font-size: 0.84rem;
   }
 
   .mini-calendar {
     display: grid;
-    gap: 10px;
+    gap: 8px;
     border-top: 1px solid var(--line);
-    padding-top: 16px;
+    padding-top: 12px;
   }
 
   .calendar-head {
     color: var(--text);
-    font-size: 0.92rem;
+    font-size: 0.86rem;
   }
 
   .calendar-head span {
@@ -1513,14 +1513,14 @@ const timeWidgetPosts = posts
 
   .calendar-controls {
     display: grid;
-    grid-template-columns: 34px minmax(0, 1fr) 34px;
-    gap: 8px;
+    grid-template-columns: 30px minmax(0, 1fr) 30px;
+    gap: 6px;
   }
 
   .calendar-control,
   .calendar-reset {
     display: inline-flex;
-    min-height: 34px;
+    min-height: 30px;
     align-items: center;
     justify-content: center;
     border: 1px solid rgba(117, 201, 165, 0.28);
@@ -1539,7 +1539,7 @@ const timeWidgetPosts = posts
   }
 
   .calendar-reset {
-    gap: 6px;
+    gap: 4px;
   }
 
   .calendar-control:hover,
@@ -1554,12 +1554,12 @@ const timeWidgetPosts = posts
   .calendar-grid {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 6px;
+    gap: 4px;
   }
 
   .weekday-row span {
     color: var(--muted);
-    font-size: 0.72rem;
+    font-size: 0.68rem;
     font-weight: 800;
     text-align: center;
   }
@@ -1570,12 +1570,12 @@ const timeWidgetPosts = posts
     aspect-ratio: 1;
     place-items: center;
     border: 1px solid transparent;
-    border-radius: 10px;
+    border-radius: 9px;
     background: transparent;
     color: var(--muted);
     cursor: pointer;
     font: inherit;
-    font-size: 0.78rem;
+    font-size: 0.72rem;
     font-weight: 750;
     padding: 0;
     transition:
@@ -1643,9 +1643,9 @@ const timeWidgetPosts = posts
 
   .today-posts {
     display: grid;
-    gap: 10px;
+    gap: 8px;
     border-top: 1px solid var(--line);
-    padding-top: 16px;
+    padding-top: 12px;
   }
 
   .today-posts-head {
@@ -1657,13 +1657,13 @@ const timeWidgetPosts = posts
 
   .today-posts-head strong {
     color: var(--text);
-    font-size: 0.95rem;
+    font-size: 0.88rem;
   }
 
   .today-posts-head span {
     display: inline-grid;
-    min-width: 24px;
-    height: 24px;
+    min-width: 22px;
+    height: 22px;
     place-items: center;
     border: 1px solid rgba(117, 201, 165, 0.34);
     border-radius: 999px;
@@ -1675,16 +1675,16 @@ const timeWidgetPosts = posts
 
   .today-post-list {
     display: grid;
-    gap: 8px;
+    gap: 6px;
   }
 
   :global(.today-post-link) {
     display: grid;
     gap: 4px;
     border: 1px solid rgba(117, 201, 165, 0.24);
-    border-radius: 16px;
+    border-radius: 14px;
     background: var(--calendar-soft-bg);
-    padding: 10px 12px;
+    padding: 8px 10px;
     transition:
       background 180ms ease,
       border-color 180ms ease,
@@ -1699,7 +1699,7 @@ const timeWidgetPosts = posts
 
   :global(.today-post-link strong) {
     color: var(--text);
-    font-size: 0.9rem;
+    font-size: 0.84rem;
     line-height: 1.35;
   }
 
@@ -1707,7 +1707,7 @@ const timeWidgetPosts = posts
     display: -webkit-box;
     overflow: hidden;
     color: var(--muted);
-    font-size: 0.78rem;
+    font-size: 0.74rem;
     line-height: 1.5;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
@@ -1716,7 +1716,7 @@ const timeWidgetPosts = posts
   .today-post-empty {
     margin: 0;
     color: var(--muted);
-    font-size: 0.84rem;
+    font-size: 0.78rem;
     line-height: 1.6;
   }
 
