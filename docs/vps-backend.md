@@ -8,7 +8,7 @@ running dynamic blog APIs behind Nginx.
 
 ```bash
 npm run build
-npm run server:start
+ADMIN_TOKEN="replace-with-a-long-random-token" npm run server:start
 ```
 
 Default paths:
@@ -18,6 +18,9 @@ Default paths:
 - Static template source: `dist/dynamic-template/*`
 
 The server auto-creates the SQLite schema from `db/schema.sql`.
+
+Admin APIs require `ADMIN_TOKEN`. The `/admin/` page must use the same token in
+its token field before it can create posts or upload media.
 
 ## Import posts
 
@@ -98,4 +101,52 @@ Reload Nginx:
 ```bash
 sudo nginx -t
 sudo systemctl reload nginx
+```
+
+## systemd service
+
+For a real VPS, do not keep the backend in an SSH terminal. Create a systemd
+service:
+
+```bash
+sudo tee /etc/systemd/system/sinxy-blog.service > /dev/null <<'EOF'
+[Unit]
+Description=Sinxy Sai Blog Node backend
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/sinxy-sai.github.io
+Environment=NODE_ENV=production
+Environment=PORT=8787
+Environment=ADMIN_TOKEN=replace-with-a-long-random-token
+ExecStart=/usr/bin/npm run server:start
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+Then enable it:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now sinxy-blog
+sudo systemctl status sinxy-blog --no-pager
+```
+
+After changing code:
+
+```bash
+git pull
+npm ci
+npm run build
+rm -rf /var/www/sinxy-blog/*
+cp -r dist/* /var/www/sinxy-blog/
+sudo find /var/www/sinxy-blog -type d -exec chmod 755 {} \;
+sudo find /var/www/sinxy-blog -type f -exec chmod 644 {} \;
+sudo systemctl restart sinxy-blog
 ```

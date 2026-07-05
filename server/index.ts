@@ -1,13 +1,25 @@
 import Database from "better-sqlite3";
-import { createReadStream, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import {
+  createReadStream,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
+import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import katex from "katex";
 
 type ApiErrorCode =
+  | "CONFLICT"
   | "NOT_FOUND"
   | "METHOD_NOT_ALLOWED"
+  | "NOT_CONFIGURED"
+  | "UNAUTHORIZED"
   | "VALIDATION_ERROR"
   | "INTERNAL_ERROR";
 
@@ -32,12 +44,34 @@ interface SearchPostRow extends PostDetailRow {
   rank: number;
 }
 
+interface AdminPostRow extends PostDetailRow {
+  id: string;
+  status: "DRAFT" | "PUBLISHED";
+  coverAssetId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface AssetRow {
+  id: string;
+  r2Key: string;
+  filename: string;
+  contentType: string;
+  byteSize: number;
+  width: number | null;
+  height: number | null;
+  alt: string | null;
+  createdAt: string;
+}
+
 interface RenderedHeading {
   depth: number;
   text: string;
   slug: string;
 }
 
+const maxUploadBytes = 5 * 1024 * 1024;
+const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const rootDir = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const dataDir = resolve(process.env.BLOG_DATA_DIR || join(rootDir, ".data"));
 const databasePath = resolve(process.env.BLOG_DB_PATH || join(dataDir, "blog.sqlite"));
@@ -97,6 +131,80 @@ function methodNotAllowed(response: ServerResponse, allowed: string[]) {
   });
 }
 
+function notConfigured(response: ServerResponse, resource: string) {
+  apiError(response, 501, "NOT_CONFIGURED", `${resource} is not configured yet.`);
+}
+
+function unauthorized(response: ServerResponse) {
+  apiError(response, 401, "UNAUTHORIZED", "Admin authorization is required.", {
+    "www-authenticate": 'Bearer realm="admin"',
+  });
+}
+
+function validationError(response: ServerResponse, message: string, details?: unknown) {
+  json({ error: { code: "VALIDATION_ERROR", message, details } }, response, 422);
+}
+
+function conflict(response: ServerResponse, message: string) {
+  apiError(response, 409, "CONFLICT", message);
+}
+
+function isAuthorizedAdmin(request: IncomingMessage) {
+  const token = process.env.ADMIN_TOKEN;
+  if (!token) return false;
+
+  const header = request.headers.authorization;
+  if (!header?.startsWith("Bearer ")) return false;
+
+  return header.slice("Bearer ".length) === token;
+}
+
+function readRequestBuffer(request: IncomingMessage, maxBytes: number) {
+  return new Promise<Buffer>((resolvePromise, reject) => {
+    const chunks: Buffer[] = [];
+    let total = 0;
+
+    request.on("data", (chunk: Buffer) => {
+      total += chunk.length;
+      if (total > maxBytes) {
+        reject(new Error("Request body is too large."));
+        request.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+
+    request.on("end", () => resolvePromise(Buffer.concat(chunks)));
+    request.on("error", reject);
+  });
+}
+
+async function readJsonBody(request: IncomingMessage) {
+  const contentType = request.headers["content-type"] ?? "";
+  const contentLength = Number(request.headers["content-length"] ?? "0");
+
+  if (!String(contentType).toLowerCase().includes("application/json")) {
+    throw new Error("Use application/json.");
+  }
+
+  if (contentLength > 256 * 1024) {
+    throw new Error("JSON body is too large.");
+  }
+
+  const bodyText = (await readRequestBuffer(request, 256 * 1024)).toString("utf8");
+  const body = JSON.parse(bodyText);
+
+  if (!isRecord(body)) {
+    throw new Error("JSON body must be an object.");
+  }
+
+  return body;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function escapeHtml(value: string) {
   return value
     .replaceAll("&", "&amp;")
@@ -122,6 +230,146 @@ function slugify(value: string) {
     .replace(/[^\p{L}\p{N}\s-]/gu, "")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-");
+}
+
+function normalizePostSlug(value: string) {
+  return slugify(value)
+    .replace(/^-|-$/g, "")
+    .slice(0, 96);
+}
+
+function asTrimmedString(value: unknown, field: string, maxLength: number) {
+  if (typeof value !== "string") {
+    throw new Error(`${field} must be a string.`);
+  }
+
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    throw new Error(`${field} is required.`);
+  }
+
+  if (trimmed.length > maxLength) {
+    throw new Error(`${field} must be ${maxLength} characters or fewer.`);
+  }
+
+  return trimmed;
+}
+
+function asOptionalString(value: unknown, field: string, maxLength: number) {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string") {
+    throw new Error(`${field} must be a string.`);
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  if (trimmed.length > maxLength) {
+    throw new Error(`${field} must be ${maxLength} characters or fewer.`);
+  }
+
+  return trimmed;
+}
+
+function asIsoDate(value: unknown, field: string) {
+  const raw = asTrimmedString(value, field, 80);
+  const normalized = raw.replace(" ", "T");
+  const match = normalized.match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,3})?)?)?(?:Z|[+-]\d{2}:?\d{2})?$/,
+  );
+
+  if (!match) {
+    throw new Error(`${field} must be a valid date.`);
+  }
+
+  const [, yearValue, monthValue, dayValue, hourValue = "00", minuteValue = "00", secondValue = "00"] =
+    match;
+  const year = Number(yearValue);
+  const month = Number(monthValue);
+  const day = Number(dayValue);
+  const hour = Number(hourValue);
+  const minute = Number(minuteValue);
+  const second = Number(secondValue);
+  const date = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day ||
+    date.getUTCHours() !== hour ||
+    date.getUTCMinutes() !== minute ||
+    date.getUTCSeconds() !== second
+  ) {
+    throw new Error(`${field} must be a valid date.`);
+  }
+
+  return `${yearValue}-${monthValue}-${dayValue}T${hourValue}:${minuteValue}:${secondValue}`;
+}
+
+function normalizeStatus(value: unknown) {
+  if (value === undefined || value === null) return "DRAFT";
+  if (value !== "DRAFT" && value !== "PUBLISHED") {
+    throw new Error("status must be DRAFT or PUBLISHED.");
+  }
+
+  return value;
+}
+
+function normalizeContentOrigin(value: unknown) {
+  if (value === undefined || value === null) return "ORIGINAL";
+  if (value !== "ORIGINAL" && value !== "REPOST" && value !== "TRANSLATION") {
+    throw new Error("contentOrigin must be ORIGINAL, REPOST, or TRANSLATION.");
+  }
+
+  return value;
+}
+
+function normalizeCreationStatement(value: unknown) {
+  if (value === undefined || value === null) return "NONE";
+  if (
+    value !== "NONE" &&
+    value !== "AI_ASSISTED" &&
+    value !== "AGGREGATED" &&
+    value !== "PERSONAL_VIEW"
+  ) {
+    throw new Error("creationStatement is invalid.");
+  }
+
+  return value;
+}
+
+function normalizeVisibility(value: unknown) {
+  if (value === undefined || value === null) return "PUBLIC";
+  if (value !== "PUBLIC" && value !== "PRIVATE") {
+    throw new Error("visibility must be PUBLIC or PRIVATE.");
+  }
+
+  return value;
+}
+
+function normalizeTags(value: unknown) {
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value)) {
+    throw new Error("tags must be an array of strings.");
+  }
+
+  const seen = new Set<string>();
+  const tags: string[] = [];
+
+  for (const item of value) {
+    const tag = asTrimmedString(item, "tag", 40);
+    if (!seen.has(tag)) {
+      seen.add(tag);
+      tags.push(tag);
+    }
+  }
+
+  if (tags.length > 12) {
+    throw new Error("tags cannot contain more than 12 items.");
+  }
+
+  return tags;
 }
 
 function renderMath(latex: string, displayMode: boolean) {
@@ -635,6 +883,11 @@ function handlePosts(request: IncomingMessage, response: ServerResponse) {
   );
 }
 
+function handleAssets(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "GET") return methodNotAllowed(response, ["GET"]);
+  json({ data: listAssets() }, response);
+}
+
 function handleSearch(request: IncomingMessage, response: ServerResponse, url: URL) {
   if (request.method !== "GET") return methodNotAllowed(response, ["GET"]);
 
@@ -712,6 +965,563 @@ function handleSearch(request: IncomingMessage, response: ServerResponse, url: U
     },
     response,
   );
+}
+
+function normalizeAdminPost(row: AdminPostRow) {
+  return {
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    description: row.description,
+    contentMarkdown: row.contentMarkdown,
+    status: row.status,
+    pubDate: row.pubDate,
+    updatedDate: row.updatedDate,
+    tags: row.tags ? row.tags.split(",").filter(Boolean) : [],
+    coverAssetId: row.coverAssetId,
+    coverAssetKey: row.coverAssetKey,
+    contentOrigin: row.contentOrigin || "ORIGINAL",
+    creationStatement: row.creationStatement || "NONE",
+    visibility: row.visibility || "PUBLIC",
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    url: `/blog/${row.slug}/`,
+  };
+}
+
+function getAdminPostById(id: string) {
+  const row = db
+    .prepare(
+      `
+        SELECT
+          posts.id,
+          posts.slug,
+          posts.title,
+          posts.description,
+          posts.content_markdown AS contentMarkdown,
+          posts.status,
+          posts.pub_date AS pubDate,
+          posts.updated_at AS updatedDate,
+          posts.cover_asset_id AS coverAssetId,
+          posts.content_origin AS contentOrigin,
+          posts.creation_statement AS creationStatement,
+          posts.visibility,
+          assets.r2_key AS coverAssetKey,
+          posts.created_at AS createdAt,
+          posts.updated_at AS updatedAt,
+          group_concat(tags.name, ',') AS tags
+        FROM posts
+        LEFT JOIN assets ON assets.id = posts.cover_asset_id
+        LEFT JOIN post_tags ON post_tags.post_id = posts.id
+        LEFT JOIN tags ON tags.id = post_tags.tag_id
+        WHERE posts.id = ?
+        GROUP BY posts.id
+      `,
+    )
+    .get(id) as AdminPostRow | undefined;
+
+  return row ? normalizeAdminPost(row) : null;
+}
+
+function listAdminPosts() {
+  const results = db
+    .prepare(
+      `
+        SELECT
+          posts.id,
+          posts.slug,
+          posts.title,
+          posts.description,
+          posts.content_markdown AS contentMarkdown,
+          posts.status,
+          posts.pub_date AS pubDate,
+          posts.updated_at AS updatedDate,
+          posts.cover_asset_id AS coverAssetId,
+          posts.content_origin AS contentOrigin,
+          posts.creation_statement AS creationStatement,
+          posts.visibility,
+          assets.r2_key AS coverAssetKey,
+          posts.created_at AS createdAt,
+          posts.updated_at AS updatedAt,
+          group_concat(tags.name, ',') AS tags
+        FROM posts
+        LEFT JOIN assets ON assets.id = posts.cover_asset_id
+        LEFT JOIN post_tags ON post_tags.post_id = posts.id
+        LEFT JOIN tags ON tags.id = post_tags.tag_id
+        GROUP BY posts.id
+        ORDER BY posts.updated_at DESC
+        LIMIT 100
+      `,
+    )
+    .all() as AdminPostRow[];
+
+  return results.map(normalizeAdminPost);
+}
+
+const deletePostTagsStatement = db.prepare("DELETE FROM post_tags WHERE post_id = ?");
+const findTagStatement = db.prepare("SELECT id FROM tags WHERE name = ?");
+const insertTagStatement = db.prepare("INSERT INTO tags (id, name) VALUES (?, ?)");
+const insertPostTagStatement = db.prepare(
+  "INSERT OR IGNORE INTO post_tags (post_id, tag_id) VALUES (?, ?)",
+);
+
+function syncPostTags(postId: string, tags: string[]) {
+  deletePostTagsStatement.run(postId);
+
+  for (const name of tags) {
+    const existing = findTagStatement.get(name) as { id: string } | undefined;
+    const tagId = existing?.id ?? `tag_${randomUUID()}`;
+
+    if (!existing) {
+      insertTagStatement.run(tagId, name);
+    }
+
+    insertPostTagStatement.run(postId, tagId);
+  }
+}
+
+async function handleCreateAdminPost(request: IncomingMessage, response: ServerResponse) {
+  let body: Record<string, unknown>;
+
+  try {
+    body = await readJsonBody(request);
+  } catch (error) {
+    return validationError(response, error instanceof Error ? error.message : "Invalid JSON body.");
+  }
+
+  try {
+    const title = asTrimmedString(body.title, "title", 180);
+    const description = asTrimmedString(body.description, "description", 320);
+    const contentMarkdown = asTrimmedString(
+      body.contentMarkdown ?? body.content,
+      "contentMarkdown",
+      120000,
+    );
+    const status = normalizeStatus(body.status);
+    const slug = normalizePostSlug(asOptionalString(body.slug, "slug", 120) ?? title);
+    const pubDate = body.pubDate ? asIsoDate(body.pubDate, "pubDate") : new Date().toISOString();
+    const coverAssetId = asOptionalString(body.coverAssetId, "coverAssetId", 120);
+    const contentOrigin = normalizeContentOrigin(body.contentOrigin);
+    const creationStatement = normalizeCreationStatement(body.creationStatement);
+    const visibility = normalizeVisibility(body.visibility);
+    const tags = normalizeTags(body.tags) ?? [];
+
+    if (!slug) return validationError(response, "slug could not be generated.");
+
+    const duplicated = db.prepare("SELECT id FROM posts WHERE slug = ?").get(slug);
+    if (duplicated) return conflict(response, "A post with this slug already exists.");
+
+    const id = `post_${randomUUID()}`;
+
+    const createPost = db.transaction(() => {
+      db.prepare(
+        `
+          INSERT INTO posts (
+            id,
+            slug,
+            title,
+            description,
+            content_markdown,
+            cover_asset_id,
+            status,
+            pub_date,
+            content_origin,
+            creation_statement,
+            visibility
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+      ).run(
+        id,
+        slug,
+        title,
+        description,
+        contentMarkdown,
+        coverAssetId,
+        status,
+        pubDate,
+        contentOrigin,
+        creationStatement,
+        visibility,
+      );
+      syncPostTags(id, tags);
+    });
+
+    createPost();
+    json({ data: getAdminPostById(id) }, response, 201);
+  } catch (error) {
+    validationError(response, error instanceof Error ? error.message : "Invalid post data.");
+  }
+}
+
+async function handleUpdateAdminPost(
+  request: IncomingMessage,
+  response: ServerResponse,
+  id: string,
+) {
+  let body: Record<string, unknown>;
+
+  try {
+    body = await readJsonBody(request);
+  } catch (error) {
+    return validationError(response, error instanceof Error ? error.message : "Invalid JSON body.");
+  }
+
+  const existing = getAdminPostById(id);
+  if (!existing) return apiError(response, 404, "NOT_FOUND", "API route not found.");
+
+  try {
+    const title =
+      body.title === undefined ? existing.title : asTrimmedString(body.title, "title", 180);
+    const description =
+      body.description === undefined
+        ? existing.description
+        : asTrimmedString(body.description, "description", 320);
+    const contentMarkdown =
+      body.contentMarkdown === undefined && body.content === undefined
+        ? existing.contentMarkdown
+        : asTrimmedString(body.contentMarkdown ?? body.content, "contentMarkdown", 120000);
+    const status = body.status === undefined ? existing.status : normalizeStatus(body.status);
+    const slug =
+      body.slug === undefined
+        ? existing.slug
+        : normalizePostSlug(asTrimmedString(body.slug, "slug", 120));
+    const pubDate =
+      body.pubDate === undefined ? existing.pubDate : asIsoDate(body.pubDate, "pubDate");
+    const coverAssetId =
+      body.coverAssetId === undefined
+        ? existing.coverAssetId
+        : asOptionalString(body.coverAssetId, "coverAssetId", 120);
+    const contentOrigin =
+      body.contentOrigin === undefined
+        ? existing.contentOrigin
+        : normalizeContentOrigin(body.contentOrigin);
+    const creationStatement =
+      body.creationStatement === undefined
+        ? existing.creationStatement
+        : normalizeCreationStatement(body.creationStatement);
+    const visibility =
+      body.visibility === undefined ? existing.visibility : normalizeVisibility(body.visibility);
+    const tags = normalizeTags(body.tags);
+
+    if (!slug) return validationError(response, "slug is required.");
+
+    if (slug !== existing.slug) {
+      const duplicated = db.prepare("SELECT id FROM posts WHERE slug = ? AND id != ?").get(slug, id);
+      if (duplicated) return conflict(response, "A post with this slug already exists.");
+    }
+
+    const updatePost = db.transaction(() => {
+      db.prepare(
+        `
+          UPDATE posts
+          SET
+            slug = ?,
+            title = ?,
+            description = ?,
+            content_markdown = ?,
+            cover_asset_id = ?,
+            status = ?,
+            pub_date = ?,
+            content_origin = ?,
+            creation_statement = ?,
+            visibility = ?,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `,
+      ).run(
+        slug,
+        title,
+        description,
+        contentMarkdown,
+        coverAssetId,
+        status,
+        pubDate,
+        contentOrigin,
+        creationStatement,
+        visibility,
+        id,
+      );
+
+      if (tags) syncPostTags(id, tags);
+    });
+
+    updatePost();
+    json({ data: getAdminPostById(id) }, response);
+  } catch (error) {
+    validationError(response, error instanceof Error ? error.message : "Invalid post data.");
+  }
+}
+
+function handleDeleteAdminPost(request: IncomingMessage, response: ServerResponse, id: string) {
+  if (request.method !== "DELETE") return methodNotAllowed(response, ["DELETE"]);
+
+  const existing = getAdminPostById(id);
+  if (!existing) return apiError(response, 404, "NOT_FOUND", "API route not found.");
+
+  const deletePost = db.transaction(() => {
+    db.prepare("DELETE FROM post_tags WHERE post_id = ?").run(id);
+    db.prepare("DELETE FROM post_assets WHERE post_id = ?").run(id);
+    db.prepare("DELETE FROM posts WHERE id = ?").run(id);
+  });
+
+  deletePost();
+  json({ data: { id, title: existing.title } }, response);
+}
+
+async function handleAdminPosts(request: IncomingMessage, response: ServerResponse, url: URL) {
+  if (!process.env.ADMIN_TOKEN) return notConfigured(response, "ADMIN_TOKEN secret");
+  if (!isAuthorizedAdmin(request)) return unauthorized(response);
+
+  const itemMatch = url.pathname.match(/^\/api\/admin\/posts\/([^/]+)$/);
+
+  if (url.pathname === "/api/admin/posts") {
+    if (request.method === "GET") return json({ data: listAdminPosts() }, response);
+    if (request.method === "POST") return handleCreateAdminPost(request, response);
+    return methodNotAllowed(response, ["GET", "POST"]);
+  }
+
+  if (itemMatch) {
+    const id = decodeURIComponent(itemMatch[1]);
+
+    if (request.method === "GET") {
+      const post = getAdminPostById(id);
+      return post
+        ? json({ data: post }, response)
+        : apiError(response, 404, "NOT_FOUND", "API route not found.");
+    }
+
+    if (request.method === "PATCH") return handleUpdateAdminPost(request, response, id);
+    if (request.method === "DELETE") return handleDeleteAdminPost(request, response, id);
+
+    return methodNotAllowed(response, ["GET", "PATCH", "DELETE"]);
+  }
+
+  return apiError(response, 404, "NOT_FOUND", "API route not found.");
+}
+
+function normalizeAsset(row: AssetRow) {
+  return {
+    id: row.id,
+    r2Key: row.r2Key,
+    filename: row.filename,
+    contentType: row.contentType,
+    byteSize: row.byteSize,
+    width: row.width,
+    height: row.height,
+    alt: row.alt,
+    createdAt: row.createdAt,
+    url: `/media/${row.r2Key}`,
+  };
+}
+
+function listAssets() {
+  const results = db
+    .prepare(
+      `
+        SELECT
+          id,
+          r2_key AS r2Key,
+          filename,
+          content_type AS contentType,
+          byte_size AS byteSize,
+          width,
+          height,
+          alt,
+          created_at AS createdAt
+        FROM assets
+        ORDER BY created_at DESC
+        LIMIT 100
+      `,
+    )
+    .all() as AssetRow[];
+
+  return results.map(normalizeAsset);
+}
+
+function getAssetById(id: string) {
+  const row = db
+    .prepare(
+      `
+        SELECT
+          id,
+          r2_key AS r2Key,
+          filename,
+          content_type AS contentType,
+          byte_size AS byteSize,
+          width,
+          height,
+          alt,
+          created_at AS createdAt
+        FROM assets
+        WHERE id = ?
+      `,
+    )
+    .get(id) as AssetRow | undefined;
+
+  return row ? normalizeAsset(row) : null;
+}
+
+function getSafeFilename(filename: string) {
+  const basename = filename.split(/[\\/]/).pop()?.trim() || "upload";
+  const dotIndex = basename.lastIndexOf(".");
+  const rawName = dotIndex > 0 ? basename.slice(0, dotIndex) : basename;
+  const rawExt = dotIndex > 0 ? basename.slice(dotIndex + 1) : "";
+  const safeName =
+    rawName
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 72) || "upload";
+  const safeExt = rawExt.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 12);
+
+  return safeExt ? `${safeName}.${safeExt}` : safeName;
+}
+
+function createAssetKey(filename: string) {
+  const now = new Date();
+  const year = String(now.getUTCFullYear());
+  const month = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const id = randomUUID();
+
+  return {
+    id,
+    key: `uploads/${year}/${month}/${id}-${getSafeFilename(filename)}`,
+  };
+}
+
+function deleteLocalMedia(key: string) {
+  const filePath = normalize(resolve(mediaDir, key));
+  if (filePath.startsWith(mediaDir + sep) && existsSync(filePath)) {
+    rmSync(filePath, { force: true });
+  }
+}
+
+function handleDeleteAdminAsset(request: IncomingMessage, response: ServerResponse, id: string) {
+  if (request.method !== "DELETE") return methodNotAllowed(response, ["DELETE"]);
+
+  const existing = getAssetById(id);
+  if (!existing) return apiError(response, 404, "NOT_FOUND", "API route not found.");
+
+  const deleteAsset = db.transaction(() => {
+    db.prepare("UPDATE posts SET cover_asset_id = NULL WHERE cover_asset_id = ?").run(id);
+    db.prepare("DELETE FROM post_assets WHERE asset_id = ?").run(id);
+    db.prepare("DELETE FROM assets WHERE id = ?").run(id);
+  });
+
+  deleteAsset();
+  deleteLocalMedia(existing.r2Key);
+  json({ data: { id, filename: existing.filename } }, response);
+}
+
+async function readFormData(request: IncomingMessage, url: URL) {
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(request.headers)) {
+    if (Array.isArray(value)) {
+      for (const item of value) headers.append(key, item);
+    } else if (value !== undefined) {
+      headers.set(key, value);
+    }
+  }
+
+  const webRequest = new Request(url, {
+    method: request.method,
+    headers,
+    body: Readable.toWeb(request) as BodyInit,
+    duplex: "half",
+  } as RequestInit & { duplex: "half" });
+
+  return webRequest.formData();
+}
+
+async function handleAdminAssets(request: IncomingMessage, response: ServerResponse, url: URL) {
+  if (!process.env.ADMIN_TOKEN) return notConfigured(response, "ADMIN_TOKEN secret");
+  if (!isAuthorizedAdmin(request)) return unauthorized(response);
+
+  const itemMatch = url.pathname.match(/^\/api\/admin\/assets\/([^/]+)$/);
+
+  if (itemMatch) {
+    const id = decodeURIComponent(itemMatch[1]);
+    if (request.method === "DELETE") return handleDeleteAdminAsset(request, response, id);
+    return methodNotAllowed(response, ["DELETE"]);
+  }
+
+  if (request.method === "GET") {
+    return json({ data: listAssets() }, response);
+  }
+
+  if (request.method !== "POST") return methodNotAllowed(response, ["GET", "POST"]);
+
+  const contentLength = Number(request.headers["content-length"] ?? "0");
+  if (contentLength > maxUploadBytes + 2048) {
+    return validationError(response, "Uploaded file is too large.", { maxBytes: maxUploadBytes });
+  }
+
+  const contentType = request.headers["content-type"] ?? "";
+  if (!String(contentType).toLowerCase().includes("multipart/form-data")) {
+    return validationError(response, "Use multipart/form-data with a file field.");
+  }
+
+  try {
+    const formData = await readFormData(request, url);
+    const file = formData.get("file");
+    const alt = String(formData.get("alt") ?? "").trim().slice(0, 240) || null;
+
+    if (!(file instanceof File)) return validationError(response, "Missing file field.");
+
+    if (!allowedImageTypes.has(file.type)) {
+      return validationError(response, "File type is not allowed.", {
+        allowedTypes: [...allowedImageTypes],
+      });
+    }
+
+    if (file.size <= 0 || file.size > maxUploadBytes) {
+      return validationError(response, "Uploaded file size is invalid.", {
+        maxBytes: maxUploadBytes,
+      });
+    }
+
+    const { id, key } = createAssetKey(file.name);
+    const filePath = normalize(resolve(mediaDir, key));
+    if (!filePath.startsWith(mediaDir + sep)) {
+      return validationError(response, "Invalid file path.");
+    }
+
+    mkdirSync(resolve(filePath, ".."), { recursive: true });
+    writeFileSync(filePath, Buffer.from(await file.arrayBuffer()));
+
+    db.prepare(
+      `
+        INSERT INTO assets (
+          id,
+          r2_key,
+          filename,
+          content_type,
+          byte_size,
+          alt
+        ) VALUES (?, ?, ?, ?, ?, ?)
+      `,
+    ).run(id, key, file.name, file.type, file.size, alt);
+
+    json(
+      {
+        data: {
+          id,
+          r2Key: key,
+          filename: file.name,
+          contentType: file.type,
+          byteSize: file.size,
+          alt,
+          url: `/media/${key}`,
+        },
+      },
+      response,
+      201,
+    );
+  } catch (error) {
+    console.error("Failed to upload asset", error);
+    apiError(response, 500, "INTERNAL_ERROR", "Internal server error.");
+  }
 }
 
 function handleBlog(request: IncomingMessage, response: ServerResponse, url: URL) {
@@ -862,6 +1672,13 @@ function handleRequest(request: IncomingMessage, response: ServerResponse) {
     if (url.pathname === "/api/health") return handleHealth(request, response);
     if (url.pathname === "/api/posts") return handlePosts(request, response);
     if (url.pathname === "/api/search") return handleSearch(request, response, url);
+    if (url.pathname === "/api/assets") return handleAssets(request, response);
+    if (url.pathname === "/api/admin/assets" || url.pathname.startsWith("/api/admin/assets/")) {
+      return handleAdminAssets(request, response, url);
+    }
+    if (url.pathname === "/api/admin/posts" || url.pathname.startsWith("/api/admin/posts/")) {
+      return handleAdminPosts(request, response, url);
+    }
     if (url.pathname === "/api/rss.xml" || url.pathname === "/rss.xml") {
       return handleRss(request, response, url);
     }
