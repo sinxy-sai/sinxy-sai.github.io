@@ -202,3 +202,63 @@ After the secrets are configured, each push to `main` will:
 5. install dependencies and build on the VPS,
 6. copy `dist` into `/var/www/sinxy-blog`,
 7. restart `sinxy-blog`.
+
+## New server bootstrap
+
+For a fresh Ubuntu VPS, clone the repo first, then run the bootstrap script:
+
+```bash
+git clone https://github.com/sinxy-sai/sinxy-sai.github.io.git
+cd sinxy-sai.github.io
+sudo ADMIN_TOKEN="$(openssl rand -hex 32)" APP_HOST="114.132.48.242" bash scripts/vps/bootstrap.sh
+```
+
+Variables:
+
+```text
+APP_USER=ubuntu
+APP_REPO=https://github.com/sinxy-sai/sinxy-sai.github.io.git
+APP_DIR=/home/ubuntu/sinxy-sai.github.io
+WEB_ROOT=/var/www/sinxy-blog
+APP_HOST=_
+APP_PORT=8787
+ADMIN_TOKEN=<required>
+```
+
+The bootstrap script installs Node.js 22, Nginx, build tools, configures the
+systemd service, configures Nginx, builds the site, opens the firewall, and
+starts the backend.
+
+## Backup and restore
+
+The production data is:
+
+```text
+/home/ubuntu/sinxy-sai.github.io/.data/blog.sqlite
+/home/ubuntu/sinxy-sai.github.io/.data/media/
+```
+
+Create a backup on the VPS:
+
+```bash
+cd ~/sinxy-sai.github.io
+bash scripts/vps/backup.sh
+```
+
+Restore on a new VPS after bootstrap:
+
+```bash
+scp sinxy-blog-data-YYYYMMDDTHHMMSSZ.tar.gz ubuntu@NEW_SERVER_IP:/home/ubuntu/
+ssh ubuntu@NEW_SERVER_IP
+cd ~/sinxy-sai.github.io
+bash scripts/vps/restore.sh ~/sinxy-blog-data-YYYYMMDDTHHMMSSZ.tar.gz
+```
+
+Migration checklist:
+
+1. Run `bootstrap.sh` on the new VPS.
+2. Copy the latest backup archive to the new VPS.
+3. Run `restore.sh`.
+4. Update GitHub Secrets `VPS_HOST` to the new IP.
+5. Update DNS to the new IP.
+6. Check `/api/health`, `/api/posts`, `/admin/`, and a media URL.
