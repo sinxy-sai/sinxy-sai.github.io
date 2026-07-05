@@ -9,43 +9,47 @@ import ProfileCard from "../components/ProfileCard.astro";
   title="首页"
   description="Sinxy Sai 的个人博客，记录计算机科学、算法学习和工程实践。"
 >
-  <section class="home-hero" aria-label="Homepage introduction">
-    <HomeStoryCanvas
-      latestTitle="正在读取最新文章"
-      latestUrl="/archive/"
-      latestPubDate=""
-      postCount={0}
-      tagCount={0}
-    />
+  <section class="home-layout" aria-label="Homepage">
+    <div class="home-main-stack">
+      <HomeStoryCanvas
+        latestTitle="正在读取最新文章"
+        latestUrl="/archive/"
+        latestPubDate=""
+        postCount={0}
+        tagCount={0}
+      />
+      <section class="post-list" data-d1-post-list data-d1-limit="5" aria-label="Recent posts">
+        <p class="section-kicker">Latest Notes</p>
+      </section>
+    </div>
+
     <div class="home-side-stack">
       <aside class="home-profile-panel">
         <ProfileCard />
       </aside>
       <HomeTimeWidget posts={[]} />
+      <aside class="sidebar-panel home-topics-panel">
+        <div class="side-section-title side-section-title-first">
+          <p class="section-kicker">Topics</p>
+          <h2>常写主题</h2>
+        </div>
+        <div class="tag-list" data-d1-tag-list></div>
+      </aside>
     </div>
-  </section>
-
-  <section class="content-grid" aria-label="Recent posts">
-    <div class="post-list" data-d1-post-list data-d1-limit="5">
-      <p class="section-kicker">Latest Notes</p>
-    </div>
-
-    <aside class="sidebar-panel">
-      <div class="side-section-title side-section-title-first">
-        <p class="section-kicker">Topics</p>
-        <h2>常写主题</h2>
-      </div>
-      <div class="tag-list" data-d1-tag-list></div>
-    </aside>
   </section>
 
   <style>
-    .home-hero {
+    .home-layout {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(300px, 370px);
       align-items: start;
       gap: clamp(20px, 3.4vw, 40px);
-      min-height: calc(100vh - 150px);
+    }
+
+    .home-main-stack {
+      display: grid;
+      min-width: 0;
+      gap: 20px;
     }
 
     .home-side-stack {
@@ -104,10 +108,14 @@ import ProfileCard from "../components/ProfileCard.astro";
       border-top: 0;
     }
 
+    .home-topics-panel {
+      position: static;
+      width: 100%;
+    }
+
     @media (max-width: 1080px) {
-      .home-hero {
+      .home-layout {
         grid-template-columns: 1fr;
-        min-height: 0;
       }
     }
 
