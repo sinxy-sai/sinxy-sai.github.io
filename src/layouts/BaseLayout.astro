@@ -341,6 +341,22 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
       let activeTocId = "";
       let tocTicking = false;
 
+      function keepActiveTocLinkVisible(link) {
+        const toc = link.closest(".article-toc");
+        if (!(toc instanceof HTMLElement)) return;
+
+        const linkTop = link.offsetTop;
+        const linkBottom = linkTop + link.offsetHeight;
+        const visibleTop = toc.scrollTop;
+        const visibleBottom = visibleTop + toc.clientHeight;
+
+        if (linkTop < visibleTop) {
+          toc.scrollTop = Math.max(0, linkTop - 10);
+        } else if (linkBottom > visibleBottom) {
+          toc.scrollTop = linkBottom - toc.clientHeight + 10;
+        }
+      }
+
       function setActiveToc(id) {
         if (!id || id === activeTocId) return;
         activeTocId = id;
@@ -350,7 +366,7 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
           link.classList.toggle("is-active", isActive);
           if (isActive) {
             link.setAttribute("aria-current", "true");
-            link.scrollIntoView({ block: "nearest", inline: "nearest" });
+            keepActiveTocLinkVisible(link);
           } else {
             link.removeAttribute("aria-current");
           }
@@ -1472,12 +1488,16 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
   .article-toc {
     position: sticky;
     top: 20px;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
     border: 1px solid var(--line);
     border-radius: 24px;
     background: var(--surface);
     padding: 18px;
     box-shadow: 0 16px 46px rgba(74, 116, 98, 0.1);
     backdrop-filter: blur(18px);
+    scrollbar-gutter: stable;
   }
 
   .article-toc h2 {
@@ -1870,6 +1890,8 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
 
     .article-toc {
       position: static;
+      max-height: none;
+      overflow: visible;
       order: 2;
     }
 

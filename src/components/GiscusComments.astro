@@ -10,7 +10,6 @@ const isEnabled = Boolean(repo && repoId && category && categoryId);
   <div class="article-comments-head">
     <p class="section-kicker">Comments</p>
     <h2 id="comments-title">评论</h2>
-    <p>欢迎留下想法。评论会通过 GitHub Discussions 保存和管理。</p>
   </div>
   {
     isEnabled ? (
@@ -105,12 +104,6 @@ const isEnabled = Boolean(repo && repoId && category && categoryId);
     color: var(--text);
     font-size: clamp(1.45rem, 3vw, 2rem);
     line-height: 1.25;
-  }
-
-  .article-comments-head p {
-    margin: 0;
-    color: var(--muted);
-    line-height: 1.7;
   }
 
   .giscus-shell {
