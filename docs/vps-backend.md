@@ -22,6 +22,54 @@ The server auto-creates the SQLite schema from `db/schema.sql`.
 Admin APIs require `ADMIN_TOKEN`. The `/admin/` page must use the same token in
 its token field before it can create posts or upload media.
 
+## Giscus comments
+
+Article pages can use Giscus for comments. Giscus stores comments in GitHub
+Discussions, so visitors must sign in with GitHub before commenting. Moderation
+also happens in GitHub Discussions instead of this blog's `/admin/` page.
+
+First prepare GitHub:
+
+1. Enable Discussions for the repository that will store comments.
+2. Install or enable the Giscus GitHub App for that repository.
+3. Open `https://giscus.app/`, choose the repository and discussion category,
+   then copy these values from the generated config:
+
+```text
+PUBLIC_GISCUS_REPO=owner/repo
+PUBLIC_GISCUS_REPO_ID=...
+PUBLIC_GISCUS_CATEGORY=...
+PUBLIC_GISCUS_CATEGORY_ID=...
+```
+
+On the VPS, save them once:
+
+```bash
+cat > ~/.sinxy-blog.env <<'EOF'
+PUBLIC_GISCUS_REPO='owner/repo'
+PUBLIC_GISCUS_REPO_ID='replace-with-repo-id'
+PUBLIC_GISCUS_CATEGORY='Announcements'
+PUBLIC_GISCUS_CATEGORY_ID='replace-with-category-id'
+EOF
+chmod 600 ~/.sinxy-blog.env
+```
+
+Then rebuild and redeploy the static files:
+
+```bash
+cd ~/sinxy-sai.github.io
+set -a
+. ~/.sinxy-blog.env
+set +a
+npm run build
+rm -rf /var/www/sinxy-blog/*
+cp -r dist/* /var/www/sinxy-blog/
+sudo systemctl restart sinxy-blog
+```
+
+The GitHub Actions VPS deployment workflow also reads `~/.sinxy-blog.env`
+before building on the VPS, so future pushes will keep the Giscus config.
+
 ## Import posts
 
 Export or save posts as JSON, then import:
@@ -223,6 +271,10 @@ WEB_ROOT=/var/www/sinxy-blog
 APP_HOST=_
 APP_PORT=8787
 ADMIN_TOKEN=<required>
+PUBLIC_GISCUS_REPO=<optional owner/repo>
+PUBLIC_GISCUS_REPO_ID=<optional>
+PUBLIC_GISCUS_CATEGORY=<optional>
+PUBLIC_GISCUS_CATEGORY_ID=<optional>
 ```
 
 The bootstrap script installs Node.js 22, Nginx, build tools, configures the

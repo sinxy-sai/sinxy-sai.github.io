@@ -1,5 +1,6 @@
 ---
 import BaseLayout from "../../layouts/BaseLayout.astro";
+import GiscusComments from "../../components/GiscusComments.astro";
 ---
 
 <BaseLayout
@@ -24,6 +25,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       </header>
       <div class="prose">__D1_POST_CONTENT__</div>
       __D1_POST_CREATION_STATEMENT__
+      <GiscusComments />
       <nav class="post-nav" aria-label="文章导航">
         __D1_POST_NAV__
       </nav>

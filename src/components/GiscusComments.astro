@@ -1,0 +1,137 @@
+---
+const repo = import.meta.env.PUBLIC_GISCUS_REPO || "sinxy-sai/sinxy-sai.github.io";
+const repoId = import.meta.env.PUBLIC_GISCUS_REPO_ID || "R_kgDOTKYHfA";
+const category = import.meta.env.PUBLIC_GISCUS_CATEGORY || "Announcements";
+const categoryId = import.meta.env.PUBLIC_GISCUS_CATEGORY_ID || "DIC_kwDOTKYHfM4DAi8w";
+const isEnabled = Boolean(repo && repoId && category && categoryId);
+---
+
+<section class="article-comments" id="comments" aria-labelledby="comments-title">
+  <div class="article-comments-head">
+    <p class="section-kicker">Comments</p>
+    <h2 id="comments-title">评论</h2>
+    <p>欢迎留下想法。评论会通过 GitHub Discussions 保存和管理。</p>
+  </div>
+  {
+    isEnabled ? (
+      <div
+        class="giscus-shell"
+        data-giscus-thread
+        data-repo={repo}
+        data-repo-id={repoId}
+        data-category={category}
+        data-category-id={categoryId}
+      />
+    ) : (
+      <div class="giscus-empty">
+        <strong>评论区尚未配置</strong>
+        <span>配置 Giscus 环境变量并重新构建后，这里会显示评论区。</span>
+      </div>
+    )
+  }
+</section>
+
+{
+  isEnabled && (
+    <script>
+      const giscusThread = document.querySelector("[data-giscus-thread]");
+
+      const getGiscusTheme = () =>
+        document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+
+      const setGiscusTheme = () => {
+        const frame = document.querySelector("iframe.giscus-frame");
+        if (!(frame instanceof HTMLIFrameElement) || !frame.contentWindow) return;
+
+        frame.contentWindow.postMessage(
+          {
+            giscus: {
+              setConfig: {
+                theme: getGiscusTheme(),
+              },
+            },
+          },
+          "https://giscus.app",
+        );
+      };
+
+      if (giscusThread instanceof HTMLElement && giscusThread.dataset.loaded !== "true") {
+        giscusThread.dataset.loaded = "true";
+
+        const script = document.createElement("script");
+        script.src = "https://giscus.app/client.js";
+        script.async = true;
+        script.crossOrigin = "anonymous";
+        script.setAttribute("data-repo", giscusThread.dataset.repo || "");
+        script.setAttribute("data-repo-id", giscusThread.dataset.repoId || "");
+        script.setAttribute("data-category", giscusThread.dataset.category || "");
+        script.setAttribute("data-category-id", giscusThread.dataset.categoryId || "");
+        script.setAttribute("data-mapping", "pathname");
+        script.setAttribute("data-strict", "0");
+        script.setAttribute("data-reactions-enabled", "1");
+        script.setAttribute("data-emit-metadata", "0");
+        script.setAttribute("data-input-position", "bottom");
+        script.setAttribute("data-theme", getGiscusTheme());
+        script.setAttribute("data-lang", "zh-CN");
+        script.setAttribute("data-loading", "lazy");
+
+        giscusThread.append(script);
+
+        const themeObserver = new MutationObserver(setGiscusTheme);
+        themeObserver.observe(document.documentElement, {
+          attributes: true,
+          attributeFilter: ["data-theme"],
+        });
+      }
+    </script>
+  )
+}
+
+<style>
+  .article-comments {
+    margin-top: 36px;
+    padding-top: 28px;
+    border-top: 1px solid var(--line);
+  }
+
+  .article-comments-head {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+
+  .article-comments-head h2 {
+    margin: 0;
+    color: var(--text);
+    font-size: clamp(1.45rem, 3vw, 2rem);
+    line-height: 1.25;
+  }
+
+  .article-comments-head p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+
+  .giscus-shell {
+    min-height: 190px;
+  }
+
+  .giscus-empty {
+    display: grid;
+    gap: 6px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: var(--surface-control);
+    padding: 16px 18px;
+  }
+
+  .giscus-empty strong {
+    color: var(--text);
+  }
+
+  .giscus-empty span {
+    color: var(--muted);
+    line-height: 1.65;
+  }
+</style>

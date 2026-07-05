@@ -55,6 +55,11 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
             npm ci
+            if [ -f "$HOME/.sinxy-blog.env" ]; then
+              set -a
+              . "$HOME/.sinxy-blog.env"
+              set +a
+            fi
             npm run build
             rm -rf /var/www/sinxy-blog/*
             cp -r dist/* /var/www/sinxy-blog/

@@ -9,6 +9,10 @@ WEB_ROOT="${WEB_ROOT:-/var/www/sinxy-blog}"
 APP_HOST="${APP_HOST:-_}"
 APP_PORT="${APP_PORT:-8787}"
 ADMIN_TOKEN="${ADMIN_TOKEN:-}"
+PUBLIC_GISCUS_REPO="${PUBLIC_GISCUS_REPO:-}"
+PUBLIC_GISCUS_REPO_ID="${PUBLIC_GISCUS_REPO_ID:-}"
+PUBLIC_GISCUS_CATEGORY="${PUBLIC_GISCUS_CATEGORY:-}"
+PUBLIC_GISCUS_CATEGORY_ID="${PUBLIC_GISCUS_CATEGORY_ID:-}"
 
 if [[ "$(id -u)" -ne 0 ]]; then
   echo "Run as root: sudo APP_REPO=... ADMIN_TOKEN=... bash scripts/vps/bootstrap.sh" >&2
@@ -46,7 +50,18 @@ else
   sudo -u "$APP_USER" git -C "$APP_DIR" reset --hard origin/main
 fi
 
-sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && npm ci && npm run build"
+if [[ -n "$PUBLIC_GISCUS_REPO$PUBLIC_GISCUS_REPO_ID$PUBLIC_GISCUS_CATEGORY$PUBLIC_GISCUS_CATEGORY_ID" ]]; then
+  cat > "/home/${APP_USER}/.sinxy-blog.env" <<EOF
+PUBLIC_GISCUS_REPO='${PUBLIC_GISCUS_REPO}'
+PUBLIC_GISCUS_REPO_ID='${PUBLIC_GISCUS_REPO_ID}'
+PUBLIC_GISCUS_CATEGORY='${PUBLIC_GISCUS_CATEGORY}'
+PUBLIC_GISCUS_CATEGORY_ID='${PUBLIC_GISCUS_CATEGORY_ID}'
+EOF
+  chown "$APP_USER:$APP_USER" "/home/${APP_USER}/.sinxy-blog.env"
+  chmod 600 "/home/${APP_USER}/.sinxy-blog.env"
+fi
+
+sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && set -a && [ -f \"\$HOME/.sinxy-blog.env\" ] && . \"\$HOME/.sinxy-blog.env\" || true && set +a && npm ci && npm run build"
 rm -rf "$WEB_ROOT"/*
 cp -r "$APP_DIR"/dist/* "$WEB_ROOT"/
 find "$WEB_ROOT" -type d -exec chmod 755 {} \;
