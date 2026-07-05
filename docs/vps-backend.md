@@ -150,3 +150,55 @@ sudo find /var/www/sinxy-blog -type d -exec chmod 755 {} \;
 sudo find /var/www/sinxy-blog -type f -exec chmod 644 {} \;
 sudo systemctl restart sinxy-blog
 ```
+
+## GitHub Actions deployment
+
+The VPS deployment workflow is `.github/workflows/deploy-vps.yml`. It runs on
+pushes to `main`.
+
+Create a deploy key on your local machine:
+
+```bash
+ssh-keygen -t ed25519 -C "github-actions-sinxy-blog" -f ./sinxy_blog_deploy_key
+```
+
+Add the public key to the VPS:
+
+```bash
+cat ./sinxy_blog_deploy_key.pub | ssh ubuntu@114.132.48.242 'mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys'
+```
+
+Add these GitHub repository secrets:
+
+```text
+VPS_HOST=114.132.48.242
+VPS_USER=ubuntu
+VPS_SSH_KEY=<contents of sinxy_blog_deploy_key>
+```
+
+Make sure the deploy user can update the static directory and restart the
+service non-interactively:
+
+```bash
+sudo chown -R ubuntu:ubuntu /var/www/sinxy-blog
+sudo -n systemctl status sinxy-blog --no-pager
+```
+
+If `sudo -n` asks for a password or fails, add a limited sudoers rule:
+
+```bash
+sudo tee /etc/sudoers.d/sinxy-blog-deploy > /dev/null <<'EOF'
+ubuntu ALL=(root) NOPASSWD: /usr/bin/systemctl restart sinxy-blog, /usr/bin/systemctl status sinxy-blog --no-pager
+EOF
+sudo chmod 440 /etc/sudoers.d/sinxy-blog-deploy
+```
+
+After the secrets are configured, each push to `main` will:
+
+1. install dependencies in GitHub Actions,
+2. run `npm run build`,
+3. SSH into the VPS,
+4. reset the VPS checkout to `origin/main`,
+5. install dependencies and build on the VPS,
+6. copy `dist` into `/var/www/sinxy-blog`,
+7. restart `sinxy-blog`.

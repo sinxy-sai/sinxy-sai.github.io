@@ -17,3 +17,7 @@ skills-lock.json
 # Local temporary files and verification artifacts
 tmp/
 debug.log
+
+# Local deploy keys
+sinxy_blog_deploy_key
+sinxy_blog_deploy_key.pub
