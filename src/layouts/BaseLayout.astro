@@ -1619,6 +1619,39 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
     background: var(--code-bg);
   }
 
+  .prose .table-scroll {
+    overflow-x: auto;
+    margin: 1.3rem 0;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: var(--surface-control);
+  }
+
+  .prose table {
+    width: 100%;
+    min-width: 560px;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+  }
+
+  .prose th,
+  .prose td {
+    border-bottom: 1px solid var(--line);
+    padding: 10px 12px;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .prose th {
+    color: var(--text);
+    font-weight: 850;
+    background: color-mix(in srgb, var(--accent-soft) 58%, transparent);
+  }
+
+  .prose tr:last-child td {
+    border-bottom: 0;
+  }
+
   .prose mjx-container,
   .prose .katex-display {
     overflow-x: auto;

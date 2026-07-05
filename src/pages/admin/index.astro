@@ -38,6 +38,23 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
   robots="noindex, nofollow"
 >
   <section class="admin-shell" data-admin-app>
+    <div class="admin-login-gate" data-admin-gate>
+      <div class="admin-login-card">
+        <p class="section-kicker">Admin Access</p>
+        <h1>进入后台管理</h1>
+        <p>请输入 Admin Token，验证通过后才能加载文章和媒体资源。</p>
+        <label class="token-field login-token-field" for="admin-token">
+          <KeyRound size={17} aria-hidden="true" />
+          <span>Token</span>
+          <input id="admin-token" type="password" autocomplete="current-password" data-admin-token />
+        </label>
+        <button class="admin-button primary" type="button" data-admin-login>
+          进入管理系统
+        </button>
+        <div class="admin-login-status" data-admin-login-status role="status"></div>
+      </div>
+    </div>
+
     <header class="admin-editor-bar">
       <a class="back-link" href="/" aria-label="返回网站首页">‹ 返回</a>
       <div class="editor-title">
@@ -45,11 +62,6 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         <strong>发布文章</strong>
         <small data-word-count>0 字</small>
       </div>
-      <label class="token-field" for="admin-token">
-        <KeyRound size={15} aria-hidden="true" />
-        <span>Token</span>
-        <input id="admin-token" type="password" autocomplete="off" data-admin-token />
-      </label>
     </header>
 
     <div class="admin-status" data-admin-status role="status">等待 Admin Token。</div>
@@ -512,7 +524,10 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     import katex from "katex";
 
     const app = document.querySelector("[data-admin-app]");
+    const authGate = app?.querySelector("[data-admin-gate]");
     const tokenInput = app?.querySelector("[data-admin-token]");
+    const loginButton = app?.querySelector("[data-admin-login]");
+    const loginStatusEl = app?.querySelector("[data-admin-login-status]");
     const statusEl = app?.querySelector("[data-admin-status]");
     const postForm = app?.querySelector("[data-post-form]");
     const assetForm = app?.querySelector("[data-asset-form]");
@@ -559,6 +574,17 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       statusEl.dataset.type = type;
     };
 
+    const setLoginStatus = (message, type = "neutral") => {
+      if (!loginStatusEl) return;
+      loginStatusEl.textContent = message;
+      loginStatusEl.dataset.type = type;
+    };
+
+    const setAuthenticated = (value) => {
+      app?.classList.toggle("is-authenticated", value);
+      if (authGate instanceof HTMLElement) authGate.hidden = value;
+    };
+
     const getToken = () => tokenInput?.value.trim() || "";
 
     const adminHeaders = () => {
@@ -573,6 +599,36 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         throw new Error(payload?.error?.message || `Request failed: ${response.status}`);
       }
       return payload?.data;
+    }
+
+    async function authenticateAdmin() {
+      if (!(loginButton instanceof HTMLButtonElement)) return;
+      const token = getToken();
+      if (!token) {
+        setLoginStatus("请先填写 Admin Token。", "error");
+        tokenInput?.focus();
+        return;
+      }
+
+      loginButton.disabled = true;
+      setLoginStatus("正在验证 Token...");
+
+      try {
+        postsCache = await readJson(await fetch("/api/admin/posts", {
+          headers: adminHeaders(),
+        })) || [];
+        renderPosts(postsCache);
+        setLoginStatus("");
+        setAuthenticated(true);
+        setStatus(`已读取 ${postsCache.length} 篇文章。`, "success");
+        await loadAssets();
+      } catch (error) {
+        setAuthenticated(false);
+        setLoginStatus(error.message || "Token 验证失败。", "error");
+        tokenInput?.focus();
+      } finally {
+        loginButton.disabled = false;
+      }
     }
 
     function escapeHtml(value) {
@@ -634,6 +690,71 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 
       html += renderInlineText(source.slice(cursor));
       return html;
+    }
+
+    function splitMarkdownTableRow(line) {
+      const trimmed = String(line || "").trim();
+      const normalized = trimmed.startsWith("|") ? trimmed.slice(1) : trimmed;
+      const source = normalized.endsWith("|") ? normalized.slice(0, -1) : normalized;
+      const cells = [];
+      let cell = "";
+      let isEscaped = false;
+
+      for (const char of source) {
+        if (char === "|" && !isEscaped) {
+          cells.push(cell.trim());
+          cell = "";
+          continue;
+        }
+
+        cell += char;
+        isEscaped = char === "\\" && !isEscaped;
+        if (char !== "\\") isEscaped = false;
+      }
+
+      cells.push(cell.trim());
+      return cells;
+    }
+
+    function getMarkdownTableAlignments(line, columnCount) {
+      const cells = splitMarkdownTableRow(line);
+      if (cells.length !== columnCount) return null;
+
+      const alignments = [];
+      for (const cell of cells) {
+        const value = cell.replace(/\s+/g, "");
+        if (!/^:?-{3,}:?$/.test(value)) return null;
+        const left = value.startsWith(":");
+        const right = value.endsWith(":");
+        alignments.push(left && right ? "center" : right ? "right" : left ? "left" : "");
+      }
+
+      return alignments;
+    }
+
+    function isPotentialMarkdownTableRow(line) {
+      return String(line || "").includes("|") && splitMarkdownTableRow(line).length > 1;
+    }
+
+    function renderMarkdownTable(rows, alignments) {
+      const header = rows[0] || [];
+      const body = rows.slice(1);
+      const renderAlign = (index) => (alignments[index] ? ` style="text-align: ${alignments[index]}"` : "");
+
+      return `
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>${header.map((cell, index) => `<th${renderAlign(index)}>${renderInlineMarkdown(cell)}</th>`).join("")}</tr>
+            </thead>
+            <tbody>
+              ${body.map((row) => (
+                `<tr>${header.map((_, index) => `<td${renderAlign(index)}>${renderInlineMarkdown(row[index] || "")}</td>`).join("")}</tr>`
+              )).join("")}
+            </tbody>
+          </table>
+        </div>
+      `;
     }
 
     function getPlainHeadingText(value) {
@@ -756,7 +877,10 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         displayMath = [];
       };
 
-      for (const line of String(markdown || "").replace(/\r\n/g, "\n").split("\n")) {
+      const lines = String(markdown || "").replace(/\r\n/g, "\n").split("\n");
+
+      for (let index = 0; index < lines.length; index += 1) {
+        const line = lines[index];
         const codeFence = line.match(/^```\s*([A-Za-z0-9_-]+)?\s*$/);
         if (codeFence) {
           if (inCode) {
@@ -806,6 +930,27 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         if (!trimmed) {
           flushParagraph();
           flushList();
+          continue;
+        }
+
+        const tableHeader = splitMarkdownTableRow(line);
+        const tableAlignments =
+          tableHeader.length > 1 && lines[index + 1]
+            ? getMarkdownTableAlignments(lines[index + 1], tableHeader.length)
+            : null;
+        if (tableAlignments) {
+          flushParagraph();
+          flushList();
+          const tableRows = [tableHeader];
+          index += 2;
+
+          while (index < lines.length && isPotentialMarkdownTableRow(lines[index])) {
+            tableRows.push(splitMarkdownTableRow(lines[index]));
+            index += 1;
+          }
+
+          index -= 1;
+          html.push(renderMarkdownTable(tableRows, tableAlignments));
           continue;
         }
 
@@ -1763,16 +1908,20 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     app?.querySelectorAll("[data-md-action]").forEach((button) => {
       button.addEventListener("click", () => runMarkdownAction(button.dataset.mdAction));
     });
-    tokenInput?.addEventListener("change", () => {
-      loadPosts();
-      loadAssets();
+    loginButton?.addEventListener("click", authenticateAdmin);
+    tokenInput?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        authenticateAdmin();
+      }
     });
 
     resetPostForm();
     setWorkspaceView("editor");
     setEditorMode(activeEditorMode);
     setTocVisible(true);
-    loadAssets();
+    setAuthenticated(false);
+    tokenInput?.focus();
   </script>
 
   <style>
@@ -1814,6 +1963,71 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         var(--admin-bg);
     }
 
+    .admin-shell:not(.is-authenticated) {
+      grid-template-rows: minmax(0, 1fr);
+      place-items: center;
+      padding: 24px;
+    }
+
+    .admin-shell:not(.is-authenticated) .admin-editor-bar,
+    .admin-shell:not(.is-authenticated) .admin-status,
+    .admin-shell:not(.is-authenticated) .admin-workbench,
+    .admin-shell:not(.is-authenticated) .admin-action-bar {
+      display: none;
+    }
+
+    .admin-login-gate {
+      width: min(100%, 440px);
+    }
+
+    .admin-login-card {
+      display: grid;
+      gap: 16px;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: var(--admin-panel);
+      padding: 28px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+
+    .admin-login-card h1 {
+      margin: 0;
+      color: var(--text);
+      font-size: clamp(1.8rem, 4vw, 2.35rem);
+      line-height: 1.15;
+    }
+
+    .admin-login-card > p:not(.section-kicker) {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .login-token-field {
+      grid-template-columns: auto auto minmax(0, 1fr);
+      min-height: 52px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--admin-panel-strong);
+      padding: 0 14px;
+    }
+
+    .admin-login-status {
+      min-height: 1.35em;
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 760;
+    }
+
+    .admin-login-status[data-type="error"] {
+      color: #ff9a9a;
+    }
+
+    .admin-login-status[data-type="success"] {
+      color: var(--accent-strong);
+    }
+
     .admin-editor-bar,
     .admin-status,
     .admin-panel,
@@ -1829,7 +2043,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       top: 10px;
       z-index: 20;
       display: grid;
-      grid-template-columns: auto minmax(0, 1fr) minmax(260px, 360px);
+      grid-template-columns: auto minmax(0, 1fr);
       gap: 18px;
       align-items: center;
       min-height: 62px;
@@ -2804,6 +3018,39 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       background: var(--code-bg);
       color: #edf7f1;
       padding: 14px;
+    }
+
+    .markdown-preview :global(.table-scroll) {
+      overflow-x: auto;
+      margin: 1rem 0;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: color-mix(in srgb, var(--admin-panel-strong) 72%, var(--bg));
+    }
+
+    .markdown-preview :global(table) {
+      width: 100%;
+      min-width: 520px;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+    }
+
+    .markdown-preview :global(th),
+    .markdown-preview :global(td) {
+      border-bottom: 1px solid var(--line);
+      padding: 9px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .markdown-preview :global(th) {
+      color: var(--text);
+      font-weight: 900;
+      background: color-mix(in srgb, var(--accent-soft) 52%, transparent);
+    }
+
+    .markdown-preview :global(tr:last-child td) {
+      border-bottom: 0;
     }
 
     .markdown-preview :global(code) {

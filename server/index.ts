@@ -420,6 +420,77 @@ function flushParagraph(lines: string[], html: string[]) {
   lines.length = 0;
 }
 
+function splitMarkdownTableRow(line: string) {
+  const trimmed = line.trim();
+  const normalized = trimmed.startsWith("|") ? trimmed.slice(1) : trimmed;
+  const withoutTrailingPipe = normalized.endsWith("|") ? normalized.slice(0, -1) : normalized;
+  const cells: string[] = [];
+  let cell = "";
+  let isEscaped = false;
+
+  for (const char of withoutTrailingPipe) {
+    if (char === "|" && !isEscaped) {
+      cells.push(cell.trim());
+      cell = "";
+      continue;
+    }
+
+    cell += char;
+    isEscaped = char === "\\" && !isEscaped;
+    if (char !== "\\") isEscaped = false;
+  }
+
+  cells.push(cell.trim());
+  return cells;
+}
+
+function getMarkdownTableAlignments(line: string, columnCount: number) {
+  const cells = splitMarkdownTableRow(line);
+  if (cells.length !== columnCount) return null;
+
+  const alignments: Array<"left" | "center" | "right" | ""> = [];
+
+  for (const cell of cells) {
+    const value = cell.replace(/\s+/g, "");
+    if (!/^:?-{3,}:?$/.test(value)) return null;
+    const left = value.startsWith(":");
+    const right = value.endsWith(":");
+    alignments.push(left && right ? "center" : right ? "right" : left ? "left" : "");
+  }
+
+  return alignments;
+}
+
+function isPotentialMarkdownTableRow(line: string) {
+  return line.includes("|") && splitMarkdownTableRow(line).length > 1;
+}
+
+function renderMarkdownTable(rows: string[][], alignments: Array<"left" | "center" | "right" | "">) {
+  const header = rows[0] || [];
+  const body = rows.slice(1);
+  const renderAlign = (index: number) => (alignments[index] ? ` style="text-align: ${alignments[index]}"` : "");
+
+  return `
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>${header.map((cell, index) => `<th${renderAlign(index)}>${renderInlineMarkdown(cell)}</th>`).join("")}</tr>
+        </thead>
+        <tbody>
+          ${body
+            .map(
+              (row) =>
+                `<tr>${header
+                  .map((_, index) => `<td${renderAlign(index)}>${renderInlineMarkdown(row[index] || "")}</td>`)
+                  .join("")}</tr>`,
+            )
+            .join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
 function renderMarkdownDocument(markdown: string) {
   const html: string[] = [];
   const paragraphLines: string[] = [];
@@ -460,7 +531,10 @@ function renderMarkdownDocument(markdown: string) {
     displayMathLines = [];
   }
 
-  for (const line of markdown.replace(/\r\n/g, "\n").split("\n")) {
+  const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
     const codeFence = line.match(/^```([A-Za-z0-9_-]+)?\s*$/);
 
     if (codeFence) {
@@ -513,6 +587,27 @@ function renderMarkdownDocument(markdown: string) {
     if (line.trim() === "") {
       flushParagraph(paragraphLines, html);
       flushList();
+      continue;
+    }
+
+    const tableHeader = splitMarkdownTableRow(line);
+    const tableAlignments =
+      tableHeader.length > 1 && lines[index + 1]
+        ? getMarkdownTableAlignments(lines[index + 1], tableHeader.length)
+        : null;
+    if (tableAlignments) {
+      flushParagraph(paragraphLines, html);
+      flushList();
+      const tableRows = [tableHeader];
+      index += 2;
+
+      while (index < lines.length && isPotentialMarkdownTableRow(lines[index])) {
+        tableRows.push(splitMarkdownTableRow(lines[index]));
+        index += 1;
+      }
+
+      index -= 1;
+      html.push(renderMarkdownTable(tableRows, tableAlignments));
       continue;
     }
 
