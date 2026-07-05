@@ -8,6 +8,7 @@ dist/
 .astro/
 .wrangler/
 .npm-cache/
+.data/
 
 # Local AI/tooling workspace
 .agents/

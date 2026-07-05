@@ -8,6 +8,9 @@
     "build": "cross-env ASTRO_TELEMETRY_DISABLED=1 astro build",
     "preview": "cross-env ASTRO_TELEMETRY_DISABLED=1 astro preview",
     "deploy:worker": "npm run build && wrangler deploy",
+    "server:dev": "cross-env ASTRO_TELEMETRY_DISABLED=1 tsx watch server/index.ts",
+    "server:start": "cross-env ASTRO_TELEMETRY_DISABLED=1 tsx server/index.ts",
+    "server:import-posts": "tsx server/import-posts.ts",
     "astro": "cross-env ASTRO_TELEMETRY_DISABLED=1 astro"
   },
   "dependencies": {
@@ -15,6 +18,7 @@
     "@astrojs/rss": "^4.0.19",
     "@astrojs/sitemap": "^3.7.3",
     "astro": "^7.0.4",
+    "better-sqlite3": "^12.11.1",
     "katex": "^0.17.0",
     "lucide-astro": "^0.556.0",
     "rehype-katex": "^7.0.1",
@@ -23,6 +27,9 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
-    "cross-env": "^10.1.0"
+    "@types/better-sqlite3": "^7.6.13",
+    "cross-env": "^10.1.0",
+    "tsx": "^4.23.0",
+    "typescript": "^6.0.3"
   }
 }
