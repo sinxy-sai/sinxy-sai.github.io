@@ -13,6 +13,7 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import katex from "katex";
+import Meting from "@meting/core";
 
 type ApiErrorCode =
   | "CONFLICT"
@@ -64,6 +65,30 @@ interface AssetRow {
   createdAt: string;
 }
 
+interface MusicTrack {
+  id: string | number;
+  name?: string;
+  artist?: string[] | string;
+  pic_id?: string | number;
+  url_id?: string | number;
+  lyric_id?: string | number;
+}
+
+interface MusicSong {
+  id: string;
+  title: string;
+  artist: string;
+  cover: string;
+  src: string;
+  lrcUrl: string;
+}
+
+interface MusicCache {
+  key: string;
+  expiresAt: number;
+  songs: MusicSong[];
+}
+
 interface RenderedHeading {
   depth: number;
   text: string;
@@ -78,6 +103,8 @@ const databasePath = resolve(process.env.BLOG_DB_PATH || join(dataDir, "blog.sql
 const mediaDir = resolve(process.env.BLOG_MEDIA_DIR || join(dataDir, "media"));
 const distDir = resolve(process.env.BLOG_DIST_DIR || join(rootDir, "dist"));
 const port = Number(process.env.PORT || 8787);
+const musicCacheTtlMs = 10 * 60 * 1000;
+let musicCache: MusicCache | null = null;
 
 mkdirSync(dataDir, { recursive: true });
 mkdirSync(mediaDir, { recursive: true });
@@ -1062,6 +1089,131 @@ function handleSearch(request: IncomingMessage, response: ServerResponse, url: U
   );
 }
 
+function parseJsonArray<T>(value: unknown): T[] {
+  if (typeof value !== "string") return [];
+  const parsed = JSON.parse(value) as unknown;
+  return Array.isArray(parsed) ? (parsed as T[]) : [parsed as T];
+}
+
+function getMusicConfig() {
+  const playlistId = String(process.env.MUSIC_PLAYLIST_ID || "").trim();
+  const ids = String(process.env.MUSIC_IDS || "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean)
+    .slice(0, 80);
+
+  return {
+    playlistId,
+    ids,
+    cacheKey: playlistId ? `playlist:${playlistId}` : `ids:${ids.join(",")}`,
+  };
+}
+
+function normalizeMusicUrl(value: unknown) {
+  const url = String(value || "").replace(/^http:\/\//, "https://");
+  return /^https:\/\//.test(url) ? url : "";
+}
+
+async function loadMusicSongs() {
+  const config = getMusicConfig();
+  if (!config.playlistId && config.ids.length === 0) return [];
+
+  const now = Date.now();
+  if (musicCache?.key === config.cacheKey && musicCache.expiresAt > now) {
+    return musicCache.songs;
+  }
+
+  const meting = new Meting("netease");
+  meting.format(true);
+
+  let tracks: MusicTrack[] = [];
+
+  if (config.playlistId) {
+    tracks = parseJsonArray<MusicTrack>(await meting.playlist(config.playlistId));
+  } else {
+    const results = await Promise.all(
+      config.ids.map(async (id) => {
+        try {
+          return parseJsonArray<MusicTrack>(await meting.song(id));
+        } catch {
+          return [];
+        }
+      }),
+    );
+    tracks = results.flat();
+  }
+
+  const songs = (
+    await Promise.all(
+      tracks.slice(0, 80).map(async (track) => {
+        const urlId = String(track.url_id || track.id || "").trim();
+        if (!urlId) return null;
+
+        let src = "";
+        let cover = "";
+
+        try {
+          const urlRows = parseJsonArray<Record<string, unknown>>(await meting.url(urlId, 320));
+          src = normalizeMusicUrl(urlRows[0]?.url);
+        } catch {
+          src = "";
+        }
+
+        try {
+          const picId = String(track.pic_id || "").trim();
+          if (picId) {
+            const picRows = parseJsonArray<Record<string, unknown>>(await meting.pic(picId, 300));
+            cover = normalizeMusicUrl(picRows[0]?.url);
+          }
+        } catch {
+          cover = "";
+        }
+
+        if (!src) return null;
+
+        const artist = Array.isArray(track.artist)
+          ? track.artist.join(", ")
+          : String(track.artist || "未知歌手");
+        const lyricId = String(track.lyric_id || "").trim();
+
+        return {
+          id: String(track.id || urlId),
+          title: String(track.name || "未知歌曲"),
+          artist,
+          cover,
+          src,
+          lrcUrl: lyricId
+            ? `https://api.injahow.cn/meting/?server=netease&type=lrc&id=${encodeURIComponent(lyricId)}`
+            : "",
+        } satisfies MusicSong;
+      }),
+    )
+  ).filter((song): song is MusicSong => Boolean(song));
+
+  musicCache = {
+    key: config.cacheKey,
+    expiresAt: now + musicCacheTtlMs,
+    songs,
+  };
+
+  return songs;
+}
+
+async function handleMusic(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "GET") return methodNotAllowed(response, ["GET"]);
+
+  try {
+    const songs = await loadMusicSongs();
+    return json({ data: songs }, response, 200, {
+      "cache-control": "public, max-age=120",
+    });
+  } catch (error) {
+    console.error("Failed to load music data", error);
+    return apiError(response, 502, "INTERNAL_ERROR", "Failed to load music data.");
+  }
+}
+
 function normalizeAdminPost(row: AdminPostRow) {
   return {
     id: row.id,
@@ -1768,6 +1920,7 @@ function handleRequest(request: IncomingMessage, response: ServerResponse) {
     if (url.pathname === "/api/posts") return handlePosts(request, response);
     if (url.pathname === "/api/search") return handleSearch(request, response, url);
     if (url.pathname === "/api/assets") return handleAssets(request, response);
+    if (url.pathname === "/api/music") return handleMusic(request, response);
     if (url.pathname === "/api/admin/assets" || url.pathname.startsWith("/api/admin/assets/")) {
       return handleAdminAssets(request, response, url);
     }

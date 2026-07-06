@@ -13,6 +13,8 @@ PUBLIC_GISCUS_REPO="${PUBLIC_GISCUS_REPO:-}"
 PUBLIC_GISCUS_REPO_ID="${PUBLIC_GISCUS_REPO_ID:-}"
 PUBLIC_GISCUS_CATEGORY="${PUBLIC_GISCUS_CATEGORY:-}"
 PUBLIC_GISCUS_CATEGORY_ID="${PUBLIC_GISCUS_CATEGORY_ID:-}"
+MUSIC_PLAYLIST_ID="${MUSIC_PLAYLIST_ID:-}"
+MUSIC_IDS="${MUSIC_IDS:-}"
 
 if [[ "$(id -u)" -ne 0 ]]; then
   echo "Run as root: sudo APP_REPO=... ADMIN_TOKEN=... bash scripts/vps/bootstrap.sh" >&2
@@ -50,12 +52,14 @@ else
   sudo -u "$APP_USER" git -C "$APP_DIR" reset --hard origin/main
 fi
 
-if [[ -n "$PUBLIC_GISCUS_REPO$PUBLIC_GISCUS_REPO_ID$PUBLIC_GISCUS_CATEGORY$PUBLIC_GISCUS_CATEGORY_ID" ]]; then
+if [[ -n "$PUBLIC_GISCUS_REPO$PUBLIC_GISCUS_REPO_ID$PUBLIC_GISCUS_CATEGORY$PUBLIC_GISCUS_CATEGORY_ID$MUSIC_PLAYLIST_ID$MUSIC_IDS" ]]; then
   cat > "/home/${APP_USER}/.sinxy-blog.env" <<EOF
 PUBLIC_GISCUS_REPO='${PUBLIC_GISCUS_REPO}'
 PUBLIC_GISCUS_REPO_ID='${PUBLIC_GISCUS_REPO_ID}'
 PUBLIC_GISCUS_CATEGORY='${PUBLIC_GISCUS_CATEGORY}'
 PUBLIC_GISCUS_CATEGORY_ID='${PUBLIC_GISCUS_CATEGORY_ID}'
+MUSIC_PLAYLIST_ID='${MUSIC_PLAYLIST_ID}'
+MUSIC_IDS='${MUSIC_IDS}'
 EOF
   chown "$APP_USER:$APP_USER" "/home/${APP_USER}/.sinxy-blog.env"
   chmod 600 "/home/${APP_USER}/.sinxy-blog.env"
@@ -132,6 +136,7 @@ WorkingDirectory=${APP_DIR}
 Environment=NODE_ENV=production
 Environment=PORT=${APP_PORT}
 Environment=ADMIN_TOKEN=${ADMIN_TOKEN}
+EnvironmentFile=-/home/${APP_USER}/.sinxy-blog.env
 ExecStart=/usr/bin/npm run server:start
 Restart=always
 RestartSec=5

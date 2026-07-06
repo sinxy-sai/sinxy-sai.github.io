@@ -22,6 +22,38 @@ The server auto-creates the SQLite schema from `db/schema.sql`.
 Admin APIs require `ADMIN_TOKEN`. The `/admin/` page must use the same token in
 its token field before it can create posts or upload media.
 
+## Music player
+
+The site includes a floating NetEase Cloud Music player. It is hidden by
+default. Configure either a playlist ID or comma-separated song IDs on the VPS:
+
+```bash
+cat >> ~/.sinxy-blog.env <<'EOF'
+MUSIC_PLAYLIST_ID='replace-with-netease-playlist-id'
+MUSIC_IDS=''
+EOF
+chmod 600 ~/.sinxy-blog.env
+```
+
+Use `MUSIC_PLAYLIST_ID` for a full playlist. If it is empty, use `MUSIC_IDS`
+for selected songs:
+
+```text
+MUSIC_IDS='1901371647,1824045033'
+```
+
+Restart the backend after changing the file:
+
+```bash
+sudo systemctl restart sinxy-blog
+curl http://127.0.0.1:8787/api/music
+```
+
+The backend reads NetEase music metadata through `@meting/core`, caches results
+in memory for 10 minutes, and returns only the fields needed by the frontend
+player. Actual playback depends on whether NetEase returns a usable audio URL
+for the selected songs.
+
 ## Giscus comments
 
 Article pages can use Giscus for comments. Giscus stores comments in GitHub
@@ -169,6 +201,7 @@ WorkingDirectory=/home/ubuntu/sinxy-sai.github.io
 Environment=NODE_ENV=production
 Environment=PORT=8787
 Environment=ADMIN_TOKEN=replace-with-a-long-random-token
+EnvironmentFile=-/home/ubuntu/.sinxy-blog.env
 ExecStart=/usr/bin/npm run server:start
 Restart=always
 RestartSec=5
@@ -275,6 +308,8 @@ PUBLIC_GISCUS_REPO=<optional owner/repo>
 PUBLIC_GISCUS_REPO_ID=<optional>
 PUBLIC_GISCUS_CATEGORY=<optional>
 PUBLIC_GISCUS_CATEGORY_ID=<optional>
+MUSIC_PLAYLIST_ID=<optional NetEase playlist ID>
+MUSIC_IDS=<optional comma-separated NetEase song IDs>
 ```
 
 The bootstrap script installs Node.js 22, Nginx, build tools, configures the

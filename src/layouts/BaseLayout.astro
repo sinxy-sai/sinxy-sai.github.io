@@ -2,6 +2,7 @@
 import { Archive, Home, Moon, Rss, Search, Sun, Tags, User } from "lucide-astro";
 import AmbientFlow from "../components/AmbientFlow.astro";
 import CornerPet from "../components/CornerPet.astro";
+import FloatingMusicPlayer from "../components/FloatingMusicPlayer.astro";
 import "katex/dist/katex.min.css";
 
 interface Props {
@@ -85,6 +86,7 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
   <body>
     <AmbientFlow />
     <CornerPet />
+    <FloatingMusicPlayer />
 
     <header class="site-header">
       <a class="brand" href="/" aria-label="返回首页">
