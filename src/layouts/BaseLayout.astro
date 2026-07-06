@@ -88,7 +88,7 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
   <body>
     <AmbientFlow />
     <CornerPet />
-    <FloatingMusicPlayer transition:persist />
+    <FloatingMusicPlayer />
 
     <header class="site-header">
       <a class="brand" href="/" aria-label="返回首页">
@@ -163,7 +163,12 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
         <a href="https://astro.build/" target="_blank" rel="noreferrer">Built with Astro</a>
       </span>
     </footer>
-    <script is:inline>
+    <script is:inline data-astro-rerun>
+      {
+      window.__sinxyBaseLayoutController?.abort();
+      window.__sinxyBaseLayoutController = new AbortController();
+      const baseLayoutSignal = window.__sinxyBaseLayoutController.signal;
+
       const themeToggle = document.querySelector("[data-theme-toggle]");
       const themeToggleText = document.querySelector("[data-theme-toggle-text]");
       const themeColorMeta = document.querySelector("#theme-color-meta");
@@ -197,7 +202,7 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
       themeToggle?.addEventListener("click", () => {
         const currentTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
         setSiteTheme(currentTheme === "dark" ? "light" : "dark");
-      });
+      }, { signal: baseLayoutSignal });
 
       const siteSearchForm = document.querySelector(".header-search");
       const siteSearchInput = document.querySelector("#site-search-input");
@@ -273,7 +278,7 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
 
       siteSearchInput?.addEventListener("input", (event) => {
         runArticleSearch(event.target.value);
-      });
+      }, { signal: baseLayoutSignal });
 
       siteSearchForm?.addEventListener("submit", (event) => {
         event.preventDefault();
@@ -281,20 +286,20 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
         if (firstResult instanceof HTMLAnchorElement) {
           window.location.href = firstResult.href;
         }
-      });
+      }, { signal: baseLayoutSignal });
 
       document.addEventListener("click", (event) => {
         if (!siteSearchForm?.contains(event.target)) {
           closeSiteSearch();
         }
-      });
+      }, { signal: baseLayoutSignal });
 
       document.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
           closeSiteSearch();
           siteSearchInput?.blur();
         }
-      });
+      }, { signal: baseLayoutSignal });
 
       const siteHeader = document.querySelector(".site-header");
       let lastScrollY = window.scrollY;
@@ -332,7 +337,7 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
             ticking = true;
           }
         },
-        { passive: true },
+        { passive: true, signal: baseLayoutSignal },
       );
 
       const tocLinks = Array.from(document.querySelectorAll(".article-toc a[href^='#']"));
@@ -406,9 +411,9 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
               tocTicking = true;
             }
           },
-          { passive: true },
+          { passive: true, signal: baseLayoutSignal },
         );
-        window.addEventListener("resize", updateActiveToc);
+        window.addEventListener("resize", updateActiveToc, { signal: baseLayoutSignal });
       }
 
       const normalizeUrlPath = (url) => {
@@ -591,15 +596,21 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
         }
       }
 
-      loadD1Posts()
-        .then((posts) => {
-          insertD1Posts(posts);
-          insertD1Tags(posts);
-          updateHomeSummary(posts);
-        })
-        .catch(() => {
-          // GitHub Pages does not provide the Worker API. Keep the static page unchanged.
-        });
+      function enhanceD1Content() {
+        loadD1Posts()
+          .then((posts) => {
+            insertD1Posts(posts);
+            insertD1Tags(posts);
+            updateHomeSummary(posts);
+          })
+          .catch(() => {
+            // GitHub Pages does not provide the Worker API. Keep the static page unchanged.
+          });
+      }
+
+      enhanceD1Content();
+      document.addEventListener("astro:page-load", enhanceD1Content, { signal: baseLayoutSignal });
+      }
     </script>
   </body>
 </html>

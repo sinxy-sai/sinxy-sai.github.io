@@ -740,9 +740,15 @@ const timeWidgetPosts = posts
     };
   }
 
-  const widget = document.querySelector(".time-widget");
+  function initHomeTimeWidgets() {
+    document.querySelectorAll(".time-widget").forEach((widget) => {
+      if (!(widget instanceof HTMLElement) || widget.dataset.timeWidgetInitialized === "true") return;
 
-  if (widget) {
+      widget.dataset.timeWidgetInitialized = "true";
+      const controller = new AbortController();
+      const { signal } = controller;
+      document.addEventListener("astro:before-swap", () => controller.abort(), { once: true, signal });
+
     const clockCanvas = widget.querySelector("[data-clock-canvas]");
     const threeClock = clockCanvas instanceof HTMLCanvasElement
       ? createThreeClock(clockCanvas)
@@ -907,6 +913,8 @@ const timeWidgetPosts = posts
     }
 
     function updateClock() {
+      if (signal.aborted || !widget.isConnected) return;
+
       const now = new Date();
       const hours = now.getHours();
       const minutes = now.getMinutes();
@@ -978,14 +986,14 @@ const timeWidgetPosts = posts
       });
     }
 
-    clockStage?.addEventListener("pointermove", setClockTilt);
+    clockStage?.addEventListener("pointermove", setClockTilt, { signal });
     clockStage?.addEventListener("pointerleave", () => {
       widget.style.setProperty("--tilt-x", "0deg");
       widget.style.setProperty("--tilt-y", "0deg");
       widget.style.setProperty("--glare-x", "35%");
       widget.style.setProperty("--glare-y", "24%");
       threeClock?.setTilt(0, 0);
-    });
+    }, { signal });
 
     calendarGrid?.addEventListener("click", (event) => {
       const dayButton = event.target.closest("[data-date]");
@@ -994,21 +1002,21 @@ const timeWidgetPosts = posts
       selectedDateKey = dayButton.dataset.date || selectedDateKey;
       renderCalendar(new Date());
       renderSelectedPosts(selectedDateKey);
-    });
+    }, { signal });
 
     prevMonthButton?.addEventListener("click", () => {
       const previousMonth = new Date(visibleYear, visibleMonth - 1, 1);
       visibleYear = previousMonth.getFullYear();
       visibleMonth = previousMonth.getMonth();
       renderCalendar(new Date());
-    });
+    }, { signal });
 
     nextMonthButton?.addEventListener("click", () => {
       const nextMonth = new Date(visibleYear, visibleMonth + 1, 1);
       visibleYear = nextMonth.getFullYear();
       visibleMonth = nextMonth.getMonth();
       renderCalendar(new Date());
-    });
+    }, { signal });
 
     currentMonthButton?.addEventListener("click", () => {
       const now = new Date();
@@ -1017,17 +1025,21 @@ const timeWidgetPosts = posts
       selectedDateKey = getDateKey(now);
       renderCalendar(now);
       renderSelectedPosts(selectedDateKey);
-    });
+    }, { signal });
 
     fetch("/api/posts", { headers: { accept: "application/json" } })
       .then((response) => (response.ok ? response.json() : null))
       .then((payload) => {
-        if (Array.isArray(payload?.data)) mergeTimeWidgetPosts(payload.data);
+        if (!signal.aborted && Array.isArray(payload?.data)) mergeTimeWidgetPosts(payload.data);
       })
       .catch(() => {
         // Static-only deployments do not expose the Worker API.
       });
+    });
   }
+
+  initHomeTimeWidgets();
+  document.addEventListener("astro:page-load", initHomeTimeWidgets);
 </script>
 
 <style>

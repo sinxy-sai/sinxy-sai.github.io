@@ -11,165 +11,185 @@
 </div>
 
 <script>
-  const pet = document.querySelector("[data-corner-pet]");
-  const petButton = document.querySelector("[data-pet-button]");
-  const petBubble = document.querySelector("[data-pet-bubble]");
-  const petSprite = document.querySelector("[data-pet-sprite]");
+  function initCornerPets() {
+    document.querySelectorAll("[data-corner-pet]").forEach((pet) => {
+      if (!(pet instanceof HTMLElement) || pet.dataset.cornerPetInitialized === "true") return;
 
-  if (
-    pet instanceof HTMLElement &&
-    petButton instanceof HTMLButtonElement &&
-    petBubble instanceof HTMLElement &&
-    petSprite instanceof HTMLElement
-  ) {
-    const animations = {
-      idle: { file: "/pet-clean/idle.png", frames: 8, fps: 8, loop: true },
-      happy: { file: "/pet-clean/happy.png", frames: 8, fps: 11, loop: false, next: "idle" },
-      sleep: { file: "/pet-clean/sleep.png", frames: 8, fps: 6, loop: true },
-      tap: { file: "/pet-clean/tap.png", frames: 6, fps: 12, loop: false, next: "idle" },
-      wake: { file: "/pet-clean/wake.png", frames: 6, fps: 10, loop: false, next: "idle" },
-    };
-    const messages = [
-      "我在。",
-      "刚刚巡逻了一圈。",
-      "拖动画布会开花。",
-      "写文章前先摸摸我。",
-      "今天也要整理笔记。",
-      "夜间模式适合安静阅读。",
-    ];
+      const petButton = pet.querySelector("[data-pet-button]");
+      const petBubble = pet.querySelector("[data-pet-bubble]");
+      const petSprite = pet.querySelector("[data-pet-sprite]");
 
-    let currentAnimation = "idle";
-    let currentFrame = 0;
-    let lastFrameAt = performance.now();
-    let messageIndex = 0;
-    let clickIndex = 0;
-    let sleepTimer = 0;
-    let bubbleTimer = 0;
+      if (
+        !(petButton instanceof HTMLButtonElement) ||
+        !(petBubble instanceof HTMLElement) ||
+        !(petSprite instanceof HTMLElement)
+      ) {
+        return;
+      }
 
-    function setFrame(frame) {
-      const animation = animations[currentAnimation];
-      const progress = animation.frames <= 1 ? 0 : frame / (animation.frames - 1);
+      pet.dataset.cornerPetInitialized = "true";
+      const controller = new AbortController();
+      const { signal } = controller;
+      document.addEventListener("astro:before-swap", () => controller.abort(), { once: true, signal });
 
-      petSprite.style.backgroundPosition = `${progress * 100}% 0`;
-    }
+      const animations = {
+        idle: { file: "/pet-clean/idle.png", frames: 8, fps: 8, loop: true },
+        happy: { file: "/pet-clean/happy.png", frames: 8, fps: 11, loop: false, next: "idle" },
+        sleep: { file: "/pet-clean/sleep.png", frames: 8, fps: 6, loop: true },
+        tap: { file: "/pet-clean/tap.png", frames: 6, fps: 12, loop: false, next: "idle" },
+        wake: { file: "/pet-clean/wake.png", frames: 6, fps: 10, loop: false, next: "idle" },
+      };
+      const messages = [
+        "我在。",
+        "刚刚巡逻了一圈。",
+        "拖动画布会开花。",
+        "写文章前先摸摸我。",
+        "今天也要整理笔记。",
+        "夜间模式适合安静阅读。",
+      ];
 
-    function setAnimation(name, shouldRestart = true) {
-      if (!animations[name]) return;
-      if (currentAnimation === name && !shouldRestart) return;
+      let currentAnimation = "idle";
+      let currentFrame = 0;
+      let lastFrameAt = performance.now();
+      let messageIndex = 0;
+      let clickIndex = 0;
+      let sleepTimer = 0;
+      let bubbleTimer = 0;
 
-      currentAnimation = name;
-      currentFrame = 0;
-      lastFrameAt = performance.now();
+      function setFrame(frame) {
+        const animation = animations[currentAnimation];
+        const progress = animation.frames <= 1 ? 0 : frame / (animation.frames - 1);
+        petSprite.style.backgroundPosition = `${progress * 100}% 0`;
+      }
 
-      const animation = animations[name];
-      pet.dataset.animation = name;
-      petSprite.style.backgroundImage = `url("${animation.file}")`;
-      petSprite.style.backgroundSize = `${animation.frames * 100}% 100%`;
-      setFrame(0);
-    }
+      function setAnimation(name, shouldRestart = true) {
+        if (!animations[name]) return;
+        if (currentAnimation === name && !shouldRestart) return;
 
-    function animate(now) {
-      const animation = animations[currentAnimation];
-      const frameDuration = 1000 / animation.fps;
+        currentAnimation = name;
+        currentFrame = 0;
+        lastFrameAt = performance.now();
 
-      if (now - lastFrameAt >= frameDuration) {
-        const steps = Math.floor((now - lastFrameAt) / frameDuration);
-        lastFrameAt += steps * frameDuration;
-        currentFrame += steps;
+        const animation = animations[name];
+        pet.dataset.animation = name;
+        petSprite.style.backgroundImage = `url("${animation.file}")`;
+        petSprite.style.backgroundSize = `${animation.frames * 100}% 100%`;
+        setFrame(0);
+      }
 
-        if (currentFrame >= animation.frames) {
-          if (animation.loop) {
-            currentFrame %= animation.frames;
-          } else {
-            const nextAnimation = animation.next ?? "idle";
-            setAnimation(nextAnimation);
-            window.requestAnimationFrame(animate);
-            return;
+      function animate(now) {
+        if (signal.aborted || !pet.isConnected) return;
+
+        const animation = animations[currentAnimation];
+        const frameDuration = 1000 / animation.fps;
+
+        if (now - lastFrameAt >= frameDuration) {
+          const steps = Math.floor((now - lastFrameAt) / frameDuration);
+          lastFrameAt += steps * frameDuration;
+          currentFrame += steps;
+
+          if (currentFrame >= animation.frames) {
+            if (animation.loop) {
+              currentFrame %= animation.frames;
+            } else {
+              const nextAnimation = animation.next ?? "idle";
+              setAnimation(nextAnimation);
+              window.requestAnimationFrame(animate);
+              return;
+            }
           }
+
+          setFrame(currentFrame);
         }
 
-        setFrame(currentFrame);
+        window.requestAnimationFrame(animate);
       }
 
-      window.requestAnimationFrame(animate);
-    }
-
-    function scheduleSleep() {
-      window.clearTimeout(sleepTimer);
-      sleepTimer = window.setTimeout(() => {
-        setAnimation("sleep");
-      }, 18000);
-    }
-
-    function wakePet() {
-      if (currentAnimation === "sleep") {
-        setAnimation("wake");
+      function scheduleSleep() {
+        window.clearTimeout(sleepTimer);
+        sleepTimer = window.setTimeout(() => {
+          if (!signal.aborted) setAnimation("sleep");
+        }, 18000);
       }
+
+      function wakePet() {
+        if (currentAnimation === "sleep") {
+          setAnimation("wake");
+        }
+        scheduleSleep();
+      }
+
+      function showMessage(message) {
+        petBubble.textContent = message;
+        pet.dataset.bubble = "visible";
+        window.clearTimeout(bubbleTimer);
+        bubbleTimer = window.setTimeout(() => {
+          if (!signal.aborted) pet.dataset.bubble = "hidden";
+        }, 4200);
+      }
+
+      function createSpark(count = 5) {
+        for (let index = 0; index < count; index += 1) {
+          const spark = document.createElement("span");
+          spark.className = "corner-pet-spark";
+          spark.style.setProperty("--spark-x", `${Math.random() * 58 - 12}px`);
+          spark.style.setProperty("--spark-y", `${Math.random() * -50 - 18}px`);
+          spark.style.setProperty("--spark-delay", `${index * 34}ms`);
+          petButton.append(spark);
+          window.setTimeout(() => spark.remove(), 900 + index * 34);
+        }
+      }
+
+      pet.dataset.bubble = "hidden";
+      setAnimation("idle");
       scheduleSleep();
-    }
+      window.requestAnimationFrame(animate);
 
-    function showMessage(message) {
-      petBubble.textContent = message;
-      pet.dataset.bubble = "visible";
-      window.clearTimeout(bubbleTimer);
-      bubbleTimer = window.setTimeout(() => {
-        pet.dataset.bubble = "hidden";
-      }, 4200);
-    }
+      signal.addEventListener("abort", () => {
+        window.clearTimeout(sleepTimer);
+        window.clearTimeout(bubbleTimer);
+      }, { once: true });
 
-    function createSpark(count = 5) {
-      for (let index = 0; index < count; index += 1) {
-        const spark = document.createElement("span");
-        spark.className = "corner-pet-spark";
-        spark.style.setProperty("--spark-x", `${Math.random() * 58 - 12}px`);
-        spark.style.setProperty("--spark-y", `${Math.random() * -50 - 18}px`);
-        spark.style.setProperty("--spark-delay", `${index * 34}ms`);
-        petButton.append(spark);
-        window.setTimeout(() => spark.remove(), 900 + index * 34);
-      }
-    }
-
-    pet.dataset.bubble = "hidden";
-    setAnimation("idle");
-    scheduleSleep();
-    window.requestAnimationFrame(animate);
-
-    petButton.addEventListener("click", () => {
-      wakePet();
-      messageIndex = (messageIndex + 1) % messages.length;
-      clickIndex += 1;
-      showMessage(messages[messageIndex]);
-      setAnimation(clickIndex % 2 === 0 ? "happy" : "tap");
-      createSpark(clickIndex % 2 === 0 ? 8 : 5);
-    });
-
-    petButton.addEventListener("pointerenter", () => {
-      wakePet();
-      pet.dataset.hover = "true";
-      showMessage(messages[messageIndex]);
-    });
-
-    petButton.addEventListener("pointerleave", () => {
-      pet.dataset.hover = "false";
-      pet.style.setProperty("--pet-tilt", "0deg");
-      pet.style.setProperty("--pet-lift", "0px");
-    });
-
-    window.addEventListener("pointermove", (event) => {
-      const rect = petButton.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const centerY = rect.top + rect.height / 2;
-      const distance = Math.hypot(event.clientX - centerX, event.clientY - centerY);
-
-      if (distance < 250) {
+      petButton.addEventListener("click", () => {
         wakePet();
-        const tilt = Math.max(-8, Math.min(8, (event.clientX - centerX) / 28));
-        const lift = Math.max(0, 1 - distance / 250) * 7;
-        pet.style.setProperty("--pet-tilt", `${tilt}deg`);
-        pet.style.setProperty("--pet-lift", `${lift}px`);
-      }
-    }, { passive: true });
+        messageIndex = (messageIndex + 1) % messages.length;
+        clickIndex += 1;
+        showMessage(messages[messageIndex]);
+        setAnimation(clickIndex % 2 === 0 ? "happy" : "tap");
+        createSpark(clickIndex % 2 === 0 ? 8 : 5);
+      }, { signal });
+
+      petButton.addEventListener("pointerenter", () => {
+        wakePet();
+        pet.dataset.hover = "true";
+        showMessage(messages[messageIndex]);
+      }, { signal });
+
+      petButton.addEventListener("pointerleave", () => {
+        pet.dataset.hover = "false";
+        pet.style.setProperty("--pet-tilt", "0deg");
+        pet.style.setProperty("--pet-lift", "0px");
+      }, { signal });
+
+      window.addEventListener("pointermove", (event) => {
+        const rect = petButton.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const distance = Math.hypot(event.clientX - centerX, event.clientY - centerY);
+
+        if (distance < 250) {
+          wakePet();
+          const tilt = Math.max(-8, Math.min(8, (event.clientX - centerX) / 28));
+          const lift = Math.max(0, 1 - distance / 250) * 7;
+          pet.style.setProperty("--pet-tilt", `${tilt}deg`);
+          pet.style.setProperty("--pet-lift", `${lift}px`);
+        }
+      }, { passive: true, signal });
+    });
   }
+
+  initCornerPets();
+  document.addEventListener("astro:page-load", initCornerPets);
 </script>
 
 <style>

@@ -40,13 +40,21 @@ const {
 </section>
 
 <script>
-  const canvas = document.querySelector("[data-story-canvas]");
+  function initHomeStoryCanvases() {
+    document.querySelectorAll("[data-story-canvas]").forEach((canvas) => {
+      if (!(canvas instanceof HTMLCanvasElement) || canvas.dataset.storyCanvasInitialized === "true") return;
 
-  if (canvas instanceof HTMLCanvasElement) {
-    const context = canvas.getContext("2d", { alpha: true });
-    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      canvas.dataset.storyCanvasInitialized = "true";
+      const controller = new AbortController();
+      const { signal } = controller;
 
-    if (context) {
+      document.addEventListener("astro:before-swap", () => controller.abort(), { once: true, signal });
+
+      const context = canvas.getContext("2d", { alpha: true });
+      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      if (!context) return;
+
       const MAX_CANVAS_WIDTH = 1600;
       const MAX_CANVAS_HEIGHT = 900;
       const MAX_CANVAS_PIXELS = 1600 * 900;
@@ -459,6 +467,8 @@ const {
       }
 
       function animate(now) {
+        if (signal.aborted || !canvas.isConnected) return;
+
         const theme = getTheme();
         const elapsed = now - state.startedAt;
 
@@ -493,26 +503,31 @@ const {
         setPointer(event);
         addBloom(state.pointer.x, state.pointer.y, 1.2);
         addSpark(state.pointer.x, state.pointer.y);
-      });
+      }, { signal });
 
-      canvas.addEventListener("pointermove", setPointer);
+      canvas.addEventListener("pointermove", setPointer, { signal });
 
       canvas.addEventListener("pointerup", (event) => {
         state.pointer.active = false;
         setPointer(event);
         addSpark(state.pointer.x, state.pointer.y);
-      });
+      }, { signal });
 
       canvas.addEventListener("pointerleave", () => {
         state.pointer.inside = false;
         state.pointer.active = false;
-      });
+      }, { signal });
 
-      new ResizeObserver(resize).observe(canvas);
+      const resizeObserver = new ResizeObserver(resize);
+      resizeObserver.observe(canvas);
+      signal.addEventListener("abort", () => resizeObserver.disconnect(), { once: true });
       resize();
       animate(performance.now());
-    }
+    });
   }
+
+  initHomeStoryCanvases();
+  document.addEventListener("astro:page-load", initHomeStoryCanvases);
 </script>
 
 <style>

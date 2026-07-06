@@ -14,7 +14,14 @@ import {
 } from "lucide-astro";
 ---
 
-<aside class="music-player" data-music-player hidden aria-label="音乐播放器">
+<aside
+  class="music-player"
+  data-music-player
+  hidden
+  aria-label="音乐播放器"
+  transition:name="floating-music-player"
+  transition:persist
+>
   <audio data-music-audio preload="metadata"></audio>
 
   <button class="music-player-orb" type="button" data-music-expand aria-label="打开音乐播放器">

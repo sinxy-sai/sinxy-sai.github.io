@@ -3,13 +3,19 @@
 </div>
 
 <script>
-  const ambientCanvas = document.querySelector("[data-ambient-flow]");
+  function initAmbientFlowCanvases() {
+    document.querySelectorAll("[data-ambient-flow]").forEach((ambientCanvas) => {
+      if (!(ambientCanvas instanceof HTMLCanvasElement) || ambientCanvas.dataset.ambientFlowInitialized === "true") return;
 
-  if (ambientCanvas instanceof HTMLCanvasElement) {
-    const context = ambientCanvas.getContext("2d", { alpha: true });
-    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      ambientCanvas.dataset.ambientFlowInitialized = "true";
+      const controller = new AbortController();
+      const { signal } = controller;
+      document.addEventListener("astro:before-swap", () => controller.abort(), { once: true, signal });
 
-    if (context) {
+      const context = ambientCanvas.getContext("2d", { alpha: true });
+      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      if (context) {
       const state = {
         width: 0,
         height: 0,
@@ -170,6 +176,8 @@
       }
 
       function animate(now) {
+        if (signal.aborted || !ambientCanvas.isConnected) return;
+
         const elapsed = now - state.startedAt;
         const theme = getTheme();
 
@@ -187,25 +195,29 @@
         }
       }
 
-      window.addEventListener("resize", resize);
+      window.addEventListener("resize", resize, { signal });
       window.addEventListener("pointermove", (event) => {
         state.pointer.targetX = event.clientX;
         state.pointer.targetY = event.clientY;
         state.pointer.active = true;
-      });
+      }, { signal });
       window.addEventListener("pointerleave", () => {
         state.pointer.active = false;
-      });
+      }, { signal });
       window.addEventListener("scroll", () => {
         const delta = Math.abs(window.scrollY - state.lastScrollY);
         state.lastScrollY = window.scrollY;
         state.scrollEnergy = Math.min(1, state.scrollEnergy + delta / 520);
-      }, { passive: true });
+      }, { passive: true, signal });
 
       resize();
       animate(performance.now());
-    }
+      }
+    });
   }
+
+  initAmbientFlowCanvases();
+  document.addEventListener("astro:page-load", initAmbientFlowCanvases);
 </script>
 
 <style>
