@@ -154,7 +154,7 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    location /tags/ {
+    location ~ ^/tags/[^/]+/?$ {
         proxy_pass http://127.0.0.1:8787;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

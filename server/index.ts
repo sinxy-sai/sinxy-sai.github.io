@@ -906,6 +906,24 @@ function loadDistTemplate(path: string) {
   return readFileSync(templatePath, "utf8");
 }
 
+function handleStaticDistPage(request: IncomingMessage, response: ServerResponse, path: string) {
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return methodNotAllowed(response, ["GET", "HEAD"]);
+  }
+
+  response.writeHead(200, {
+    "content-type": "text/html; charset=utf-8",
+    "cache-control": "public, max-age=60",
+  });
+
+  if (request.method === "HEAD") {
+    response.end();
+    return;
+  }
+
+  response.end(loadDistTemplate(path));
+}
+
 function buildPostHtml(post: PostDetailRow, requestUrl: string) {
   const tags = post.tags ? post.tags.split(",").filter(Boolean) : [];
   const template = loadDistTemplate("dynamic-template/post");
@@ -1931,7 +1949,10 @@ function handleRequest(request: IncomingMessage, response: ServerResponse) {
       return handleRss(request, response, url);
     }
     if (url.pathname.startsWith("/blog/")) return handleBlog(request, response, url);
-    if (url.pathname.startsWith("/tags/")) return handleTags(request, response, url);
+    if (url.pathname === "/tags" || url.pathname === "/tags/") {
+      return handleStaticDistPage(request, response, "tags");
+    }
+    if (/^\/tags\/[^/]+\/?$/.test(url.pathname)) return handleTags(request, response, url);
     if (url.pathname.startsWith("/media/")) return handleMedia(request, response, url);
 
     return apiError(response, 404, "NOT_FOUND", "Route not found.");
