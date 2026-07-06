@@ -41,7 +41,7 @@ import {
       </button>
     </div>
 
-    <div class="music-lyric" data-music-lyric>点击播放音乐</div>
+    <div class="music-lyric" data-music-lyric></div>
 
     <div class="music-progress-row">
       <span data-music-current>0:00</span>
@@ -198,7 +198,7 @@ import {
 
           if (title) title.textContent = song.title;
           if (artist) artist.textContent = song.artist;
-          if (lyric) lyric.textContent = lyricEl.textContent || "点击播放音乐";
+          if (lyric) lyric.textContent = lyricEl.textContent || "";
           if (cover instanceof HTMLImageElement) {
             cover.src = song.cover || "";
             cover.hidden = !song.cover;
@@ -248,7 +248,7 @@ import {
         orbCoverEl.src = song.cover || "";
         coverEl.hidden = !song.cover;
         orbCoverEl.hidden = !song.cover;
-        lyricEl.textContent = "点击播放音乐";
+        lyricEl.textContent = "";
         state.lyrics = [];
         renderList();
         updatePanelState();

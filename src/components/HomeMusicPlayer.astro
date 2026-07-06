@@ -13,7 +13,7 @@ import { Music2, Pause, Play, SkipBack, SkipForward } from "lucide-astro";
     <p class="section-kicker">Cloud Music</p>
     <strong data-home-music-title>Loading music</strong>
     <span data-home-music-artist>NetEase Cloud Music</span>
-    <div class="home-music-lyric" data-home-music-lyric>点击播放音乐</div>
+    <div class="home-music-lyric" data-home-music-lyric></div>
   </div>
 
   <div class="home-music-controls">
@@ -66,7 +66,7 @@ import { Music2, Pause, Play, SkipBack, SkipForward } from "lucide-astro";
     place-items: center;
     overflow: hidden;
     border: 1px solid var(--line);
-    border-radius: 20px;
+    border-radius: 999px;
     background: var(--surface-control);
     box-shadow: 0 14px 32px rgba(74, 116, 98, 0.12);
   }
@@ -74,6 +74,7 @@ import { Music2, Pause, Play, SkipBack, SkipForward } from "lucide-astro";
   .home-music-cover img {
     width: 100%;
     height: 100%;
+    border-radius: inherit;
     object-fit: cover;
   }
 
@@ -231,7 +232,7 @@ import { Music2, Pause, Play, SkipBack, SkipForward } from "lucide-astro";
     .home-music-cover {
       width: 58px;
       height: 58px;
-      border-radius: 18px;
+      border-radius: 999px;
     }
 
     .home-music-controls {
