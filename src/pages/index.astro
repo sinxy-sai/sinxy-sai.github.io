@@ -1,6 +1,7 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
 import HomeStoryCanvas from "../components/HomeStoryCanvas.astro";
+import HomeMusicPlayer from "../components/HomeMusicPlayer.astro";
 import HomeTimeWidget from "../components/HomeTimeWidget.astro";
 import ProfileCard from "../components/ProfileCard.astro";
 ---
@@ -17,7 +18,9 @@ import ProfileCard from "../components/ProfileCard.astro";
         latestPubDate=""
         postCount={0}
         tagCount={0}
-      />
+      >
+        <HomeMusicPlayer />
+      </HomeStoryCanvas>
       <section class="post-list" data-d1-post-list data-d1-limit="5" aria-label="Recent posts">
         <p class="section-kicker">Latest Notes</p>
       </section>

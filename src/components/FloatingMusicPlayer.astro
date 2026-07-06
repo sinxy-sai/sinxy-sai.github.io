@@ -169,11 +169,55 @@ import {
           .sort((a, b) => a.time - b.time);
       };
 
+      const getHomePlayers = () =>
+        Array.from(document.querySelectorAll("[data-home-music-player]")).filter(
+          (item) => item instanceof HTMLElement,
+        );
+
+      const updateHomePlayers = () => {
+        const song = state.songs[state.index];
+        const progress =
+          Number.isFinite(audio.duration) && audio.duration > 0
+            ? (audio.currentTime / audio.duration) * 100
+            : 0;
+
+        for (const homePlayer of getHomePlayers()) {
+          homePlayer.hidden = !song;
+          if (!song) continue;
+
+          homePlayer.dataset.playing = audio.paused ? "false" : "true";
+
+          const title = homePlayer.querySelector("[data-home-music-title]");
+          const artist = homePlayer.querySelector("[data-home-music-artist]");
+          const lyric = homePlayer.querySelector("[data-home-music-lyric]");
+          const cover = homePlayer.querySelector("[data-home-music-cover]");
+          const current = homePlayer.querySelector("[data-home-music-current]");
+          const duration = homePlayer.querySelector("[data-home-music-duration]");
+          const seek = homePlayer.querySelector("[data-home-music-seek]");
+          const toggle = homePlayer.querySelector("[data-home-music-action='toggle']");
+
+          if (title) title.textContent = song.title;
+          if (artist) artist.textContent = song.artist;
+          if (lyric) lyric.textContent = lyricEl.textContent || "点击播放音乐";
+          if (cover instanceof HTMLImageElement) {
+            cover.src = song.cover || "";
+            cover.hidden = !song.cover;
+          }
+          if (current) current.textContent = formatTime(audio.currentTime);
+          if (duration) duration.textContent = formatTime(audio.duration);
+          if (seek instanceof HTMLInputElement && !state.isSeeking) seek.value = String(progress);
+          if (toggle instanceof HTMLButtonElement) {
+            toggle.setAttribute("aria-label", audio.paused ? "播放" : "暂停");
+          }
+        }
+      };
+
       const updatePanelState = () => {
         player.dataset.expanded = panel.hidden ? "false" : "true";
         player.dataset.playing = audio.paused ? "false" : "true";
         player.dataset.muted = audio.muted || audio.volume === 0 ? "true" : "false";
         player.dataset.mode = state.mode;
+        updateHomePlayers();
         toggleButton.setAttribute("aria-label", audio.paused ? "播放" : "暂停");
         modeButton.setAttribute("title", state.mode === "random" ? "随机播放" : "列表循环");
       };
@@ -240,6 +284,19 @@ import {
 
       const playPrevious = () => setSong(state.index - 1, true);
 
+      const togglePlayback = async () => {
+        if (audio.paused) {
+          try {
+            await audio.play();
+          } catch {
+            return;
+          }
+        } else {
+          audio.pause();
+        }
+        updatePanelState();
+      };
+
       fetch("/api/music", { headers: { accept: "application/json" } })
         .then((response) => (response.ok ? response.json() : null))
         .then((payload) => {
@@ -264,18 +321,7 @@ import {
         updatePanelState();
       });
 
-      toggleButton.addEventListener("click", async () => {
-        if (audio.paused) {
-          try {
-            await audio.play();
-          } catch {
-            return;
-          }
-        } else {
-          audio.pause();
-        }
-        updatePanelState();
-      });
+      toggleButton.addEventListener("click", togglePlayback);
 
       prevButton.addEventListener("click", playPrevious);
       nextButton.addEventListener("click", playNext);
@@ -300,6 +346,19 @@ import {
         setSong(Number(item.dataset.musicIndex || "0"), true);
       });
 
+      document.addEventListener("click", (event) => {
+        if (!(event.target instanceof Element)) return;
+
+        const button = event.target.closest("[data-home-music-action]");
+        if (!(button instanceof HTMLButtonElement)) return;
+        if (!button.closest("[data-home-music-player]")) return;
+
+        const action = button.dataset.homeMusicAction;
+        if (action === "toggle") togglePlayback();
+        if (action === "prev") playPrevious();
+        if (action === "next") playNext();
+      });
+
       seekInput.addEventListener("input", () => {
         state.isSeeking = true;
       });
@@ -309,6 +368,24 @@ import {
           audio.currentTime = (Number(seekInput.value) / 100) * audio.duration;
         }
         state.isSeeking = false;
+        updateHomePlayers();
+      });
+
+      document.addEventListener("input", (event) => {
+        if (!(event.target instanceof HTMLInputElement)) return;
+        if (!event.target.matches("[data-home-music-seek]")) return;
+        state.isSeeking = true;
+      });
+
+      document.addEventListener("change", (event) => {
+        if (!(event.target instanceof HTMLInputElement)) return;
+        if (!event.target.matches("[data-home-music-seek]")) return;
+
+        if (Number.isFinite(audio.duration) && audio.duration > 0) {
+          audio.currentTime = (Number(event.target.value) / 100) * audio.duration;
+        }
+        state.isSeeking = false;
+        updateHomePlayers();
       });
 
       volumeInput.addEventListener("input", () => {
@@ -322,6 +399,7 @@ import {
       audio.addEventListener("ended", playNext);
       audio.addEventListener("loadedmetadata", () => {
         durationEl.textContent = formatTime(audio.duration);
+        updateHomePlayers();
       });
       audio.addEventListener("timeupdate", () => {
         currentEl.textContent = formatTime(audio.currentTime);
@@ -335,6 +413,8 @@ import {
           const activeLine = [...state.lyrics].reverse().find((line) => audio.currentTime >= line.time);
           if (activeLine) lyricEl.textContent = activeLine.text;
         }
+
+        updateHomePlayers();
       });
     }
   }

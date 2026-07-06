@@ -1,0 +1,246 @@
+---
+import { Music2, Pause, Play, SkipBack, SkipForward } from "lucide-astro";
+---
+
+<section class="home-music-player" data-home-music-player hidden aria-label="Homepage music player">
+  <div class="home-music-cover">
+    <img data-home-music-cover src="" alt="" />
+    <Music2 class="home-music-fallback" size={22} aria-hidden="true" />
+    <span class="home-music-disc" aria-hidden="true"></span>
+  </div>
+
+  <div class="home-music-body">
+    <p class="section-kicker">Cloud Music</p>
+    <strong data-home-music-title>Loading music</strong>
+    <span data-home-music-artist>NetEase Cloud Music</span>
+    <div class="home-music-lyric" data-home-music-lyric>点击播放音乐</div>
+  </div>
+
+  <div class="home-music-controls">
+    <button class="home-music-icon-button" type="button" data-home-music-action="prev" aria-label="上一首">
+      <SkipBack size={18} aria-hidden="true" />
+    </button>
+    <button class="home-music-play-button" type="button" data-home-music-action="toggle" aria-label="播放">
+      <Play class="home-music-play-icon" size={22} aria-hidden="true" />
+      <Pause class="home-music-pause-icon" size={22} aria-hidden="true" />
+    </button>
+    <button class="home-music-icon-button" type="button" data-home-music-action="next" aria-label="下一首">
+      <SkipForward size={18} aria-hidden="true" />
+    </button>
+  </div>
+
+  <div class="home-music-progress">
+    <span data-home-music-current>0:00</span>
+    <input data-home-music-seek type="range" min="0" max="100" value="0" step="0.1" aria-label="播放进度" />
+    <span data-home-music-duration>0:00</span>
+  </div>
+</section>
+
+<style>
+  .home-music-player {
+    display: grid;
+    grid-template-columns: 68px minmax(0, 1fr) auto;
+    gap: 14px;
+    align-items: center;
+    border: 1px solid rgba(117, 201, 165, 0.22);
+    border-radius: 24px;
+    background:
+      radial-gradient(circle at 12% 24%, rgba(255, 217, 138, 0.2), transparent 34%),
+      radial-gradient(circle at 86% 28%, rgba(130, 199, 232, 0.16), transparent 32%),
+      var(--surface);
+    color: var(--text);
+    padding: 14px 16px;
+    box-shadow: 0 16px 38px rgba(74, 116, 98, 0.09);
+    backdrop-filter: blur(18px);
+  }
+
+  .home-music-player[hidden] {
+    display: none;
+  }
+
+  .home-music-cover {
+    position: relative;
+    display: grid;
+    width: 68px;
+    height: 68px;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    background: var(--surface-control);
+    box-shadow: 0 14px 32px rgba(74, 116, 98, 0.12);
+  }
+
+  .home-music-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .home-music-fallback {
+    position: absolute;
+    color: var(--accent-strong);
+  }
+
+  .home-music-disc {
+    position: absolute;
+    inset: 17px;
+    border: 2px solid rgba(255, 255, 255, 0.72);
+    border-radius: 999px;
+    box-shadow:
+      inset 0 0 0 8px rgba(255, 255, 255, 0.18),
+      0 0 18px rgba(255, 255, 255, 0.3);
+  }
+
+  .home-music-player[data-playing="true"] .home-music-cover img {
+    animation: home-music-spin 12s linear infinite;
+  }
+
+  .home-music-body {
+    display: grid;
+    min-width: 0;
+    gap: 4px;
+  }
+
+  .home-music-body .section-kicker {
+    margin-bottom: 0;
+  }
+
+  .home-music-body strong,
+  .home-music-body span,
+  .home-music-lyric {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .home-music-body strong {
+    font-size: clamp(1.02rem, 1.8vw, 1.32rem);
+    line-height: 1.2;
+  }
+
+  .home-music-body span,
+  .home-music-lyric,
+  .home-music-progress {
+    color: var(--muted);
+    font-size: 0.82rem;
+  }
+
+  .home-music-lyric {
+    margin-top: 2px;
+    color: var(--accent-strong);
+    font-weight: 760;
+  }
+
+  .home-music-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .home-music-icon-button,
+  .home-music-play-button {
+    display: inline-grid;
+    place-items: center;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    cursor: pointer;
+    transition:
+      transform 180ms ease,
+      background 180ms ease,
+      border-color 180ms ease,
+      color 180ms ease;
+  }
+
+  .home-music-icon-button {
+    width: 38px;
+    height: 38px;
+    background: var(--surface-control);
+    color: var(--muted);
+  }
+
+  .home-music-play-button {
+    width: 48px;
+    height: 48px;
+    border-color: rgba(47, 143, 112, 0.28);
+    background: var(--accent-strong);
+    color: var(--bg);
+  }
+
+  .home-music-icon-button:hover,
+  .home-music-play-button:hover {
+    transform: translateY(-1px);
+    border-color: rgba(117, 201, 165, 0.58);
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+  }
+
+  .home-music-pause-icon,
+  .home-music-player[data-playing="true"] .home-music-play-icon {
+    display: none;
+  }
+
+  .home-music-player[data-playing="true"] .home-music-pause-icon {
+    display: block;
+  }
+
+  .home-music-progress {
+    display: grid;
+    grid-column: 2 / -1;
+    grid-template-columns: 40px minmax(0, 1fr) 40px;
+    gap: 8px;
+    align-items: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .home-music-progress span:last-child {
+    text-align: right;
+  }
+
+  .home-music-progress input {
+    width: 100%;
+    accent-color: var(--accent-strong);
+  }
+
+  html[data-theme="dark"] .home-music-player {
+    background:
+      radial-gradient(circle at 12% 24%, rgba(244, 201, 112, 0.12), transparent 34%),
+      radial-gradient(circle at 86% 28%, rgba(130, 199, 232, 0.1), transparent 32%),
+      rgba(20, 31, 27, 0.82);
+  }
+
+  @keyframes home-music-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .home-music-cover img {
+      animation: none !important;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .home-music-player {
+      grid-template-columns: 58px minmax(0, 1fr);
+      gap: 12px;
+      padding: 12px;
+    }
+
+    .home-music-cover {
+      width: 58px;
+      height: 58px;
+      border-radius: 18px;
+    }
+
+    .home-music-controls {
+      grid-column: 1 / -1;
+      justify-content: center;
+    }
+
+    .home-music-progress {
+      grid-column: 1 / -1;
+    }
+  }
+</style>
