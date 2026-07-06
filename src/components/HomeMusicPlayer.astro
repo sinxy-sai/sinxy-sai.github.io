@@ -6,7 +6,6 @@ import { Music2, Pause, Play, SkipBack, SkipForward } from "lucide-astro";
   <div class="home-music-cover">
     <img data-home-music-cover src="" alt="" />
     <Music2 class="home-music-fallback" size={22} aria-hidden="true" />
-    <span class="home-music-disc" aria-hidden="true"></span>
   </div>
 
   <div class="home-music-body">
@@ -81,16 +80,6 @@ import { Music2, Pause, Play, SkipBack, SkipForward } from "lucide-astro";
   .home-music-fallback {
     position: absolute;
     color: var(--accent-strong);
-  }
-
-  .home-music-disc {
-    position: absolute;
-    inset: 17px;
-    border: 2px solid rgba(255, 255, 255, 0.72);
-    border-radius: 999px;
-    box-shadow:
-      inset 0 0 0 8px rgba(255, 255, 255, 0.18),
-      0 0 18px rgba(255, 255, 255, 0.3);
   }
 
   .home-music-player[data-playing="true"] .home-music-cover img {
