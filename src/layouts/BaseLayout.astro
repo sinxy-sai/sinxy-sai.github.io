@@ -1,5 +1,6 @@
 ---
 import { Archive, Home, Moon, Rss, Search, Sun, Tags, User } from "lucide-astro";
+import { ClientRouter } from "astro:transitions";
 import AmbientFlow from "../components/AmbientFlow.astro";
 import CornerPet from "../components/CornerPet.astro";
 import FloatingMusicPlayer from "../components/FloatingMusicPlayer.astro";
@@ -64,6 +65,7 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
     <link rel="icon" href="/favicon.png" type="image/png" />
     <link rel="alternate" type="application/rss+xml" title={siteTitle} href={rssUrl} />
     <title>{pageTitle}</title>
+    <ClientRouter />
     <script is:inline>
       (() => {
         try {
@@ -86,7 +88,7 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
   <body>
     <AmbientFlow />
     <CornerPet />
-    <FloatingMusicPlayer />
+    <FloatingMusicPlayer transition:persist />
 
     <header class="site-header">
       <a class="brand" href="/" aria-label="返回首页">

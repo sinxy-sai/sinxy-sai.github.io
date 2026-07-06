@@ -81,7 +81,9 @@ import {
 <script>
   const player = document.querySelector("[data-music-player]");
 
-  if (player instanceof HTMLElement) {
+  if (player instanceof HTMLElement && player.dataset.musicInitialized !== "true") {
+    player.dataset.musicInitialized = "true";
+
     const audio = player.querySelector("[data-music-audio]");
     const panel = player.querySelector("[data-music-panel]");
     const expandButton = player.querySelector("[data-music-expand]");
@@ -393,6 +395,8 @@ import {
         audio.muted = audio.volume === 0;
         updatePanelState();
       });
+
+      document.addEventListener("astro:page-load", updateHomePlayers);
 
       audio.addEventListener("play", updatePanelState);
       audio.addEventListener("pause", updatePanelState);
