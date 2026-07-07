@@ -139,6 +139,10 @@ const items = [
 
     window.addEventListener("keydown", (event) => {
       if (event.key !== "Tab" || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return;
+      if (isOpen) {
+        event.preventDefault();
+        return;
+      }
       if (event.repeat || isEditableTarget(event.target)) return;
       event.preventDefault();
       openNav();
