@@ -56,3 +56,28 @@ CREATE TABLE IF NOT EXISTS post_assets (
   FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
   FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS analytics_events (
+  id TEXT PRIMARY KEY,
+  event_type TEXT NOT NULL CHECK (event_type IN ('pageview', 'web_vital', 'client_error', 'api')),
+  path TEXT NOT NULL,
+  page_title TEXT,
+  referrer TEXT,
+  visitor_id TEXT,
+  session_id TEXT,
+  metric_name TEXT,
+  metric_value REAL,
+  duration_ms REAL,
+  status_code INTEGER,
+  user_agent TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_analytics_events_created_at
+  ON analytics_events(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_analytics_events_type_created_at
+  ON analytics_events(event_type, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_analytics_events_path_created_at
+  ON analytics_events(path, created_at DESC);

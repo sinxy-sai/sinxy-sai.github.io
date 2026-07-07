@@ -95,6 +95,65 @@ interface RenderedHeading {
   slug: string;
 }
 
+type AnalyticsEventType = "pageview" | "web_vital" | "client_error" | "api";
+
+interface AnalyticsEventInput {
+  eventType: AnalyticsEventType;
+  path: string;
+  pageTitle?: string | null;
+  referrer?: string | null;
+  visitorId?: string | null;
+  sessionId?: string | null;
+  metricName?: string | null;
+  metricValue?: number | null;
+  durationMs?: number | null;
+  statusCode?: number | null;
+  userAgent?: string | null;
+}
+
+interface AnalyticsSummaryRow {
+  totalPageviews: number;
+  uniqueVisitors: number;
+  averageApiDurationMs: number | null;
+  clientErrors: number;
+}
+
+interface AnalyticsDailyRow {
+  date: string;
+  pageviews: number;
+  visitors: number;
+}
+
+interface AnalyticsPopularPageRow {
+  path: string;
+  pageTitle: string | null;
+  pageviews: number;
+  visitors: number;
+}
+
+interface AnalyticsApiRow {
+  path: string;
+  requests: number;
+  averageDurationMs: number | null;
+  maxDurationMs: number | null;
+  errors: number;
+}
+
+interface AnalyticsVitalRow {
+  metricName: string;
+  averageValue: number | null;
+  latestValue: number | null;
+  samples: number;
+}
+
+interface AnalyticsErrorRow {
+  path: string;
+  pageTitle: string | null;
+  metricName: string | null;
+  statusCode: number | null;
+  createdAt: string;
+}
+
 const maxUploadBytes = 5 * 1024 * 1024;
 const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const rootDir = resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -104,6 +163,7 @@ const mediaDir = resolve(process.env.BLOG_MEDIA_DIR || join(dataDir, "media"));
 const distDir = resolve(process.env.BLOG_DIST_DIR || join(rootDir, "dist"));
 const port = Number(process.env.PORT || 8787);
 const musicCacheTtlMs = 10 * 60 * 1000;
+const analyticsEventTypes = new Set<AnalyticsEventType>(["pageview", "web_vital", "client_error", "api"]);
 let musicCache: MusicCache | null = null;
 
 mkdirSync(dataDir, { recursive: true });
@@ -131,6 +191,8 @@ function initializeDatabase() {
   for (const [name, definition] of missingColumns) {
     db.exec(`ALTER TABLE posts ADD COLUMN ${name} ${definition}`);
   }
+
+  db.prepare("DELETE FROM analytics_events WHERE created_at < datetime('now', '-90 days')").run();
 }
 
 function json(body: unknown, response: ServerResponse, status = 200, headers?: Record<string, string>) {
@@ -230,6 +292,95 @@ async function readJsonBody(request: IncomingMessage) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function boundedString(value: unknown, maxLength: number) {
+  if (typeof value !== "string") return "";
+  return value.trim().slice(0, maxLength);
+}
+
+function boundedNumber(value: unknown, min = 0, max = 10_000) {
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue)) return null;
+  return Math.max(min, Math.min(max, numberValue));
+}
+
+function normalizeAnalyticsPath(value: unknown) {
+  const raw = boundedString(value, 240);
+  if (!raw) return "/";
+
+  try {
+    const parsed = new URL(raw, "https://sinxy.local");
+    return `${parsed.pathname}${parsed.search}`.slice(0, 240) || "/";
+  } catch {
+    return raw.startsWith("/") ? raw.slice(0, 240) : "/";
+  }
+}
+
+function normalizeAnalyticsId(value: unknown) {
+  const raw = boundedString(value, 96);
+  return /^[a-zA-Z0-9._:-]{8,96}$/.test(raw) ? raw : "";
+}
+
+function insertAnalyticsEvent(input: AnalyticsEventInput) {
+  db.prepare(
+    `
+      INSERT INTO analytics_events (
+        id,
+        event_type,
+        path,
+        page_title,
+        referrer,
+        visitor_id,
+        session_id,
+        metric_name,
+        metric_value,
+        duration_ms,
+        status_code,
+        user_agent
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+  ).run(
+    randomUUID(),
+    input.eventType,
+    input.path,
+    input.pageTitle || null,
+    input.referrer || null,
+    input.visitorId || null,
+    input.sessionId || null,
+    input.metricName || null,
+    input.metricValue ?? null,
+    input.durationMs ?? null,
+    input.statusCode ?? null,
+    input.userAgent || null,
+  );
+}
+
+function shouldTrackApiRequest(pathname: string) {
+  return (
+    pathname.startsWith("/api/") &&
+    pathname !== "/api/analytics/event" &&
+    !pathname.startsWith("/api/admin/")
+  );
+}
+
+function trackApiRequest(request: IncomingMessage, response: ServerResponse, url: URL, startedAt: number) {
+  if (!shouldTrackApiRequest(url.pathname)) return;
+
+  response.on("finish", () => {
+    try {
+      insertAnalyticsEvent({
+        eventType: "api",
+        path: normalizeAnalyticsPath(url.pathname),
+        durationMs: Math.round((performance.now() - startedAt) * 100) / 100,
+        statusCode: response.statusCode,
+        userAgent: boundedString(request.headers["user-agent"], 240),
+      });
+    } catch (error) {
+      console.error("Failed to record API analytics:", error);
+    }
+  });
 }
 
 function escapeHtml(value: string) {
@@ -1026,6 +1177,194 @@ function handlePosts(request: IncomingMessage, response: ServerResponse) {
 function handleAssets(request: IncomingMessage, response: ServerResponse) {
   if (request.method !== "GET") return methodNotAllowed(response, ["GET"]);
   json({ data: listAssets() }, response);
+}
+
+async function handleAnalyticsEvent(request: IncomingMessage, response: ServerResponse) {
+  if (request.method !== "POST") return methodNotAllowed(response, ["POST"]);
+
+  try {
+    const body = await readJsonBody(request);
+    const eventType = boundedString(body.type, 32) as AnalyticsEventType;
+
+    if (!analyticsEventTypes.has(eventType) || eventType === "api") {
+      return validationError(response, "Invalid analytics event type.");
+    }
+
+    const metricName = boundedString(body.metricName, 48);
+    const metricValue = boundedNumber(body.metricValue, 0, 60_000);
+    const durationMs = boundedNumber(body.durationMs, 0, 60_000);
+    const referrer = boundedString(body.referrer, 240);
+
+    if (eventType === "web_vital" && (!metricName || metricValue === null)) {
+      return validationError(response, "Web vital events require metricName and metricValue.");
+    }
+
+    insertAnalyticsEvent({
+      eventType,
+      path: normalizeAnalyticsPath(body.path),
+      pageTitle: boundedString(body.pageTitle, 160),
+      referrer: referrer ? normalizeAnalyticsPath(referrer) : "",
+      visitorId: normalizeAnalyticsId(body.visitorId),
+      sessionId: normalizeAnalyticsId(body.sessionId),
+      metricName,
+      metricValue,
+      durationMs,
+      statusCode: null,
+      userAgent: boundedString(request.headers["user-agent"], 240),
+    });
+
+    json({ data: { ok: true } }, response, 202);
+  } catch (error) {
+    validationError(response, error instanceof Error ? error.message : "Invalid analytics event.");
+  }
+}
+
+function getAdminAnalytics(days = 7) {
+  const safeDays = Math.max(1, Math.min(30, Math.floor(days)));
+  const sinceModifier = `-${safeDays} days`;
+
+  const summary = db
+    .prepare(
+      `
+        SELECT
+          COUNT(CASE WHEN event_type = 'pageview' THEN 1 END) AS totalPageviews,
+          COUNT(DISTINCT CASE WHEN event_type = 'pageview' THEN visitor_id END) AS uniqueVisitors,
+          AVG(CASE WHEN event_type = 'api' THEN duration_ms END) AS averageApiDurationMs,
+          COUNT(CASE WHEN event_type = 'client_error' THEN 1 END) AS clientErrors
+        FROM analytics_events
+        WHERE created_at >= datetime('now', ?)
+      `,
+    )
+    .get(sinceModifier) as AnalyticsSummaryRow;
+
+  const today = db
+    .prepare(
+      `
+        SELECT
+          COUNT(CASE WHEN event_type = 'pageview' THEN 1 END) AS totalPageviews,
+          COUNT(DISTINCT CASE WHEN event_type = 'pageview' THEN visitor_id END) AS uniqueVisitors,
+          AVG(CASE WHEN event_type = 'api' THEN duration_ms END) AS averageApiDurationMs,
+          COUNT(CASE WHEN event_type = 'client_error' THEN 1 END) AS clientErrors
+        FROM analytics_events
+        WHERE created_at >= date('now')
+      `,
+    )
+    .get() as AnalyticsSummaryRow;
+
+  const daily = db
+    .prepare(
+      `
+        SELECT
+          date(created_at) AS date,
+          COUNT(*) AS pageviews,
+          COUNT(DISTINCT visitor_id) AS visitors
+        FROM analytics_events
+        WHERE event_type = 'pageview'
+          AND created_at >= datetime('now', ?)
+        GROUP BY date(created_at)
+        ORDER BY date ASC
+      `,
+    )
+    .all(sinceModifier) as AnalyticsDailyRow[];
+
+  const popularPages = db
+    .prepare(
+      `
+        SELECT
+          path,
+          MAX(page_title) AS pageTitle,
+          COUNT(*) AS pageviews,
+          COUNT(DISTINCT visitor_id) AS visitors
+        FROM analytics_events
+        WHERE event_type = 'pageview'
+          AND created_at >= datetime('now', ?)
+        GROUP BY path
+        ORDER BY pageviews DESC
+        LIMIT 12
+      `,
+    )
+    .all(sinceModifier) as AnalyticsPopularPageRow[];
+
+  const api = db
+    .prepare(
+      `
+        SELECT
+          path,
+          COUNT(*) AS requests,
+          AVG(duration_ms) AS averageDurationMs,
+          MAX(duration_ms) AS maxDurationMs,
+          COUNT(CASE WHEN status_code >= 400 THEN 1 END) AS errors
+        FROM analytics_events
+        WHERE event_type = 'api'
+          AND created_at >= datetime('now', ?)
+        GROUP BY path
+        ORDER BY requests DESC
+        LIMIT 12
+      `,
+    )
+    .all(sinceModifier) as AnalyticsApiRow[];
+
+  const webVitals = db
+    .prepare(
+      `
+        SELECT
+          metric_name AS metricName,
+          AVG(metric_value) AS averageValue,
+          (
+            SELECT latest.metric_value
+            FROM analytics_events latest
+            WHERE latest.event_type = 'web_vital'
+              AND latest.metric_name = analytics_events.metric_name
+            ORDER BY latest.created_at DESC
+            LIMIT 1
+          ) AS latestValue,
+          COUNT(*) AS samples
+        FROM analytics_events
+        WHERE event_type = 'web_vital'
+          AND created_at >= datetime('now', ?)
+        GROUP BY metric_name
+        ORDER BY metric_name ASC
+      `,
+    )
+    .all(sinceModifier) as AnalyticsVitalRow[];
+
+  const recentErrors = db
+    .prepare(
+      `
+        SELECT
+          path,
+          page_title AS pageTitle,
+          metric_name AS metricName,
+          status_code AS statusCode,
+          created_at AS createdAt
+        FROM analytics_events
+        WHERE (event_type = 'client_error' OR (event_type = 'api' AND status_code >= 400))
+          AND created_at >= datetime('now', ?)
+        ORDER BY created_at DESC
+        LIMIT 20
+      `,
+    )
+    .all(sinceModifier) as AnalyticsErrorRow[];
+
+  return {
+    rangeDays: safeDays,
+    summary,
+    today,
+    daily,
+    popularPages,
+    api,
+    webVitals,
+    recentErrors,
+  };
+}
+
+function handleAdminAnalytics(request: IncomingMessage, response: ServerResponse, url: URL) {
+  if (!process.env.ADMIN_TOKEN) return notConfigured(response, "ADMIN_TOKEN secret");
+  if (!isAuthorizedAdmin(request)) return unauthorized(response);
+  if (request.method !== "GET") return methodNotAllowed(response, ["GET"]);
+
+  const days = Number(url.searchParams.get("days") || "7");
+  json({ data: getAdminAnalytics(days) }, response);
 }
 
 function handleSearch(request: IncomingMessage, response: ServerResponse, url: URL) {
@@ -1930,8 +2269,10 @@ function handleMedia(request: IncomingMessage, response: ServerResponse, url: UR
 }
 
 function handleRequest(request: IncomingMessage, response: ServerResponse) {
+  const startedAt = performance.now();
   const host = request.headers.host || `127.0.0.1:${port}`;
   const url = new URL(request.url || "/", `http://${host}`);
+  trackApiRequest(request, response, url, startedAt);
 
   try {
     if (url.pathname === "/api/health") return handleHealth(request, response);
@@ -1939,6 +2280,8 @@ function handleRequest(request: IncomingMessage, response: ServerResponse) {
     if (url.pathname === "/api/search") return handleSearch(request, response, url);
     if (url.pathname === "/api/assets") return handleAssets(request, response);
     if (url.pathname === "/api/music") return handleMusic(request, response);
+    if (url.pathname === "/api/analytics/event") return handleAnalyticsEvent(request, response);
+    if (url.pathname === "/api/admin/analytics") return handleAdminAnalytics(request, response, url);
     if (url.pathname === "/api/admin/assets" || url.pathname.startsWith("/api/admin/assets/")) {
       return handleAdminAssets(request, response, url);
     }

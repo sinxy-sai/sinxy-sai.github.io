@@ -204,6 +204,151 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
         setSiteTheme(currentTheme === "dark" ? "light" : "dark");
       }, { signal: baseLayoutSignal });
 
+      const analyticsPath = `${window.location.pathname}${window.location.search}`;
+      const shouldTrackAnalytics = !analyticsPath.startsWith("/admin");
+      const analyticsObservers = [];
+
+      function getAnalyticsId(storage, key) {
+        try {
+          const existing = storage.getItem(key);
+          if (existing) return existing;
+          const created = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+          storage.setItem(key, created);
+          return created;
+        } catch {
+          return "";
+        }
+      }
+
+      const analyticsVisitorId = shouldTrackAnalytics
+        ? getAnalyticsId(localStorage, "sinxy-analytics-visitor")
+        : "";
+      const analyticsSessionId = shouldTrackAnalytics
+        ? getAnalyticsId(sessionStorage, "sinxy-analytics-session")
+        : "";
+
+      function sendAnalyticsEvent(payload) {
+        if (!shouldTrackAnalytics) return;
+        const body = JSON.stringify({
+          path: analyticsPath,
+          pageTitle: document.title,
+          visitorId: analyticsVisitorId,
+          sessionId: analyticsSessionId,
+          ...payload,
+        });
+
+        try {
+          const blob = new Blob([body], { type: "application/json" });
+          if (navigator.sendBeacon?.("/api/analytics/event", blob)) return;
+        } catch {
+          // Fall through to fetch.
+        }
+
+        fetch("/api/analytics/event", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body,
+          keepalive: true,
+        }).catch(() => {});
+      }
+
+      function observeAnalyticsMetric(type, callback) {
+        if (!("PerformanceObserver" in window)) return;
+        try {
+          const observer = new PerformanceObserver((list) => callback(list.getEntries()));
+          observer.observe({ type, buffered: true });
+          analyticsObservers.push(observer);
+        } catch {
+          // Unsupported metric in this browser.
+        }
+      }
+
+      if (shouldTrackAnalytics) {
+        const pageStartedAt = performance.now();
+        sendAnalyticsEvent({
+          type: "pageview",
+          referrer: document.referrer,
+        });
+
+        observeAnalyticsMetric("paint", (entries) => {
+          entries
+            .filter((entry) => entry.name === "first-contentful-paint")
+            .forEach((entry) => {
+              sendAnalyticsEvent({
+                type: "web_vital",
+                metricName: "FCP",
+                metricValue: Math.round(entry.startTime * 100) / 100,
+              });
+            });
+        });
+
+        let latestLcp = 0;
+        observeAnalyticsMetric("largest-contentful-paint", (entries) => {
+          const lastEntry = entries.at(-1);
+          if (lastEntry) latestLcp = lastEntry.startTime;
+        });
+
+        let cls = 0;
+        observeAnalyticsMetric("layout-shift", (entries) => {
+          entries.forEach((entry) => {
+            if (!entry.hadRecentInput) cls += entry.value || 0;
+          });
+        });
+
+        observeAnalyticsMetric("event", (entries) => {
+          const slowest = entries.reduce((max, entry) => Math.max(max, entry.duration || 0), 0);
+          if (slowest > 0) {
+            sendAnalyticsEvent({
+              type: "web_vital",
+              metricName: "INP",
+              metricValue: Math.round(slowest * 100) / 100,
+            });
+          }
+        });
+
+        window.addEventListener("error", (event) => {
+          sendAnalyticsEvent({
+            type: "client_error",
+            metricName: event.message || "window.error",
+          });
+        }, { signal: baseLayoutSignal });
+
+        window.addEventListener("unhandledrejection", () => {
+          sendAnalyticsEvent({
+            type: "client_error",
+            metricName: "unhandledrejection",
+          });
+        }, { signal: baseLayoutSignal });
+
+        window.addEventListener("pagehide", () => {
+          const durationMs = Math.round((performance.now() - pageStartedAt) * 100) / 100;
+          sendAnalyticsEvent({
+            type: "web_vital",
+            metricName: "session_duration",
+            metricValue: durationMs,
+            durationMs,
+          });
+          if (latestLcp > 0) {
+            sendAnalyticsEvent({
+              type: "web_vital",
+              metricName: "LCP",
+              metricValue: Math.round(latestLcp * 100) / 100,
+            });
+          }
+          if (cls > 0) {
+            sendAnalyticsEvent({
+              type: "web_vital",
+              metricName: "CLS",
+              metricValue: Math.round(cls * 10000) / 10000,
+            });
+          }
+        }, { signal: baseLayoutSignal });
+
+        baseLayoutSignal.addEventListener("abort", () => {
+          analyticsObservers.forEach((observer) => observer.disconnect());
+        }, { once: true });
+      }
+
       const siteSearchForm = document.querySelector(".header-search");
       const siteSearchInput = document.querySelector("#site-search-input");
       const siteSearchPanel = document.querySelector("#site-search-panel");

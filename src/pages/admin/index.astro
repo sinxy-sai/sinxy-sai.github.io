@@ -1,5 +1,6 @@
 ---
 import {
+  BarChart3,
   Bold,
   ChevronDown,
   Clock3,
@@ -113,6 +114,10 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
           <button class="rail-button" type="button" data-open-media aria-label="打开媒体资源管理" aria-pressed="false">
             <Images size={17} aria-hidden="true" />
             <span>媒体</span>
+          </button>
+          <button class="rail-button" type="button" data-open-analytics aria-label="打开统计面板" aria-pressed="false">
+            <BarChart3 size={17} aria-hidden="true" />
+            <span>统计</span>
           </button>
           <button class="rail-button" type="button" data-open-toc aria-label="打开文章目录" aria-pressed="false">
             <List size={17} aria-hidden="true" />
@@ -310,6 +315,96 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
                 <span>操作</span>
               </div>
               <div class="media-list" data-media-list></div>
+            </div>
+          </section>
+
+          <section class="analytics-view" data-analytics-view hidden>
+            <div class="settings-head">
+              <div>
+                <p class="section-kicker">Analytics</p>
+                <h2>站点统计</h2>
+              </div>
+              <div class="button-row">
+                <button class="admin-button" type="button" data-refresh-analytics>
+                  <RefreshCw size={16} aria-hidden="true" />
+                  刷新
+                </button>
+                <button class="admin-button" type="button" data-open-editor>
+                  <PencilLine size={16} aria-hidden="true" />
+                  返回编辑区
+                </button>
+              </div>
+            </div>
+
+            <div class="analytics-summary" data-analytics-summary>
+              <article>
+                <span>今日 PV</span>
+                <strong>--</strong>
+              </article>
+              <article>
+                <span>今日 UV</span>
+                <strong>--</strong>
+              </article>
+              <article>
+                <span>平均 API 延迟</span>
+                <strong>--</strong>
+              </article>
+              <article>
+                <span>最近错误</span>
+                <strong>--</strong>
+              </article>
+            </div>
+
+            <div class="analytics-grid">
+              <section class="analytics-card">
+                <div class="settings-card-head">
+                  <div>
+                    <p class="section-kicker">Traffic</p>
+                    <h3>最近 7 天访问</h3>
+                  </div>
+                </div>
+                <div class="analytics-bars" data-analytics-daily></div>
+              </section>
+
+              <section class="analytics-card">
+                <div class="settings-card-head">
+                  <div>
+                    <p class="section-kicker">Pages</p>
+                    <h3>热门页面</h3>
+                  </div>
+                </div>
+                <div class="analytics-list" data-analytics-pages></div>
+              </section>
+
+              <section class="analytics-card">
+                <div class="settings-card-head">
+                  <div>
+                    <p class="section-kicker">Performance</p>
+                    <h3>API 延迟</h3>
+                  </div>
+                </div>
+                <div class="analytics-list" data-analytics-api></div>
+              </section>
+
+              <section class="analytics-card">
+                <div class="settings-card-head">
+                  <div>
+                    <p class="section-kicker">Web Vitals</p>
+                    <h3>前端性能</h3>
+                  </div>
+                </div>
+                <div class="analytics-list" data-analytics-vitals></div>
+              </section>
+
+              <section class="analytics-card wide">
+                <div class="settings-card-head">
+                  <div>
+                    <p class="section-kicker">Errors</p>
+                    <h3>最近错误</h3>
+                  </div>
+                </div>
+                <div class="analytics-list" data-analytics-errors></div>
+              </section>
             </div>
           </section>
 
@@ -554,9 +649,17 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     const editorView = app?.querySelector("[data-editor-view]");
     const settingsView = app?.querySelector("[data-settings-view]");
     const mediaView = app?.querySelector("[data-media-view]");
+    const analyticsView = app?.querySelector("[data-analytics-view]");
+    const analyticsSummary = app?.querySelector("[data-analytics-summary]");
+    const analyticsDaily = app?.querySelector("[data-analytics-daily]");
+    const analyticsPages = app?.querySelector("[data-analytics-pages]");
+    const analyticsApi = app?.querySelector("[data-analytics-api]");
+    const analyticsVitals = app?.querySelector("[data-analytics-vitals]");
+    const analyticsErrors = app?.querySelector("[data-analytics-errors]");
     const openEditorButtons = app?.querySelectorAll("[data-open-editor]") || [];
     const openSettingsButtons = app?.querySelectorAll("[data-open-settings]") || [];
     const openMediaButtons = app?.querySelectorAll("[data-open-media]") || [];
+    const openAnalyticsButtons = app?.querySelectorAll("[data-open-analytics]") || [];
     const openTocButtons = app?.querySelectorAll("[data-open-toc]") || [];
     const closeTocButton = app?.querySelector("[data-close-toc]");
     const linkDialog = app?.querySelector("[data-link-dialog]");
@@ -564,6 +667,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 
     let postsCache = [];
     let assetsCache = [];
+    let analyticsCache = null;
     let isSyncingScroll = false;
     let activeWorkspaceView = "editor";
     let activeEditorMode = "compare";
@@ -1057,22 +1161,167 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       setTocVisible(app.classList.contains("is-toc-collapsed"));
     }
 
+    function formatMetricNumber(value, digits = 0) {
+      const numberValue = Number(value);
+      if (!Number.isFinite(numberValue)) return "--";
+      return numberValue.toLocaleString("zh-CN", {
+        maximumFractionDigits: digits,
+        minimumFractionDigits: digits,
+      });
+    }
+
+    function formatDuration(value) {
+      const numberValue = Number(value);
+      if (!Number.isFinite(numberValue)) return "--";
+      return `${formatMetricNumber(numberValue, numberValue >= 100 ? 0 : 1)} ms`;
+    }
+
+    function renderAnalyticsList(container, items, renderer, emptyText) {
+      if (!(container instanceof HTMLElement)) return;
+      if (!items?.length) {
+        container.innerHTML = `<div class="admin-empty">${escapeHtml(emptyText)}</div>`;
+        return;
+      }
+      container.innerHTML = items.map(renderer).join("");
+    }
+
+    function renderAnalytics(data) {
+      analyticsCache = data;
+
+      if (analyticsSummary instanceof HTMLElement) {
+        const today = data?.today || {};
+        const summary = data?.summary || {};
+        analyticsSummary.innerHTML = `
+          <article>
+            <span>今日 PV</span>
+            <strong>${formatMetricNumber(today.totalPageviews)}</strong>
+          </article>
+          <article>
+            <span>今日 UV</span>
+            <strong>${formatMetricNumber(today.uniqueVisitors)}</strong>
+          </article>
+          <article>
+            <span>平均 API 延迟</span>
+            <strong>${formatDuration(summary.averageApiDurationMs)}</strong>
+          </article>
+          <article>
+            <span>最近错误</span>
+            <strong>${formatMetricNumber(summary.clientErrors)}</strong>
+          </article>
+        `;
+      }
+
+      if (analyticsDaily instanceof HTMLElement) {
+        const daily = data?.daily || [];
+        const maxPageviews = Math.max(1, ...daily.map((item) => Number(item.pageviews) || 0));
+        analyticsDaily.innerHTML = daily.length
+          ? daily.map((item) => {
+              const height = Math.max(8, Math.round(((Number(item.pageviews) || 0) / maxPageviews) * 100));
+              return `
+                <article class="analytics-bar" title="${escapeHtml(item.date)} · ${formatMetricNumber(item.pageviews)} PV">
+                  <span style="height:${height}%"></span>
+                  <small>${escapeHtml(String(item.date || "").slice(5).replace("-", "/"))}</small>
+                  <strong>${formatMetricNumber(item.pageviews)}</strong>
+                </article>
+              `;
+            }).join("")
+          : `<div class="admin-empty">暂无访问数据。</div>`;
+      }
+
+      renderAnalyticsList(
+        analyticsPages,
+        data?.popularPages || [],
+        (item) => `
+          <article class="analytics-row">
+            <span>
+              <strong>${escapeHtml(item.pageTitle || item.path || "/")}</strong>
+              <small>${escapeHtml(item.path || "/")}</small>
+            </span>
+            <b>${formatMetricNumber(item.pageviews)} PV</b>
+          </article>
+        `,
+        "暂无热门页面数据。",
+      );
+
+      renderAnalyticsList(
+        analyticsApi,
+        data?.api || [],
+        (item) => `
+          <article class="analytics-row">
+            <span>
+              <strong>${escapeHtml(item.path || "/api")}</strong>
+              <small>${formatMetricNumber(item.requests)} requests · ${formatMetricNumber(item.errors)} errors</small>
+            </span>
+            <b>${formatDuration(item.averageDurationMs)}</b>
+          </article>
+        `,
+        "暂无 API 延迟数据。",
+      );
+
+      renderAnalyticsList(
+        analyticsVitals,
+        data?.webVitals || [],
+        (item) => `
+          <article class="analytics-row">
+            <span>
+              <strong>${escapeHtml(item.metricName || "Metric")}</strong>
+              <small>${formatMetricNumber(item.samples)} samples · latest ${formatMetricNumber(item.latestValue, 2)}</small>
+            </span>
+            <b>${formatMetricNumber(item.averageValue, 2)}</b>
+          </article>
+        `,
+        "暂无 Web Vitals 数据。",
+      );
+
+      renderAnalyticsList(
+        analyticsErrors,
+        data?.recentErrors || [],
+        (item) => `
+          <article class="analytics-row">
+            <span>
+              <strong>${escapeHtml(item.metricName || `HTTP ${item.statusCode || "error"}`)}</strong>
+              <small>${escapeHtml(item.path || "/")} · ${escapeHtml(formatAdminDate(item.createdAt))}</small>
+            </span>
+            <b>${escapeHtml(item.statusCode || "")}</b>
+          </article>
+        `,
+        "最近没有错误。",
+      );
+    }
+
+    async function loadAnalytics() {
+      try {
+        setStatus("正在读取统计数据...");
+        const data = await readJson(await fetch("/api/admin/analytics?days=7", {
+          headers: adminHeaders(),
+        }));
+        renderAnalytics(data);
+        setStatus("统计数据已更新。", "success");
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
+    }
+
     function setWorkspaceView(view) {
       if (
         !(editorView instanceof HTMLElement) ||
         !(settingsView instanceof HTMLElement) ||
-        !(mediaView instanceof HTMLElement)
+        !(mediaView instanceof HTMLElement) ||
+        !(analyticsView instanceof HTMLElement)
       ) return;
-      activeWorkspaceView = ["settings", "media"].includes(view) ? view : "editor";
+      activeWorkspaceView = ["settings", "media", "analytics"].includes(view) ? view : "editor";
       const showSettings = activeWorkspaceView === "settings";
       const showMedia = activeWorkspaceView === "media";
+      const showAnalytics = activeWorkspaceView === "analytics";
       const showEditor = activeWorkspaceView === "editor";
 
       editorView.hidden = !showEditor;
       settingsView.hidden = !showSettings;
       mediaView.hidden = !showMedia;
+      analyticsView.hidden = !showAnalytics;
       app?.classList.toggle("is-settings-view", showSettings);
       app?.classList.toggle("is-media-view", showMedia);
+      app?.classList.toggle("is-analytics-view", showAnalytics);
 
       openEditorButtons.forEach((button) => {
         button.classList.toggle("is-active", showEditor);
@@ -1087,6 +1336,11 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       openMediaButtons.forEach((button) => {
         button.classList.toggle("is-active", showMedia);
         button.setAttribute("aria-pressed", String(showMedia));
+      });
+
+      openAnalyticsButtons.forEach((button) => {
+        button.classList.toggle("is-active", showAnalytics);
+        button.setAttribute("aria-pressed", String(showAnalytics));
       });
 
       if (showEditor) {
@@ -1890,6 +2144,13 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     openMediaButtons.forEach((button) => {
       button.addEventListener("click", () => setWorkspaceView("media"));
     });
+    openAnalyticsButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        setWorkspaceView("analytics");
+        if (!analyticsCache) loadAnalytics();
+      });
+    });
+    app?.querySelector("[data-refresh-analytics]")?.addEventListener("click", loadAnalytics);
     openTocButtons.forEach((button) => {
       button.addEventListener("click", toggleTocPanel);
     });
@@ -2317,7 +2578,8 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 
     .editor-view,
     .settings-view,
-    .media-view {
+    .media-view,
+    .analytics-view {
       min-height: 0;
     }
 
@@ -2329,7 +2591,8 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     }
 
     .settings-view,
-    .media-view {
+    .media-view,
+    .analytics-view {
       display: grid;
       align-content: start;
       gap: 18px;
@@ -2339,7 +2602,8 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 
     .editor-view[hidden],
     .settings-view[hidden],
-    .media-view[hidden] {
+    .media-view[hidden],
+    .analytics-view[hidden] {
       display: none;
     }
 
@@ -2532,6 +2796,142 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     :global(.media-actions .mini-button.danger) {
       background: rgba(218, 91, 91, 0.07);
       color: #ffb0b0;
+    }
+
+    .analytics-view {
+      grid-template-rows: auto auto minmax(0, 1fr);
+      align-content: stretch;
+      overflow: hidden;
+    }
+
+    .analytics-summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .analytics-summary article,
+    .analytics-card {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: color-mix(in srgb, var(--admin-panel-strong) 78%, transparent);
+    }
+
+    .analytics-summary article {
+      display: grid;
+      gap: 6px;
+      padding: 14px;
+    }
+
+    .analytics-summary span,
+    .analytics-row small,
+    .analytics-bar small {
+      color: var(--muted);
+      font-size: 0.76rem;
+      font-weight: 780;
+    }
+
+    .analytics-summary strong {
+      color: var(--text);
+      font-size: clamp(1.35rem, 3vw, 2rem);
+      line-height: 1;
+    }
+
+    .analytics-grid {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 12px;
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    .analytics-card {
+      display: grid;
+      align-content: start;
+      gap: 12px;
+      min-height: 230px;
+      padding: 14px;
+    }
+
+    .analytics-card.wide {
+      grid-column: 1 / -1;
+    }
+
+    .analytics-card h3 {
+      margin: 4px 0 0;
+      font-size: 1rem;
+    }
+
+    .analytics-bars {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(44px, 1fr));
+      align-items: end;
+      gap: 10px;
+      min-height: 160px;
+    }
+
+    :global(.analytics-bar) {
+      display: grid;
+      grid-template-rows: minmax(80px, 1fr) auto auto;
+      justify-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    :global(.analytics-bar span) {
+      align-self: end;
+      width: 100%;
+      min-height: 8px;
+      border-radius: 8px 8px 3px 3px;
+      background: linear-gradient(180deg, var(--accent), var(--accent-strong));
+      box-shadow: 0 10px 24px rgba(47, 143, 112, 0.18);
+    }
+
+    :global(.analytics-bar strong) {
+      color: var(--text);
+      font-size: 0.82rem;
+    }
+
+    .analytics-list {
+      display: grid;
+      gap: 8px;
+      min-height: 0;
+    }
+
+    :global(.analytics-row) {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 12px;
+      border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: rgba(255, 255, 255, 0.026);
+    }
+
+    :global(.analytics-row span) {
+      min-width: 0;
+      display: grid;
+      gap: 3px;
+    }
+
+    :global(.analytics-row strong),
+    :global(.analytics-row small) {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    :global(.analytics-row strong) {
+      color: var(--text);
+      font-size: 0.86rem;
+    }
+
+    :global(.analytics-row b) {
+      color: var(--accent-strong);
+      font-size: 0.84rem;
+      white-space: nowrap;
     }
 
     .cover-current {
@@ -3660,7 +4060,9 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       .media-upload-card,
       .cover-current,
       .image-insert-grid,
-      .editor-split {
+      .editor-split,
+      .analytics-summary,
+      .analytics-grid {
         grid-template-columns: 1fr;
       }
 
