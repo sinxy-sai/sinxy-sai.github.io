@@ -1,0 +1,307 @@
+---
+import { Archive, Home, Tags, User } from "lucide-astro";
+
+const items = [
+  { label: "首页", href: "/", icon: Home, key: "home" },
+  { label: "归档", href: "/archive/", icon: Archive, key: "archive" },
+  { label: "标签", href: "/tags/", icon: Tags, key: "tags" },
+  { label: "关于", href: "/about/", icon: User, key: "about" },
+];
+---
+
+<div class="radial-nav" data-radial-nav hidden aria-hidden="true">
+  <div class="radial-nav-ring" aria-label="快捷导航">
+    {
+      items.map(({ label, href, icon: Icon, key }, index) => (
+        <a
+          class="radial-nav-item"
+          href={href}
+          data-radial-item={index}
+          data-radial-key={key}
+          aria-label={label}
+        >
+          <Icon size={18} aria-hidden="true" />
+          <span>{label}</span>
+        </a>
+      ))
+    }
+    <span class="radial-nav-core" aria-hidden="true">Tab</span>
+  </div>
+</div>
+
+<script>
+  function initRadialNav() {
+    const nav = document.querySelector("[data-radial-nav]");
+    if (!(nav instanceof HTMLElement) || nav.dataset.radialInitialized === "true") return;
+    nav.dataset.radialInitialized = "true";
+
+    const controller = new AbortController();
+    const { signal } = controller;
+    document.addEventListener("astro:before-swap", () => controller.abort(), { once: true, signal });
+
+    const items = Array.from(nav.querySelectorAll("[data-radial-item]")).filter(
+      (item) => item instanceof HTMLAnchorElement,
+    );
+    const angles = [-90, 0, 90, 180];
+    let pointer = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    let center = { x: pointer.x, y: pointer.y };
+    let isOpen = false;
+    let selectedIndex = -1;
+
+    function isEditableTarget(target) {
+      if (!(target instanceof Element)) return false;
+      return Boolean(
+        target.closest(
+          'input, textarea, select, button, a, [contenteditable="true"], [data-admin-app], [data-radial-nav]',
+        ),
+      );
+    }
+
+    function normalizeAngle(degrees) {
+      return ((degrees % 360) + 360) % 360;
+    }
+
+    function angleDistance(a, b) {
+      const diff = Math.abs(normalizeAngle(a) - normalizeAngle(b));
+      return Math.min(diff, 360 - diff);
+    }
+
+    function setSelected(index) {
+      selectedIndex = index;
+      items.forEach((item, itemIndex) => {
+        item.classList.toggle("is-active", itemIndex === selectedIndex);
+        if (itemIndex === selectedIndex) {
+          item.setAttribute("aria-current", "true");
+        } else {
+          item.removeAttribute("aria-current");
+        }
+      });
+    }
+
+    function updateSelectedFromPointer(clientX, clientY) {
+      if (!isOpen) return;
+      const dx = clientX - center.x;
+      const dy = clientY - center.y;
+      const distance = Math.hypot(dx, dy);
+
+      if (distance < 34) {
+        setSelected(-1);
+        return;
+      }
+
+      const pointerAngle = Math.atan2(dy, dx) * 180 / Math.PI;
+      const nextIndex = angles.reduce((bestIndex, angle, index) => (
+        angleDistance(pointerAngle, angle) < angleDistance(pointerAngle, angles[bestIndex])
+          ? index
+          : bestIndex
+      ), 0);
+
+      setSelected(nextIndex);
+    }
+
+    function openNav() {
+      if (isOpen || document.querySelector("[data-admin-app]")) return;
+      isOpen = true;
+      center = {
+        x: Math.max(96, Math.min(window.innerWidth - 96, pointer.x)),
+        y: Math.max(96, Math.min(window.innerHeight - 96, pointer.y)),
+      };
+      nav.style.setProperty("--radial-x", `${center.x}px`);
+      nav.style.setProperty("--radial-y", `${center.y}px`);
+      nav.hidden = false;
+      nav.setAttribute("aria-hidden", "false");
+      window.requestAnimationFrame(() => {
+        nav.dataset.state = "open";
+        updateSelectedFromPointer(pointer.x, pointer.y);
+      });
+    }
+
+    function closeNav(shouldNavigate = false) {
+      if (!isOpen) return;
+      const selected = selectedIndex >= 0 ? items[selectedIndex] : null;
+      isOpen = false;
+      setSelected(-1);
+      nav.dataset.state = "closed";
+      nav.setAttribute("aria-hidden", "true");
+      window.setTimeout(() => {
+        if (!isOpen) nav.hidden = true;
+      }, 140);
+
+      if (shouldNavigate && selected instanceof HTMLAnchorElement) {
+        window.location.href = selected.href;
+      }
+    }
+
+    window.addEventListener("pointermove", (event) => {
+      pointer = { x: event.clientX, y: event.clientY };
+      updateSelectedFromPointer(event.clientX, event.clientY);
+    }, { passive: true, signal });
+
+    window.addEventListener("keydown", (event) => {
+      if (event.key !== "Tab" || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return;
+      if (event.repeat || isEditableTarget(event.target)) return;
+      event.preventDefault();
+      openNav();
+    }, { signal });
+
+    window.addEventListener("keyup", (event) => {
+      if (event.key !== "Tab") return;
+      if (!isOpen) return;
+      event.preventDefault();
+      closeNav(selectedIndex >= 0);
+    }, { signal });
+
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeNav(false);
+    }, { signal });
+
+    window.addEventListener("pointerup", () => {
+      if (isOpen && selectedIndex >= 0) closeNav(true);
+    }, { signal });
+
+    items.forEach((item, index) => {
+      item.addEventListener("pointerenter", () => setSelected(index), { signal });
+      item.addEventListener("click", () => closeNav(false), { signal });
+    });
+  }
+
+  initRadialNav();
+  document.addEventListener("astro:page-load", initRadialNav);
+</script>
+
+<style>
+  .radial-nav {
+    --radial-x: 50vw;
+    --radial-y: 50vh;
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    pointer-events: none;
+  }
+
+  .radial-nav-ring {
+    position: absolute;
+    left: var(--radial-x);
+    top: var(--radial-y);
+    width: 184px;
+    height: 184px;
+    border: 1px solid rgba(117, 201, 165, 0.34);
+    border-radius: 999px;
+    background:
+      radial-gradient(circle at 50% 50%, var(--surface-floating) 0 34px, transparent 35px),
+      conic-gradient(
+        from -45deg,
+        rgba(117, 201, 165, 0.16),
+        rgba(255, 217, 138, 0.16),
+        rgba(246, 182, 200, 0.14),
+        rgba(117, 201, 165, 0.16)
+      );
+    box-shadow: 0 24px 70px rgba(42, 66, 58, 0.22);
+    opacity: 0;
+    pointer-events: auto;
+    transform: translate(-50%, -50%) scale(0.82);
+    transition:
+      opacity 140ms ease,
+      transform 160ms ease;
+    backdrop-filter: blur(18px);
+  }
+
+  .radial-nav[data-state="open"] .radial-nav-ring {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  .radial-nav-item {
+    position: absolute;
+    display: grid;
+    width: 62px;
+    height: 62px;
+    place-items: center;
+    align-content: center;
+    gap: 4px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: var(--surface-floating);
+    color: var(--text);
+    font-size: 0.72rem;
+    font-weight: 860;
+    text-decoration: none;
+    transform: translate(-50%, -50%);
+    transition:
+      background 140ms ease,
+      border-color 140ms ease,
+      color 140ms ease,
+      transform 140ms ease,
+      box-shadow 140ms ease;
+  }
+
+  .radial-nav-item svg {
+    color: var(--accent-strong);
+  }
+
+  .radial-nav-item span {
+    line-height: 1;
+  }
+
+  .radial-nav-item[data-radial-key="home"] {
+    left: 50%;
+    top: 13%;
+  }
+
+  .radial-nav-item[data-radial-key="archive"] {
+    left: 87%;
+    top: 50%;
+  }
+
+  .radial-nav-item[data-radial-key="tags"] {
+    left: 50%;
+    top: 87%;
+  }
+
+  .radial-nav-item[data-radial-key="about"] {
+    left: 13%;
+    top: 50%;
+  }
+
+  .radial-nav-item.is-active {
+    border-color: rgba(47, 143, 112, 0.58);
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+    box-shadow: 0 14px 28px rgba(47, 143, 112, 0.22);
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+
+  .radial-nav-core {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    display: grid;
+    width: 48px;
+    height: 48px;
+    place-items: center;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface-strong);
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 900;
+    transform: translate(-50%, -50%);
+  }
+
+  html[data-theme="dark"] .radial-nav-ring {
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .radial-nav-ring,
+    .radial-nav-item {
+      transition-duration: 0.01ms;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .radial-nav {
+      display: none;
+    }
+  }
+</style>

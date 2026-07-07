@@ -4,6 +4,7 @@ import { ClientRouter } from "astro:transitions";
 import AmbientFlow from "../components/AmbientFlow.astro";
 import CornerPet from "../components/CornerPet.astro";
 import FloatingMusicPlayer from "../components/FloatingMusicPlayer.astro";
+import RadialNav from "../components/RadialNav.astro";
 import "katex/dist/katex.min.css";
 
 interface Props {
@@ -89,6 +90,7 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
     <AmbientFlow />
     <CornerPet />
     <FloatingMusicPlayer />
+    <RadialNav />
 
     <header class="site-header">
       <a class="brand" href="/" aria-label="返回首页">
