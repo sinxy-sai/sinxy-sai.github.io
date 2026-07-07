@@ -17,6 +17,7 @@ import {
   Link,
   List,
   ListOrdered,
+  Moon,
   PencilLine,
   Quote,
   RefreshCw,
@@ -26,6 +27,7 @@ import {
   Send,
   SlidersHorizontal,
   Strikethrough,
+  Sun,
   Trash2,
   Upload,
   X,
@@ -41,7 +43,14 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
   <section class="admin-shell" data-admin-app>
     <div class="admin-login-gate" data-admin-gate>
       <div class="admin-login-card">
-        <p class="section-kicker">Admin Access</p>
+        <div class="admin-login-head">
+          <p class="section-kicker">Admin Access</p>
+          <button class="admin-theme-toggle" type="button" data-admin-theme-toggle aria-label="切换主题">
+            <Sun class="admin-theme-sun" size={16} aria-hidden="true" />
+            <Moon class="admin-theme-moon" size={16} aria-hidden="true" />
+            <span data-admin-theme-text>夜间</span>
+          </button>
+        </div>
         <h1>进入后台管理</h1>
         <p>请输入 Admin Token，验证通过后才能加载文章和媒体资源。</p>
         <label class="token-field login-token-field" for="admin-token">
@@ -63,6 +72,11 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         <strong>发布文章</strong>
         <small data-word-count>0 字</small>
       </div>
+      <button class="admin-theme-toggle" type="button" data-admin-theme-toggle aria-label="切换主题">
+        <Sun class="admin-theme-sun" size={16} aria-hidden="true" />
+        <Moon class="admin-theme-moon" size={16} aria-hidden="true" />
+        <span data-admin-theme-text>夜间</span>
+      </button>
     </header>
 
     <div class="admin-status" data-admin-status role="status">等待 Admin Token。</div>
@@ -664,6 +678,8 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     const closeTocButton = app?.querySelector("[data-close-toc]");
     const linkDialog = app?.querySelector("[data-link-dialog]");
     const imageDialog = app?.querySelector("[data-image-dialog]");
+    const adminThemeButtons = app?.querySelectorAll("[data-admin-theme-toggle]") || [];
+    const adminThemeTexts = app?.querySelectorAll("[data-admin-theme-text]") || [];
 
     let postsCache = [];
     let assetsCache = [];
@@ -696,6 +712,27 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       if (!token) throw new Error("请先填写 Admin Token。");
       return { Authorization: `Bearer ${token}` };
     };
+
+    function setAdminTheme(theme) {
+      const safeTheme = theme === "dark" ? "dark" : "light";
+      const isDark = safeTheme === "dark";
+      document.documentElement.dataset.theme = safeTheme;
+      document.documentElement.style.colorScheme = safeTheme;
+      localStorage.setItem("sinxy-theme", safeTheme);
+      adminThemeButtons.forEach((button) => {
+        button.setAttribute("aria-pressed", String(isDark));
+        button.setAttribute("aria-label", isDark ? "切换到白天模式" : "切换到夜间模式");
+      });
+      adminThemeTexts.forEach((text) => {
+        text.textContent = isDark ? "白天" : "夜间";
+      });
+    }
+
+    function syncAdminTheme() {
+      const storedTheme = localStorage.getItem("sinxy-theme");
+      const currentTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+      setAdminTheme(storedTheme === "light" || storedTheme === "dark" ? storedTheme : currentTheme);
+    }
 
     async function readJson(response) {
       const payload = await response.json().catch(() => null);
@@ -2176,7 +2213,14 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         authenticateAdmin();
       }
     });
+    adminThemeButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const currentTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+        setAdminTheme(currentTheme === "dark" ? "light" : "dark");
+      });
+    });
 
+    syncAdminTheme();
     resetPostForm();
     setWorkspaceView("editor");
     setEditorMode(activeEditorMode);
@@ -2209,9 +2253,10 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     }
 
     .admin-shell {
-      --admin-bg: color-mix(in srgb, var(--bg) 86%, #eef1ef);
-      --admin-panel: color-mix(in srgb, var(--surface) 92%, transparent);
-      --admin-panel-strong: color-mix(in srgb, var(--surface-control) 94%, transparent);
+      --admin-bg: #eef1ef;
+      --admin-panel: rgba(255, 255, 250, 0.88);
+      --admin-panel-strong: rgba(248, 252, 246, 0.9);
+      --admin-shadow: rgba(74, 116, 98, 0.12);
       height: 100vh;
       min-height: 0;
       display: grid;
@@ -2221,6 +2266,16 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       overflow: hidden;
       background:
         linear-gradient(180deg, rgba(255, 255, 255, 0.4), transparent 220px),
+        var(--admin-bg);
+    }
+
+    html[data-theme="dark"] .admin-shell {
+      --admin-bg: #0d1714;
+      --admin-panel: rgba(20, 31, 27, 0.9);
+      --admin-panel-strong: rgba(24, 35, 31, 0.9);
+      --admin-shadow: rgba(0, 0, 0, 0.28);
+      background:
+        linear-gradient(180deg, rgba(136, 216, 184, 0.08), transparent 220px),
         var(--admin-bg);
     }
 
@@ -2250,6 +2305,13 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       padding: 28px;
       box-shadow: var(--shadow);
       backdrop-filter: blur(18px);
+    }
+
+    .admin-login-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
     }
 
     .admin-login-card h1 {
@@ -2295,7 +2357,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     .admin-action-bar {
       border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
       background: var(--admin-panel);
-      box-shadow: 0 18px 46px rgba(0, 0, 0, 0.08);
+      box-shadow: 0 18px 46px var(--admin-shadow);
       backdrop-filter: blur(18px);
     }
 
@@ -2304,12 +2366,41 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       top: 4px;
       z-index: 20;
       display: grid;
-      grid-template-columns: auto minmax(0, 1fr);
+      grid-template-columns: auto minmax(0, 1fr) auto;
       gap: 18px;
       align-items: center;
       min-height: 68px;
       border-radius: 18px;
       padding: 12px 16px;
+    }
+
+    .admin-theme-toggle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      min-height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--admin-panel-strong);
+      color: var(--text);
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 820;
+      padding: 6px 11px;
+      transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+    }
+
+    .admin-theme-toggle:hover {
+      border-color: rgba(117, 201, 165, 0.62);
+      background: var(--accent-soft);
+      transform: translateY(-1px);
+    }
+
+    html[data-theme="dark"] .admin-theme-sun,
+    html:not([data-theme="dark"]) .admin-theme-moon {
+      display: none;
     }
 
     .admin-status {
