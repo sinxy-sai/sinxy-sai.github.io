@@ -188,7 +188,13 @@
     });
   }
 
-  initCornerPets();
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initCornerPets, { once: true });
+  } else {
+    initCornerPets();
+  }
+
+  window.addEventListener("pageshow", initCornerPets);
   document.addEventListener("astro:page-load", initCornerPets);
 </script>
 
@@ -247,7 +253,10 @@
     display: block;
     width: 100%;
     height: 100%;
+    background-image: url("/pet-clean/idle.png");
+    background-position: 0 0;
     background-repeat: no-repeat;
+    background-size: 800% 100%;
     image-rendering: auto;
     filter: drop-shadow(0 16px 18px rgba(42, 66, 58, 0.16));
   }
