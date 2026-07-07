@@ -25,7 +25,7 @@ const items = [
         </a>
       ))
     }
-    <span class="radial-nav-core" aria-hidden="true">Tab</span>
+    <span class="radial-nav-core" aria-hidden="true"></span>
   </div>
 </div>
 
@@ -187,20 +187,21 @@ const items = [
     position: absolute;
     left: var(--radial-x);
     top: var(--radial-y);
-    width: 184px;
-    height: 184px;
-    border: 1px solid rgba(117, 201, 165, 0.34);
+    width: 196px;
+    height: 196px;
+    border: 1px solid rgba(117, 201, 165, 0.18);
     border-radius: 999px;
     background:
-      radial-gradient(circle at 50% 50%, var(--surface-floating) 0 34px, transparent 35px),
+      radial-gradient(circle, rgba(117, 201, 165, 0.08) 0 28px, transparent 29px),
+      radial-gradient(circle, transparent 0 64px, rgba(117, 201, 165, 0.08) 65px 66px, transparent 67px),
       conic-gradient(
         from -45deg,
-        rgba(117, 201, 165, 0.16),
-        rgba(255, 217, 138, 0.16),
-        rgba(246, 182, 200, 0.14),
-        rgba(117, 201, 165, 0.16)
+        rgba(117, 201, 165, 0.1),
+        rgba(255, 217, 138, 0.08),
+        rgba(246, 182, 200, 0.07),
+        rgba(117, 201, 165, 0.1)
       );
-    box-shadow: 0 24px 70px rgba(42, 66, 58, 0.22);
+    box-shadow: 0 22px 64px rgba(42, 66, 58, 0.14);
     opacity: 0;
     pointer-events: auto;
     transform: translate(-50%, -50%) scale(0.82);
@@ -218,16 +219,16 @@ const items = [
   .radial-nav-item {
     position: absolute;
     display: grid;
-    width: 62px;
-    height: 62px;
+    width: 58px;
+    height: 58px;
     place-items: center;
     align-content: center;
-    gap: 4px;
-    border: 1px solid var(--line);
-    border-radius: 18px;
-    background: var(--surface-floating);
+    gap: 3px;
+    border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--surface-floating) 86%, transparent);
     color: var(--text);
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     font-weight: 860;
     text-decoration: none;
     transform: translate(-50%, -50%);
@@ -237,6 +238,8 @@ const items = [
       color 140ms ease,
       transform 140ms ease,
       box-shadow 140ms ease;
+    backdrop-filter: blur(16px);
+    box-shadow: 0 10px 28px rgba(42, 66, 58, 0.1);
   }
 
   .radial-nav-item svg {
@@ -249,21 +252,21 @@ const items = [
 
   .radial-nav-item[data-radial-key="home"] {
     left: 50%;
-    top: 13%;
+    top: 10%;
   }
 
   .radial-nav-item[data-radial-key="archive"] {
-    left: 87%;
+    left: 90%;
     top: 50%;
   }
 
   .radial-nav-item[data-radial-key="tags"] {
     left: 50%;
-    top: 87%;
+    top: 90%;
   }
 
   .radial-nav-item[data-radial-key="about"] {
-    left: 13%;
+    left: 10%;
     top: 50%;
   }
 
@@ -271,29 +274,46 @@ const items = [
     border-color: rgba(47, 143, 112, 0.58);
     background: var(--accent-soft);
     color: var(--accent-strong);
-    box-shadow: 0 14px 28px rgba(47, 143, 112, 0.22);
-    transform: translate(-50%, -50%) scale(1.1);
+    box-shadow:
+      0 14px 30px rgba(47, 143, 112, 0.22),
+      0 0 0 5px rgba(117, 201, 165, 0.13);
+    transform: translate(-50%, -50%) scale(1.12);
   }
 
   .radial-nav-core {
     position: absolute;
     left: 50%;
     top: 50%;
-    display: grid;
-    width: 48px;
-    height: 48px;
-    place-items: center;
-    border: 1px solid var(--line);
+    width: 22px;
+    height: 22px;
+    border: 1px solid rgba(47, 143, 112, 0.32);
     border-radius: 999px;
-    background: var(--surface-strong);
-    color: var(--muted);
-    font-size: 0.72rem;
-    font-weight: 900;
+    background:
+      linear-gradient(rgba(47, 143, 112, 0.46), rgba(47, 143, 112, 0.46)) center / 12px 1px no-repeat,
+      linear-gradient(90deg, rgba(47, 143, 112, 0.46), rgba(47, 143, 112, 0.46)) center / 1px 12px no-repeat,
+      color-mix(in srgb, var(--surface-floating) 72%, transparent);
+    box-shadow: 0 0 0 8px rgba(117, 201, 165, 0.06);
     transform: translate(-50%, -50%);
   }
 
   html[data-theme="dark"] .radial-nav-ring {
+    border-color: rgba(136, 216, 184, 0.15);
+    background:
+      radial-gradient(circle, rgba(136, 216, 184, 0.07) 0 28px, transparent 29px),
+      radial-gradient(circle, transparent 0 64px, rgba(136, 216, 184, 0.08) 65px 66px, transparent 67px),
+      conic-gradient(
+        from -45deg,
+        rgba(136, 216, 184, 0.08),
+        rgba(244, 201, 112, 0.05),
+        rgba(243, 168, 188, 0.05),
+        rgba(136, 216, 184, 0.08)
+      );
     box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+  }
+
+  html[data-theme="dark"] .radial-nav-item {
+    background: rgba(20, 31, 27, 0.82);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
   }
 
   @media (prefers-reduced-motion: reduce) {
