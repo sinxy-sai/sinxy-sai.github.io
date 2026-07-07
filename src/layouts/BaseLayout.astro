@@ -204,6 +204,12 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
         setSiteTheme(currentTheme === "dark" ? "light" : "dark");
       }, { signal: baseLayoutSignal });
 
+      window.addEventListener("storage", (event) => {
+        if (event.key !== "sinxy-theme") return;
+        if (event.newValue !== "light" && event.newValue !== "dark") return;
+        setSiteTheme(event.newValue, false);
+      }, { signal: baseLayoutSignal });
+
       const analyticsPath = `${window.location.pathname}${window.location.search}`;
       const shouldTrackAnalytics = !analyticsPath.startsWith("/admin");
       const analyticsObservers = [];

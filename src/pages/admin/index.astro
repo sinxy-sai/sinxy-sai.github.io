@@ -2219,6 +2219,11 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         setAdminTheme(currentTheme === "dark" ? "light" : "dark");
       });
     });
+    window.addEventListener("storage", (event) => {
+      if (event.key !== "sinxy-theme") return;
+      if (event.newValue !== "light" && event.newValue !== "dark") return;
+      setAdminTheme(event.newValue);
+    });
 
     syncAdminTheme();
     resetPostForm();
