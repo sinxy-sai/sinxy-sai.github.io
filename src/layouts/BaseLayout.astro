@@ -569,6 +569,55 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
         window.addEventListener("resize", updateActiveToc, { signal: baseLayoutSignal });
       }
 
+      const articleTocToggle = document.querySelector("[data-article-toc-toggle]");
+      const articleTocPanel = document.querySelector("[data-article-toc]");
+      const articleTocBackdrop = document.querySelector(".article-toc-backdrop");
+      const articleTocClosers = Array.from(document.querySelectorAll("[data-article-toc-close]"));
+
+      document.documentElement.classList.remove("is-article-toc-open");
+      if (articleTocBackdrop instanceof HTMLElement) {
+        articleTocBackdrop.hidden = true;
+      }
+
+      function setArticleTocOpen(open) {
+        if (!(articleTocToggle instanceof HTMLElement)) return;
+
+        document.documentElement.classList.toggle("is-article-toc-open", open);
+        articleTocToggle.setAttribute("aria-expanded", open ? "true" : "false");
+
+        if (articleTocBackdrop instanceof HTMLElement) {
+          articleTocBackdrop.hidden = !open;
+        }
+      }
+
+      if (articleTocToggle instanceof HTMLElement && articleTocPanel instanceof HTMLElement) {
+        articleTocToggle.addEventListener(
+          "click",
+          () => {
+            setArticleTocOpen(!document.documentElement.classList.contains("is-article-toc-open"));
+          },
+          { signal: baseLayoutSignal },
+        );
+
+        articleTocClosers.forEach((closer) => {
+          closer.addEventListener("click", () => setArticleTocOpen(false), { signal: baseLayoutSignal });
+        });
+
+        tocLinks.forEach((link) => {
+          link.addEventListener("click", () => setArticleTocOpen(false), { signal: baseLayoutSignal });
+        });
+
+        window.addEventListener(
+          "keydown",
+          (event) => {
+            if (event.key === "Escape") {
+              setArticleTocOpen(false);
+            }
+          },
+          { signal: baseLayoutSignal },
+        );
+      }
+
       const normalizeUrlPath = (url) => {
         try {
           return new URL(url, window.location.origin).pathname;
@@ -1653,6 +1702,12 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
     grid-template-columns: minmax(0, 820px);
   }
 
+  .article-toc-toggle,
+  .article-toc-backdrop,
+  .article-toc-close {
+    display: none;
+  }
+
   .article-toc {
     position: sticky;
     top: 20px;
@@ -1668,9 +1723,21 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
     scrollbar-gutter: stable;
   }
 
+  .article-toc-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
   .article-toc h2 {
     margin: 0 0 12px;
     font-size: 0.95rem;
+  }
+
+  .article-toc-head h2 {
+    margin: 0;
   }
 
   .article-toc ol {
@@ -2086,14 +2153,122 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
     }
 
     .article-layout {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0;
+      margin-top: 20px;
+      min-width: 0;
+    }
+
+    .article {
+      max-width: 100%;
+      min-width: 0;
+      border-radius: 22px;
+      padding: clamp(20px, 5.4vw, 30px);
+      overflow: hidden;
     }
 
     .article-toc {
-      position: static;
+      position: fixed;
+      top: calc(env(safe-area-inset-top) + 116px);
+      bottom: max(18px, env(safe-area-inset-bottom));
+      left: max(14px, env(safe-area-inset-left));
+      z-index: 72;
+      width: min(320px, calc(100vw - 28px));
       max-height: none;
-      overflow: visible;
-      order: 2;
+      overflow-y: auto;
+      padding: 16px;
+      border-radius: 20px;
+      transform: translateX(calc(-100% - 28px));
+      opacity: 0;
+      pointer-events: none;
+      transition:
+        opacity 180ms ease,
+        transform 220ms ease;
+      box-shadow: 0 22px 70px rgba(25, 42, 35, 0.24);
+    }
+
+    .article-toc-toggle {
+      position: fixed;
+      top: calc(env(safe-area-inset-top) + 116px);
+      left: max(14px, env(safe-area-inset-left));
+      z-index: 71;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface-floating);
+      color: var(--accent-strong);
+      font: inherit;
+      font-size: 0.88rem;
+      font-weight: 850;
+      padding: 0 14px;
+      box-shadow: 0 16px 42px rgba(25, 42, 35, 0.16);
+      backdrop-filter: blur(16px);
+    }
+
+    .article-toc-backdrop:not([hidden]) {
+      position: fixed;
+      inset: 0;
+      z-index: 70;
+      display: block;
+      background: rgba(14, 24, 20, 0.22);
+      backdrop-filter: blur(3px);
+    }
+
+    .article-toc-close {
+      display: inline-grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface-control);
+      color: var(--muted);
+      font: inherit;
+      font-size: 1.15rem;
+      line-height: 1;
+    }
+
+    html.is-article-toc-open {
+      overflow: hidden;
+    }
+
+    html.is-article-toc-open .article-toc {
+      transform: translateX(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .article-title {
+      font-size: clamp(2rem, 10vw, 3rem);
+      overflow-wrap: anywhere;
+    }
+
+    .article-header,
+    .prose,
+    .prose p,
+    .prose li,
+    .prose h2,
+    .prose h3 {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .prose {
+      margin-top: 26px;
+      font-size: 1rem;
+      line-height: 1.82;
+    }
+
+    .prose pre {
+      max-width: 100%;
+    }
+
+    .prose .table-scroll {
+      width: 100%;
+      max-width: 100%;
     }
 
     .sidebar-panel {

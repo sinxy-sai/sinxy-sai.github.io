@@ -999,8 +999,21 @@ function renderArticleToc(headings: RenderedHeading[]) {
   if (!tocHeadings.length) return "";
 
   return `
-    <aside class="article-toc" aria-label="文章目录">
-      <h2>目录</h2>
+    <button
+      class="article-toc-toggle"
+      type="button"
+      data-article-toc-toggle
+      aria-controls="article-toc-panel"
+      aria-expanded="false"
+    >
+      目录
+    </button>
+    <div class="article-toc-backdrop" data-article-toc-close hidden></div>
+    <aside id="article-toc-panel" class="article-toc" aria-label="文章目录" data-article-toc>
+      <div class="article-toc-head">
+        <h2>目录</h2>
+        <button class="article-toc-close" type="button" data-article-toc-close aria-label="关闭目录">×</button>
+      </div>
       <ol>
         ${tocHeadings
           .map(
