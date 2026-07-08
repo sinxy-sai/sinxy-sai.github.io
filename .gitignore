@@ -21,3 +21,6 @@ debug.log
 # Local deploy keys
 sinxy_blog_deploy_key
 sinxy_blog_deploy_key.pub
+
+# Local secrets
+Admin_TOKEN
