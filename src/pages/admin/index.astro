@@ -1036,6 +1036,17 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     }
 
     function renderMarkdown(markdown) {
+      const codeLanguageAliases = {
+        "c#": "csharp", "c++": "cpp", cs: "csharp", js: "javascript", md: "markdown",
+        plain: "text", plaintext: "text", py: "python", sh: "bash", shell: "bash",
+        ts: "typescript", txt: "text", yml: "yaml",
+      };
+      const codeLanguageLabels = {
+        bash: "Bash", c: "C", cpp: "C++", csharp: "C#", css: "CSS", go: "Go",
+        html: "HTML", java: "Java", javascript: "JavaScript", json: "JSON", kotlin: "Kotlin",
+        markdown: "Markdown", php: "PHP", python: "Python", rust: "Rust", sql: "SQL",
+        swift: "Swift", text: "Text", typescript: "TypeScript", yaml: "YAML",
+      };
       const html = [];
       const headings = extractHeadings(markdown);
       let headingCursor = 0;
@@ -1055,8 +1066,10 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       };
 
       const flushCode = () => {
-        const languageClass = codeLanguage ? ` class="language-${escapeHtml(codeLanguage)}"` : "";
-        html.push(`<pre><code${languageClass}>${escapeHtml(code.join("\n"))}</code></pre>`);
+        const requestedLanguage = String(codeLanguage || "text").toLowerCase();
+        const normalizedLanguage = codeLanguageAliases[requestedLanguage] || requestedLanguage;
+        const languageLabel = codeLanguageLabels[normalizedLanguage] || normalizedLanguage.toUpperCase();
+        html.push(`<pre data-language="${escapeHtml(languageLabel)}" data-code-language="${escapeHtml(normalizedLanguage)}"><code class="language-${escapeHtml(normalizedLanguage)}">${escapeHtml(code.join("\n"))}</code></pre>`);
         code = [];
         codeLanguage = "";
       };
@@ -1078,7 +1091,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 
       for (let index = 0; index < lines.length; index += 1) {
         const line = lines[index];
-        const codeFence = line.match(/^```\s*([A-Za-z0-9_-]+)?\s*$/);
+        const codeFence = line.match(/^```\s*([A-Za-z0-9_+#.-]+)?\s*$/);
         if (codeFence) {
           if (inCode) {
             flushCode();
@@ -3725,11 +3738,28 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     }
 
     .markdown-preview :global(pre) {
+      position: relative;
       overflow-x: auto;
       border-radius: 12px;
       background: var(--code-bg);
       color: #edf7f1;
-      padding: 14px;
+      padding: 42px 14px 14px;
+    }
+
+    .markdown-preview :global(pre[data-language]::before) {
+      content: attr(data-language);
+      position: absolute;
+      inset: 0 0 auto;
+      display: flex;
+      align-items: center;
+      height: 30px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      color: rgba(237, 247, 241, 0.72);
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      font-size: 0.72rem;
+      font-weight: 750;
+      line-height: 1;
+      padding: 0 14px;
     }
 
     .markdown-preview :global(.table-scroll) {

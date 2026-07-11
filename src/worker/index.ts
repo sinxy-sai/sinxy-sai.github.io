@@ -321,6 +321,33 @@ function flushParagraph(lines: string[], html: string[]) {
   lines.length = 0;
 }
 
+const codeLanguageAliases: Record<string, string> = {
+  "c#": "csharp",
+  "c++": "cpp",
+  cs: "csharp",
+  js: "javascript",
+  md: "markdown",
+  plain: "text",
+  plaintext: "text",
+  py: "python",
+  sh: "bash",
+  shell: "bash",
+  ts: "typescript",
+  txt: "text",
+  yml: "yaml",
+};
+
+const codeLanguageLabels: Record<string, string> = {
+  c: "C", cpp: "C++", csharp: "C#", css: "CSS", html: "HTML", java: "Java",
+  javascript: "JavaScript", json: "JSON", markdown: "Markdown", python: "Python",
+  sql: "SQL", text: "Text", typescript: "TypeScript", yaml: "YAML",
+};
+
+function normalizeCodeLanguage(language: string) {
+  const normalized = language.trim().toLowerCase();
+  return (codeLanguageAliases[normalized] ?? normalized) || "text";
+}
+
 function renderMarkdownDocument(markdown: string) {
   const html: string[] = [];
   const paragraphLines: string[] = [];
@@ -347,10 +374,10 @@ function renderMarkdownDocument(markdown: string) {
   }
 
   function flushCodeBlock() {
+    const normalizedLanguage = normalizeCodeLanguage(codeLanguage);
+    const languageLabel = codeLanguageLabels[normalizedLanguage] ?? normalizedLanguage.toUpperCase();
     html.push(
-      `<pre><code${codeLanguage ? ` class="language-${escapeHtml(codeLanguage)}"` : ""}>${escapeHtml(
-        codeLines.join("\n"),
-      )}</code></pre>`,
+      `<pre data-language="${escapeHtml(languageLabel)}" data-code-language="${escapeHtml(normalizedLanguage)}"><code class="language-${escapeHtml(normalizedLanguage)}">${escapeHtml(codeLines.join("\n"))}</code></pre>`,
     );
     codeLines = [];
     codeLanguage = "";
@@ -362,7 +389,7 @@ function renderMarkdownDocument(markdown: string) {
   }
 
   for (const line of markdown.replace(/\r\n/g, "\n").split("\n")) {
-    const codeFence = line.match(/^```([A-Za-z0-9_-]+)?\s*$/);
+    const codeFence = line.match(/^```\s*([A-Za-z0-9_+#.-]+)?\s*$/);
 
     if (codeFence) {
       if (inCodeBlock) {

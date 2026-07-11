@@ -1,5 +1,5 @@
 import Database from "better-sqlite3";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   createReadStream,
   existsSync,
@@ -14,6 +14,7 @@ import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import katex from "katex";
 import Meting from "@meting/core";
+import { createHighlighter, type BundledLanguage } from "shiki";
 
 type ApiErrorCode =
   | "CONFLICT"
@@ -101,6 +102,11 @@ interface RenderedHeading {
   slug: string;
 }
 
+interface RenderedMarkdownDocument {
+  html: string;
+  headings: RenderedHeading[];
+}
+
 type AnalyticsEventType = "pageview" | "web_vital" | "client_error" | "api";
 
 interface AnalyticsEventInput {
@@ -172,8 +178,39 @@ const musicCacheTtlMs = 10 * 60 * 1000;
 const musicCacheMaxStaleMs = 24 * 60 * 60 * 1000;
 const musicCachePath = join(dataDir, "music-cache.json");
 const analyticsEventTypes = new Set<AnalyticsEventType>(["pageview", "web_vital", "client_error", "api"]);
+const highlightedLanguages: BundledLanguage[] = [
+  "javascript",
+  "typescript",
+  "html",
+  "css",
+  "bash",
+  "python",
+  "c",
+  "cpp",
+  "java",
+  "csharp",
+  "go",
+  "rust",
+  "php",
+  "kotlin",
+  "swift",
+  "sql",
+  "json",
+  "yaml",
+  "markdown",
+];
+const markdownRenderCache = new Map<string, RenderedMarkdownDocument>();
+const maxMarkdownCacheEntries = 100;
 let musicCache: MusicCache | null = null;
 let musicRefreshPromise: Promise<MusicSong[]> | null = null;
+
+const codeHighlighter = await createHighlighter({
+  themes: ["github-light", "github-dark"],
+  langs: highlightedLanguages,
+}).catch((error) => {
+  console.warn("Shiki syntax highlighting is unavailable; using plain code blocks.", error);
+  return null;
+});
 
 mkdirSync(dataDir, { recursive: true });
 mkdirSync(mediaDir, { recursive: true });
@@ -692,7 +729,74 @@ function renderMarkdownTable(rows: string[][], alignments: Array<"left" | "cente
   `;
 }
 
-function renderMarkdownDocument(markdown: string) {
+const codeLanguageAliases: Record<string, string> = {
+  "c#": "csharp",
+  "c++": "cpp",
+  cs: "csharp",
+  js: "javascript",
+  md: "markdown",
+  plain: "text",
+  plaintext: "text",
+  py: "python",
+  sh: "bash",
+  shell: "bash",
+  ts: "typescript",
+  txt: "text",
+  yml: "yaml",
+};
+
+const codeLanguageLabels: Record<string, string> = {
+  bash: "Bash",
+  c: "C",
+  cpp: "C++",
+  csharp: "C#",
+  css: "CSS",
+  go: "Go",
+  html: "HTML",
+  java: "Java",
+  javascript: "JavaScript",
+  json: "JSON",
+  kotlin: "Kotlin",
+  markdown: "Markdown",
+  php: "PHP",
+  python: "Python",
+  rust: "Rust",
+  sql: "SQL",
+  swift: "Swift",
+  text: "Text",
+  typescript: "TypeScript",
+  yaml: "YAML",
+};
+
+function normalizeCodeLanguage(language: string) {
+  const normalized = language.trim().toLowerCase();
+  return (codeLanguageAliases[normalized] ?? normalized) || "text";
+}
+
+function renderCodeBlock(code: string, language: string) {
+  const normalizedLanguage = normalizeCodeLanguage(language);
+  const languageLabel = codeLanguageLabels[normalizedLanguage] ?? normalizedLanguage.toUpperCase();
+  const attributes = `data-language="${escapeHtml(languageLabel)}" data-code-language="${escapeHtml(normalizedLanguage)}"`;
+
+  if (codeHighlighter) {
+    try {
+      return codeHighlighter
+        .codeToHtml(code, {
+          lang: normalizedLanguage,
+          themes: { light: "github-light", dark: "github-dark" },
+          defaultColor: false,
+        })
+        .replace("<pre ", `<pre ${attributes} `)
+        .replace("<code>", `<code class="language-${escapeHtml(normalizedLanguage)}">`);
+    } catch {
+      // Unknown fence languages remain readable instead of breaking the article response.
+    }
+  }
+
+  return `<pre ${attributes}><code class="language-${escapeHtml(normalizedLanguage)}">${escapeHtml(code)}</code></pre>`;
+}
+
+function renderMarkdownDocumentUncached(markdown: string): RenderedMarkdownDocument {
   const html: string[] = [];
   const paragraphLines: string[] = [];
   const listItems: string[] = [];
@@ -718,11 +822,7 @@ function renderMarkdownDocument(markdown: string) {
   }
 
   function flushCodeBlock() {
-    html.push(
-      `<pre><code${codeLanguage ? ` class="language-${escapeHtml(codeLanguage)}"` : ""}>${escapeHtml(
-        codeLines.join("\n"),
-      )}</code></pre>`,
-    );
+    html.push(renderCodeBlock(codeLines.join("\n"), codeLanguage));
     codeLines = [];
     codeLanguage = "";
   }
@@ -736,7 +836,7 @@ function renderMarkdownDocument(markdown: string) {
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
-    const codeFence = line.match(/^```([A-Za-z0-9_-]+)?\s*$/);
+    const codeFence = line.match(/^```\s*([A-Za-z0-9_+#.-]+)?\s*$/);
 
     if (codeFence) {
       if (inCodeBlock) {
@@ -843,6 +943,22 @@ function renderMarkdownDocument(markdown: string) {
     html: html.join("\n"),
     headings,
   };
+}
+
+function renderMarkdownDocument(markdown: string): RenderedMarkdownDocument {
+  const cacheKey = createHash("sha256").update(markdown).digest("hex");
+  const cached = markdownRenderCache.get(cacheKey);
+  if (cached) return cached;
+
+  const rendered = renderMarkdownDocumentUncached(markdown);
+  markdownRenderCache.set(cacheKey, rendered);
+
+  if (markdownRenderCache.size > maxMarkdownCacheEntries) {
+    const oldestKey = markdownRenderCache.keys().next().value;
+    if (oldestKey) markdownRenderCache.delete(oldestKey);
+  }
+
+  return rendered;
 }
 
 function stripMarkdownForSearch(value: string) {

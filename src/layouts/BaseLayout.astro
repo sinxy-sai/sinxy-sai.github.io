@@ -1853,10 +1853,53 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
   }
 
   .prose pre {
+    position: relative;
     overflow: auto;
     border-radius: 18px;
-    padding: 18px;
+    color: #e1e4e8;
+    padding: 48px 18px 18px;
     background: var(--code-bg);
+  }
+
+  .prose pre[data-language]::before {
+    content: attr(data-language);
+    position: absolute;
+    inset: 0 0 auto;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    height: 34px;
+    border-bottom: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+    color: color-mix(in srgb, currentColor 68%, transparent);
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    font-size: 0.74rem;
+    font-weight: 760;
+    line-height: 1;
+    padding: 0 18px;
+  }
+
+  .prose .shiki {
+    color: var(--shiki-light);
+    background-color: var(--shiki-light-bg);
+  }
+
+  .prose .shiki span {
+    color: var(--shiki-light);
+    font-style: var(--shiki-light-font-style);
+    font-weight: var(--shiki-light-font-weight);
+    text-decoration: var(--shiki-light-text-decoration);
+  }
+
+  html[data-theme="dark"] .prose .shiki {
+    color: var(--shiki-dark);
+    background-color: var(--shiki-dark-bg);
+  }
+
+  html[data-theme="dark"] .prose .shiki span {
+    color: var(--shiki-dark);
+    font-style: var(--shiki-dark-font-style);
+    font-weight: var(--shiki-dark-font-weight);
+    text-decoration: var(--shiki-dark-text-decoration);
   }
 
   .prose .table-scroll {
