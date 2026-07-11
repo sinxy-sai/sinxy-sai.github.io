@@ -2896,9 +2896,11 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     }
 
     .analytics-view {
-      grid-template-rows: auto auto minmax(0, 1fr);
-      align-content: stretch;
-      overflow: hidden;
+      grid-template-rows: auto auto auto;
+      align-content: start;
+      overflow-x: hidden;
+      overflow-y: auto;
+      scrollbar-gutter: stable;
     }
 
     .analytics-summary {
@@ -2935,20 +2937,21 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     }
 
     .analytics-grid {
-      min-height: 0;
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      grid-auto-rows: max-content;
+      align-items: start;
       gap: 12px;
-      overflow: auto;
-      padding-right: 2px;
+      overflow: visible;
     }
 
     .analytics-card {
       display: grid;
       align-content: start;
       gap: 12px;
-      min-height: 230px;
+      min-height: 0;
       padding: 14px;
+      overflow: hidden;
     }
 
     .analytics-card.wide {
@@ -2993,7 +2996,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     .analytics-list {
       display: grid;
       gap: 8px;
-      min-height: 0;
+      min-height: auto;
     }
 
     :global(.analytics-row) {
