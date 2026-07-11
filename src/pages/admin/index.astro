@@ -1,13 +1,17 @@
 ---
 import {
+  Activity,
+  ArrowLeft,
   BarChart3,
   Bold,
   ChevronDown,
+  ChevronRight,
   Clock3,
   Code2,
   Columns2,
   Eye,
   FilePlus,
+  Globe2,
   PanelLeftClose,
   PanelLeftOpen,
   Images,
@@ -29,6 +33,7 @@ import {
   Strikethrough,
   Sun,
   Trash2,
+  TriangleAlert,
   Upload,
   X,
 } from "lucide-astro";
@@ -369,57 +374,88 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
               </article>
             </div>
 
-            <div class="analytics-grid">
-              <section class="analytics-card">
-                <div class="settings-card-head">
-                  <div>
-                    <p class="section-kicker">Traffic</p>
-                    <h3>最近 7 天访问</h3>
-                  </div>
+            <div class="analytics-overview" data-analytics-overview>
+              <button class="analytics-entry" type="button" data-open-analytics-detail="traffic" disabled>
+                <span class="analytics-entry-icon"><BarChart3 size={20} aria-hidden="true" /></span>
+                <span>
+                  <small>Traffic</small>
+                  <strong>最近 7 天访问</strong>
+                  <b data-analytics-entry-metric="traffic">--</b>
+                </span>
+                <ChevronRight size={18} aria-hidden="true" />
+              </button>
+              <button class="analytics-entry" type="button" data-open-analytics-detail="pages" disabled>
+                <span class="analytics-entry-icon"><Globe2 size={20} aria-hidden="true" /></span>
+                <span>
+                  <small>Pages</small>
+                  <strong>热门页面</strong>
+                  <b data-analytics-entry-metric="pages">--</b>
+                </span>
+                <ChevronRight size={18} aria-hidden="true" />
+              </button>
+              <button class="analytics-entry" type="button" data-open-analytics-detail="api" disabled>
+                <span class="analytics-entry-icon"><Clock3 size={20} aria-hidden="true" /></span>
+                <span>
+                  <small>Performance</small>
+                  <strong>API 延迟</strong>
+                  <b data-analytics-entry-metric="api">--</b>
+                </span>
+                <ChevronRight size={18} aria-hidden="true" />
+              </button>
+              <button class="analytics-entry" type="button" data-open-analytics-detail="vitals" disabled>
+                <span class="analytics-entry-icon"><Activity size={20} aria-hidden="true" /></span>
+                <span>
+                  <small>Web Vitals</small>
+                  <strong>前端性能</strong>
+                  <b data-analytics-entry-metric="vitals">--</b>
+                </span>
+                <ChevronRight size={18} aria-hidden="true" />
+              </button>
+              <button class="analytics-entry" type="button" data-open-analytics-detail="errors" disabled>
+                <span class="analytics-entry-icon"><TriangleAlert size={20} aria-hidden="true" /></span>
+                <span>
+                  <small>Errors</small>
+                  <strong>最近错误</strong>
+                  <b data-analytics-entry-metric="errors">--</b>
+                </span>
+                <ChevronRight size={18} aria-hidden="true" />
+              </button>
+            </div>
+
+            <section class="analytics-detail" data-analytics-detail hidden>
+              <div class="analytics-detail-head">
+                <button class="admin-button ghost" type="button" data-close-analytics-detail>
+                  <ArrowLeft size={16} aria-hidden="true" />
+                  返回统计总览
+                </button>
+                <div>
+                  <p class="section-kicker" data-analytics-detail-kicker>Traffic</p>
+                  <h3 data-analytics-detail-title>最近 7 天访问</h3>
                 </div>
+              </div>
+
+              <div class="analytics-detail-panels">
+              <section class="analytics-card" data-analytics-panel="traffic">
                 <div class="analytics-bars" data-analytics-daily></div>
               </section>
 
-              <section class="analytics-card">
-                <div class="settings-card-head">
-                  <div>
-                    <p class="section-kicker">Pages</p>
-                    <h3>热门页面</h3>
-                  </div>
-                </div>
+              <section class="analytics-card" data-analytics-panel="pages" hidden>
                 <div class="analytics-list" data-analytics-pages></div>
               </section>
 
-              <section class="analytics-card">
-                <div class="settings-card-head">
-                  <div>
-                    <p class="section-kicker">Performance</p>
-                    <h3>API 延迟</h3>
-                  </div>
-                </div>
+              <section class="analytics-card" data-analytics-panel="api" hidden>
                 <div class="analytics-list" data-analytics-api></div>
               </section>
 
-              <section class="analytics-card">
-                <div class="settings-card-head">
-                  <div>
-                    <p class="section-kicker">Web Vitals</p>
-                    <h3>前端性能</h3>
-                  </div>
-                </div>
+              <section class="analytics-card" data-analytics-panel="vitals" hidden>
                 <div class="analytics-list" data-analytics-vitals></div>
               </section>
 
-              <section class="analytics-card wide">
-                <div class="settings-card-head">
-                  <div>
-                    <p class="section-kicker">Errors</p>
-                    <h3>最近错误</h3>
-                  </div>
-                </div>
+              <section class="analytics-card" data-analytics-panel="errors" hidden>
                 <div class="analytics-list" data-analytics-errors></div>
               </section>
-            </div>
+              </div>
+            </section>
           </section>
 
           <section class="editor-view" data-editor-view>
@@ -665,6 +701,12 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     const mediaView = app?.querySelector("[data-media-view]");
     const analyticsView = app?.querySelector("[data-analytics-view]");
     const analyticsSummary = app?.querySelector("[data-analytics-summary]");
+    const analyticsOverview = app?.querySelector("[data-analytics-overview]");
+    const analyticsDetail = app?.querySelector("[data-analytics-detail]");
+    const analyticsDetailKicker = app?.querySelector("[data-analytics-detail-kicker]");
+    const analyticsDetailTitle = app?.querySelector("[data-analytics-detail-title]");
+    const analyticsDetailPanels = app?.querySelectorAll("[data-analytics-panel]") || [];
+    const analyticsDetailButtons = app?.querySelectorAll("[data-open-analytics-detail]") || [];
     const analyticsDaily = app?.querySelector("[data-analytics-daily]");
     const analyticsPages = app?.querySelector("[data-analytics-pages]");
     const analyticsApi = app?.querySelector("[data-analytics-api]");
@@ -1223,6 +1265,38 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       container.innerHTML = items.map(renderer).join("");
     }
 
+    const analyticsDetailMeta = {
+      traffic: { kicker: "Traffic", title: "最近 7 天访问" },
+      pages: { kicker: "Pages", title: "热门页面" },
+      api: { kicker: "Performance", title: "API 延迟" },
+      vitals: { kicker: "Web Vitals", title: "前端性能" },
+      errors: { kicker: "Errors", title: "最近错误" },
+    };
+
+    function setAnalyticsDetail(detail = "") {
+      const safeDetail = Object.hasOwn(analyticsDetailMeta, detail) ? detail : "";
+      const showDetail = Boolean(safeDetail);
+
+      if (analyticsSummary instanceof HTMLElement) analyticsSummary.hidden = showDetail;
+      if (analyticsOverview instanceof HTMLElement) analyticsOverview.hidden = showDetail;
+      if (analyticsDetail instanceof HTMLElement) analyticsDetail.hidden = !showDetail;
+
+      analyticsDetailPanels.forEach((panel) => {
+        if (panel instanceof HTMLElement) panel.hidden = panel.dataset.analyticsPanel !== safeDetail;
+      });
+
+      const meta = analyticsDetailMeta[safeDetail];
+      if (meta && analyticsDetailKicker) analyticsDetailKicker.textContent = meta.kicker;
+      if (meta && analyticsDetailTitle) analyticsDetailTitle.textContent = meta.title;
+
+      if (analyticsView instanceof HTMLElement) analyticsView.scrollTop = 0;
+    }
+
+    function setAnalyticsEntryMetric(name, value) {
+      const metric = app?.querySelector(`[data-analytics-entry-metric="${name}"]`);
+      if (metric) metric.textContent = value;
+    }
+
     function renderAnalytics(data) {
       analyticsCache = data;
 
@@ -1265,6 +1339,19 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
             }).join("")
           : `<div class="admin-empty">暂无访问数据。</div>`;
       }
+
+      const dailyPageviews = (data?.daily || []).reduce(
+        (total, item) => total + (Number(item.pageviews) || 0),
+        0,
+      );
+      setAnalyticsEntryMetric("traffic", `${formatMetricNumber(dailyPageviews)} PV`);
+      setAnalyticsEntryMetric("pages", `${formatMetricNumber(data?.popularPages?.length || 0)} 个页面`);
+      setAnalyticsEntryMetric("api", formatDuration(data?.summary?.averageApiDurationMs));
+      setAnalyticsEntryMetric("vitals", `${formatMetricNumber(data?.webVitals?.length || 0)} 项指标`);
+      setAnalyticsEntryMetric("errors", `${formatMetricNumber(data?.recentErrors?.length || 0)} 条记录`);
+      analyticsDetailButtons.forEach((button) => {
+        if (button instanceof HTMLButtonElement) button.disabled = false;
+      });
 
       renderAnalyticsList(
         analyticsPages,
@@ -2185,10 +2272,15 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     openAnalyticsButtons.forEach((button) => {
       button.addEventListener("click", () => {
         setWorkspaceView("analytics");
+        setAnalyticsDetail("");
         if (!analyticsCache) loadAnalytics();
       });
     });
     app?.querySelector("[data-refresh-analytics]")?.addEventListener("click", loadAnalytics);
+    analyticsDetailButtons.forEach((button) => {
+      button.addEventListener("click", () => setAnalyticsDetail(button.dataset.openAnalyticsDetail || ""));
+    });
+    app?.querySelector("[data-close-analytics-detail]")?.addEventListener("click", () => setAnalyticsDetail(""));
     openTocButtons.forEach((button) => {
       button.addEventListener("click", toggleTocPanel);
     });
@@ -2936,13 +3028,113 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       line-height: 1;
     }
 
-    .analytics-grid {
+    .analytics-summary[hidden],
+    .analytics-overview[hidden],
+    .analytics-detail[hidden],
+    .analytics-card[hidden] {
+      display: none;
+    }
+
+    .analytics-overview {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      grid-auto-rows: max-content;
-      align-items: start;
       gap: 12px;
-      overflow: visible;
+    }
+
+    .analytics-entry {
+      min-width: 0;
+      display: grid;
+      grid-template-columns: 44px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 12px;
+      min-height: 92px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: color-mix(in srgb, var(--admin-panel-strong) 78%, transparent);
+      color: var(--text);
+      cursor: pointer;
+      font: inherit;
+      padding: 14px;
+      text-align: left;
+      transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+    }
+
+    .analytics-entry:last-child {
+      grid-column: 1 / -1;
+    }
+
+    .analytics-entry:hover {
+      border-color: rgba(117, 201, 165, 0.58);
+      background: var(--accent-soft);
+      transform: translateY(-1px);
+    }
+
+    .analytics-entry:disabled {
+      cursor: wait;
+      opacity: 0.62;
+      transform: none;
+    }
+
+    .analytics-entry > span:nth-child(2) {
+      min-width: 0;
+      display: grid;
+      gap: 3px;
+    }
+
+    .analytics-entry small {
+      color: var(--accent-strong);
+      font-size: 0.7rem;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .analytics-entry strong {
+      overflow: hidden;
+      color: var(--text);
+      font-size: 0.96rem;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .analytics-entry b {
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 760;
+    }
+
+    .analytics-entry > svg {
+      color: var(--muted);
+    }
+
+    .analytics-entry-icon {
+      display: grid;
+      width: 44px;
+      height: 44px;
+      place-items: center;
+      border: 1px solid rgba(117, 201, 165, 0.34);
+      border-radius: 12px;
+      background: rgba(117, 201, 165, 0.1);
+      color: var(--accent-strong);
+    }
+
+    .analytics-detail {
+      display: grid;
+      gap: 12px;
+    }
+
+    .analytics-detail-head {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .analytics-detail-head h3 {
+      margin: 4px 0 0;
+      font-size: 1.08rem;
+    }
+
+    .analytics-detail-panels {
+      display: grid;
     }
 
     .analytics-card {
@@ -2952,10 +3144,6 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       min-height: 0;
       padding: 14px;
       overflow: hidden;
-    }
-
-    .analytics-card.wide {
-      grid-column: 1 / -1;
     }
 
     .analytics-card h3 {
@@ -4162,8 +4350,12 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       .image-insert-grid,
       .editor-split,
       .analytics-summary,
-      .analytics-grid {
+      .analytics-overview {
         grid-template-columns: 1fr;
+      }
+
+      .analytics-entry:last-child {
+        grid-column: auto;
       }
 
       .media-table-head {
