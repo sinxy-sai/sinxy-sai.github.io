@@ -3740,10 +3740,15 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     .markdown-preview :global(pre) {
       position: relative;
       overflow-x: auto;
+      border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--line));
       border-radius: 12px;
       background: var(--code-bg);
       color: #edf7f1;
       padding: 42px 14px 14px;
+    }
+
+    html[data-theme="dark"] .markdown-preview :global(pre) {
+      border-color: color-mix(in srgb, var(--accent) 16%, var(--line));
     }
 
     .markdown-preview :global(pre[data-language]::before) {

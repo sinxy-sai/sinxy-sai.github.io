@@ -1855,10 +1855,15 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
   .prose pre {
     position: relative;
     overflow: auto;
+    border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--line));
     border-radius: 18px;
     color: #e1e4e8;
     padding: 48px 18px 18px;
     background: var(--code-bg);
+  }
+
+  html[data-theme="dark"] .prose pre {
+    border-color: color-mix(in srgb, var(--accent) 16%, var(--line));
   }
 
   .prose pre[data-language]::before {
