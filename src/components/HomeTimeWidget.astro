@@ -83,7 +83,29 @@ const timeWidgetPosts = posts
 </aside>
 
 <script>
-  import * as THREE from "three";
+  type ThreeModule = typeof import("three");
+  let THREE: ThreeModule;
+  let threeModulePromise: Promise<ThreeModule> | null = null;
+
+  function loadThreeModule() {
+    if (!threeModulePromise) {
+      threeModulePromise = import("three").then((module) => {
+        THREE = module;
+        return module;
+      });
+    }
+    return threeModulePromise;
+  }
+
+  function scheduleWhenIdle(callback) {
+    if ("requestIdleCallback" in window) {
+      const idleId = window.requestIdleCallback(callback, { timeout: 1600 });
+      return () => window.cancelIdleCallback(idleId);
+    }
+
+    const timeoutId = window.setTimeout(callback, 700);
+    return () => window.clearTimeout(timeoutId);
+  }
 
   function configureCanvasTexture(texture) {
     texture.colorSpace = THREE.SRGBColorSpace;
@@ -636,7 +658,8 @@ const timeWidgetPosts = posts
     }
 
     applyTheme();
-    new MutationObserver(() => applyTheme(true)).observe(document.documentElement, {
+    const themeObserver = new MutationObserver(() => applyTheme(true));
+    themeObserver.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ["data-theme"],
     });
@@ -737,6 +760,21 @@ const timeWidgetPosts = posts
 
         renderer.render(scene, camera);
       },
+      dispose() {
+        resizeObserver.disconnect();
+        themeObserver.disconnect();
+        scene.traverse((object) => {
+          if ("geometry" in object && object.geometry) object.geometry.dispose();
+          if (!("material" in object) || !object.material) return;
+          const materials = Array.isArray(object.material) ? object.material : [object.material];
+          materials.forEach((material) => {
+            if (material.map) material.map.dispose();
+            material.dispose();
+          });
+        });
+        renderer.dispose();
+        renderer.forceContextLoss();
+      },
     };
   }
 
@@ -750,9 +788,19 @@ const timeWidgetPosts = posts
       document.addEventListener("astro:before-swap", () => controller.abort(), { once: true, signal });
 
     const clockCanvas = widget.querySelector("[data-clock-canvas]");
-    const threeClock = clockCanvas instanceof HTMLCanvasElement
-      ? createThreeClock(clockCanvas)
-      : null;
+    let threeClock: ReturnType<typeof createThreeClock> = null;
+    const cancelThreeInitialization = scheduleWhenIdle(() => {
+      void loadThreeModule()
+        .then(() => {
+          if (!signal.aborted && clockCanvas instanceof HTMLCanvasElement && clockCanvas.isConnected) {
+            threeClock = createThreeClock(clockCanvas);
+          }
+        })
+        .catch((error) => {
+          console.warn("3D clock module failed to load.", error);
+          clockCanvas?.closest(".clock-stage")?.classList.add("is-three-unavailable");
+        });
+    });
     const timeText = widget.querySelector("[data-time-text]");
     const dateText = widget.querySelector("[data-date-text]");
     const timeZone = widget.querySelector("[data-time-zone]");
@@ -912,8 +960,18 @@ const timeWidgetPosts = posts
       todayPostEmpty.hidden = selectedPosts.length > 0;
     }
 
-    function updateClock() {
-      if (signal.aborted || !widget.isConnected) return;
+    let clockFrame = 0;
+    let lastClockFrameAt = 0;
+
+    function updateClock(frameTime = performance.now()) {
+      clockFrame = 0;
+      if (signal.aborted || !widget.isConnected || document.hidden) return;
+
+      if (frameTime - lastClockFrameAt < 32) {
+        clockFrame = window.requestAnimationFrame(updateClock);
+        return;
+      }
+      lastClockFrameAt = frameTime;
 
       const now = new Date();
       const hours = now.getHours();
@@ -960,10 +1018,27 @@ const timeWidgetPosts = posts
         renderedMonthKey = monthKey;
       }
 
-      window.requestAnimationFrame(updateClock);
+      clockFrame = window.requestAnimationFrame(updateClock);
     }
 
-    updateClock();
+    clockFrame = window.requestAnimationFrame(updateClock);
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        window.cancelAnimationFrame(clockFrame);
+        clockFrame = 0;
+      } else if (!clockFrame) {
+        lastClockFrameAt = 0;
+        clockFrame = window.requestAnimationFrame(updateClock);
+      }
+    }, { signal });
+
+    signal.addEventListener("abort", () => {
+      cancelThreeInitialization();
+      window.cancelAnimationFrame(clockFrame);
+      window.cancelAnimationFrame(tiltFrame);
+      threeClock?.dispose();
+    }, { once: true });
 
     const clockStage = widget.querySelector(".clock-stage");
     let tiltFrame = 0;

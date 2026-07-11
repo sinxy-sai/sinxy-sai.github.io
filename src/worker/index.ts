@@ -276,8 +276,21 @@ function renderMath(latex: string, displayMode: boolean) {
 
 function renderPlainInlineMarkdown(value: string) {
   return escapeHtml(value)
+    .replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+&quot;[^&]*&quot;)?\)/g, (_, alt, url) => (
+      `<img src="${safeMarkdownUrl(url)}" alt="${alt}" loading="lazy" decoding="async" />`
+    ))
+    .replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+&quot;[^&]*&quot;)?\)/g, (_, text, url) => (
+      `<a href="${safeMarkdownUrl(url)}" target="_blank" rel="noreferrer">${text}</a>`
+    ))
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/~~([^~]+)~~/g, "<del>$1</del>")
     .replace(/\*([^*]+)\*/g, "<em>$1</em>");
+}
+
+function safeMarkdownUrl(value: string) {
+  const url = String(value || "").trim();
+  if (/^(https?:|\/|\.\/|\.\.\/|#|mailto:)/i.test(url)) return escapeHtml(url);
+  return "#";
 }
 
 function renderInlineMarkdown(value: string) {

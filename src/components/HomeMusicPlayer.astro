@@ -2,35 +2,35 @@
 import { Music2, Pause, Play, SkipBack, SkipForward } from "lucide-astro";
 ---
 
-<section class="home-music-player" data-home-music-player hidden aria-label="Homepage music player">
+<section class="home-music-player" data-home-music-player data-ready="false" aria-label="Homepage music player">
   <div class="home-music-cover">
-    <img data-home-music-cover src="" alt="" />
+    <img data-home-music-cover alt="" hidden />
     <Music2 class="home-music-fallback" size={22} aria-hidden="true" />
   </div>
 
   <div class="home-music-body">
     <p class="section-kicker">Cloud Music</p>
-    <strong data-home-music-title>Loading music</strong>
+    <strong data-home-music-title>音乐载入中</strong>
     <span data-home-music-artist>NetEase Cloud Music</span>
     <div class="home-music-lyric" data-home-music-lyric></div>
   </div>
 
   <div class="home-music-controls">
-    <button class="home-music-icon-button" type="button" data-home-music-action="prev" aria-label="上一首">
+    <button class="home-music-icon-button" type="button" data-home-music-action="prev" aria-label="上一首" disabled>
       <SkipBack size={18} aria-hidden="true" />
     </button>
-    <button class="home-music-play-button" type="button" data-home-music-action="toggle" aria-label="播放">
+    <button class="home-music-play-button" type="button" data-home-music-action="toggle" aria-label="播放" disabled>
       <Play class="home-music-play-icon" size={22} aria-hidden="true" />
       <Pause class="home-music-pause-icon" size={22} aria-hidden="true" />
     </button>
-    <button class="home-music-icon-button" type="button" data-home-music-action="next" aria-label="下一首">
+    <button class="home-music-icon-button" type="button" data-home-music-action="next" aria-label="下一首" disabled>
       <SkipForward size={18} aria-hidden="true" />
     </button>
   </div>
 
   <div class="home-music-progress">
     <span data-home-music-current>0:00</span>
-    <input data-home-music-seek type="range" min="0" max="100" value="0" step="0.1" aria-label="播放进度" />
+    <input data-home-music-seek type="range" min="0" max="100" value="0" step="0.1" aria-label="播放进度" disabled />
     <span data-home-music-duration>0:00</span>
   </div>
 </section>
@@ -163,6 +163,12 @@ import { Music2, Pause, Play, SkipBack, SkipForward } from "lucide-astro";
     border-color: rgba(117, 201, 165, 0.58);
     background: var(--accent-soft);
     color: var(--accent-strong);
+  }
+
+  .home-music-player[data-ready="false"] button,
+  .home-music-player[data-ready="false"] input {
+    cursor: wait;
+    opacity: 0.52;
   }
 
   .home-music-pause-icon,

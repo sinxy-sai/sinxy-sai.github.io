@@ -804,7 +804,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     function renderInlineText(value) {
       return escapeHtml(value)
         .replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (_, alt, url) => (
-          `<img src="${safeMarkdownUrl(url)}" alt="${alt}" loading="lazy" />`
+          `<img src="${safeMarkdownUrl(url)}" alt="${alt}" loading="lazy" decoding="async" />`
         ))
         .replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (_, text, url) => (
           `<a href="${safeMarkdownUrl(url)}" target="_blank" rel="noreferrer">${text}</a>`
@@ -880,10 +880,11 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     function renderMarkdownTable(rows, alignments) {
       const header = rows[0] || [];
       const body = rows.slice(1);
+      const deferredClass = body.length >= 12 || header.length >= 8 ? " deferred-table" : "";
       const renderAlign = (index) => (alignments[index] ? ` style="text-align: ${alignments[index]}"` : "");
 
       return `
-        <div class="table-scroll">
+        <div class="table-scroll${deferredClass}">
           <table>
             <thead>
               <tr>${header.map((cell, index) => `<th${renderAlign(index)}>${renderInlineMarkdown(cell)}</th>`).join("")}</tr>

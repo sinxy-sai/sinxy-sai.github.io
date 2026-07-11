@@ -17,16 +17,16 @@ import {
 <aside
   class="music-player"
   data-music-player
-  hidden
+  data-ready="false"
   aria-label="音乐播放器"
   transition:name="floating-music-player"
   transition:persist
 >
-  <audio data-music-audio preload="metadata"></audio>
+  <audio data-music-audio preload="none"></audio>
 
   <button class="music-player-orb" type="button" data-music-expand aria-label="打开音乐播放器">
     <span class="music-cover-shell">
-      <img data-music-orb-cover src="" alt="" />
+      <img data-music-orb-cover alt="" hidden />
       <Music2 class="music-cover-fallback" size={20} aria-hidden="true" />
     </span>
     <span class="music-equalizer" aria-hidden="true">
@@ -38,9 +38,9 @@ import {
 
   <div class="music-panel" data-music-panel hidden>
     <div class="music-now">
-      <img class="music-cover" data-music-cover src="" alt="" />
+      <img class="music-cover" data-music-cover alt="" hidden />
       <div class="music-copy">
-        <strong data-music-title>Loading music</strong>
+        <strong data-music-title>音乐载入中</strong>
         <span data-music-artist>NetEase Cloud Music</span>
       </div>
       <button class="music-icon-button" type="button" data-music-collapse aria-label="收起音乐播放器">
@@ -52,31 +52,31 @@ import {
 
     <div class="music-progress-row">
       <span data-music-current>0:00</span>
-      <input data-music-seek type="range" min="0" max="100" value="0" step="0.1" aria-label="播放进度" />
+      <input data-music-seek type="range" min="0" max="100" value="0" step="0.1" aria-label="播放进度" disabled />
       <span data-music-duration>0:00</span>
     </div>
 
     <div class="music-controls">
-      <button class="music-icon-button" type="button" data-music-mode aria-label="切换播放模式" title="列表循环">
+      <button class="music-icon-button" type="button" data-music-mode aria-label="切换播放模式" title="列表循环" disabled>
         <Repeat class="music-mode-loop" size={17} aria-hidden="true" />
         <Shuffle class="music-mode-random" size={17} aria-hidden="true" />
       </button>
-      <button class="music-icon-button" type="button" data-music-prev aria-label="上一首">
+      <button class="music-icon-button" type="button" data-music-prev aria-label="上一首" disabled>
         <SkipBack size={17} aria-hidden="true" />
       </button>
-      <button class="music-play-button" type="button" data-music-toggle aria-label="播放">
+      <button class="music-play-button" type="button" data-music-toggle aria-label="播放" disabled>
         <Play class="music-play-icon" size={20} aria-hidden="true" />
         <Pause class="music-pause-icon" size={20} aria-hidden="true" />
       </button>
-      <button class="music-icon-button" type="button" data-music-next aria-label="下一首">
+      <button class="music-icon-button" type="button" data-music-next aria-label="下一首" disabled>
         <SkipForward size={17} aria-hidden="true" />
       </button>
-      <button class="music-icon-button" type="button" data-music-mute aria-label="静音">
+      <button class="music-icon-button" type="button" data-music-mute aria-label="静音" disabled>
         <Volume2 class="music-volume-icon" size={17} aria-hidden="true" />
         <VolumeX class="music-muted-icon" size={17} aria-hidden="true" />
       </button>
-      <input data-music-volume class="music-volume" type="range" min="0" max="1" value="0.8" step="0.01" aria-label="音量" />
-      <button class="music-icon-button" type="button" data-music-list-toggle aria-label="播放列表">
+      <input data-music-volume class="music-volume" type="range" min="0" max="1" value="0.8" step="0.01" aria-label="音量" disabled />
+      <button class="music-icon-button" type="button" data-music-list-toggle aria-label="播放列表" disabled>
         <ListMusic size={17} aria-hidden="true" />
       </button>
     </div>
@@ -142,6 +142,23 @@ import {
         mode: "loop",
         isSeeking: false,
       };
+      const playbackControls = [
+        toggleButton,
+        prevButton,
+        nextButton,
+        modeButton,
+        muteButton,
+        listButton,
+        seekInput,
+        volumeInput,
+      ];
+
+      const setPlayerReady = (ready) => {
+        player.dataset.ready = ready ? "true" : "false";
+        playbackControls.forEach((control) => {
+          control.disabled = !ready;
+        });
+      };
 
       const formatTime = (seconds) => {
         if (!Number.isFinite(seconds) || seconds <= 0) return "0:00";
@@ -191,7 +208,12 @@ import {
             : 0;
 
         for (const homePlayer of getHomePlayers()) {
-          homePlayer.hidden = !song;
+          homePlayer.dataset.ready = song ? "true" : "false";
+          homePlayer.querySelectorAll("button, input").forEach((control) => {
+            if (control instanceof HTMLButtonElement || control instanceof HTMLInputElement) {
+              control.disabled = !song;
+            }
+          });
           if (!song) continue;
 
           homePlayer.dataset.playing = audio.paused ? "false" : "true";
@@ -310,13 +332,21 @@ import {
         .then((response) => (response.ok ? response.json() : null))
         .then((payload) => {
           state.songs = Array.isArray(payload?.data) ? payload.data.filter((song) => song?.src) : [];
-          if (!state.songs.length) return;
-          player.hidden = false;
+          if (!state.songs.length) throw new Error("Music playlist is empty.");
+          setPlayerReady(true);
           audio.volume = Number(volumeInput.value);
           setSong(0, false);
         })
         .catch(() => {
-          player.hidden = true;
+          setPlayerReady(false);
+          titleEl.textContent = "音乐暂不可用";
+          artistEl.textContent = "请稍后重试";
+          getHomePlayers().forEach((homePlayer) => {
+            const title = homePlayer.querySelector("[data-home-music-title]");
+            const artist = homePlayer.querySelector("[data-home-music-artist]");
+            if (title) title.textContent = "音乐暂不可用";
+            if (artist) artist.textContent = "请稍后重试";
+          });
         });
 
       expandButton.addEventListener("click", () => {
@@ -446,6 +476,13 @@ import {
   .music-panel[hidden],
   .music-list[hidden] {
     display: none;
+  }
+
+  .music-player[data-ready="false"] .music-controls button,
+  .music-player[data-ready="false"] .music-controls input,
+  .music-player[data-ready="false"] .music-progress-row input {
+    cursor: wait;
+    opacity: 0.5;
   }
 
   .music-player-orb,

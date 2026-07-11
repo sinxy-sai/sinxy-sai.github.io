@@ -89,6 +89,12 @@ interface MusicCache {
   songs: MusicSong[];
 }
 
+interface PersistentMusicCache {
+  key: string;
+  savedAt: number;
+  songs: MusicSong[];
+}
+
 interface RenderedHeading {
   depth: number;
   text: string;
@@ -163,8 +169,11 @@ const mediaDir = resolve(process.env.BLOG_MEDIA_DIR || join(dataDir, "media"));
 const distDir = resolve(process.env.BLOG_DIST_DIR || join(rootDir, "dist"));
 const port = Number(process.env.PORT || 8787);
 const musicCacheTtlMs = 10 * 60 * 1000;
+const musicCacheMaxStaleMs = 24 * 60 * 60 * 1000;
+const musicCachePath = join(dataDir, "music-cache.json");
 const analyticsEventTypes = new Set<AnalyticsEventType>(["pageview", "web_vital", "client_error", "api"]);
 let musicCache: MusicCache | null = null;
+let musicRefreshPromise: Promise<MusicSong[]> | null = null;
 
 mkdirSync(dataDir, { recursive: true });
 mkdirSync(mediaDir, { recursive: true });
@@ -566,8 +575,21 @@ function renderMath(latex: string, displayMode: boolean) {
 
 function renderPlainInlineMarkdown(value: string) {
   return escapeHtml(value)
+    .replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+&quot;[^&]*&quot;)?\)/g, (_, alt, url) => (
+      `<img src="${safeMarkdownUrl(url)}" alt="${alt}" loading="lazy" decoding="async" />`
+    ))
+    .replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+&quot;[^&]*&quot;)?\)/g, (_, text, url) => (
+      `<a href="${safeMarkdownUrl(url)}" target="_blank" rel="noreferrer">${text}</a>`
+    ))
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/~~([^~]+)~~/g, "<del>$1</del>")
     .replace(/\*([^*]+)\*/g, "<em>$1</em>");
+}
+
+function safeMarkdownUrl(value: string) {
+  const url = String(value || "").trim();
+  if (/^(https?:|\/|\.\/|\.\.\/|#|mailto:)/i.test(url)) return escapeHtml(url);
+  return "#";
 }
 
 function renderInlineMarkdown(value: string) {
@@ -646,10 +668,11 @@ function isPotentialMarkdownTableRow(line: string) {
 function renderMarkdownTable(rows: string[][], alignments: Array<"left" | "center" | "right" | "">) {
   const header = rows[0] || [];
   const body = rows.slice(1);
+  const deferredClass = body.length >= 12 || header.length >= 8 ? " deferred-table" : "";
   const renderAlign = (index: number) => (alignments[index] ? ` style="text-align: ${alignments[index]}"` : "");
 
   return `
-    <div class="table-scroll">
+    <div class="table-scroll${deferredClass}">
       <table>
         <thead>
           <tr>${header.map((cell, index) => `<th${renderAlign(index)}>${renderInlineMarkdown(cell)}</th>`).join("")}</tr>
@@ -1485,15 +1508,7 @@ function normalizeMusicUrl(value: unknown) {
   return /^https:\/\//.test(url) ? url : "";
 }
 
-async function loadMusicSongs() {
-  const config = getMusicConfig();
-  if (!config.playlistId && config.ids.length === 0) return [];
-
-  const now = Date.now();
-  if (musicCache?.key === config.cacheKey && musicCache.expiresAt > now) {
-    return musicCache.songs;
-  }
-
+async function fetchMusicSongs(config: ReturnType<typeof getMusicConfig>) {
   const meting = new Meting("netease");
   meting.format(true);
 
@@ -1561,13 +1576,103 @@ async function loadMusicSongs() {
     )
   ).filter((song): song is MusicSong => Boolean(song));
 
-  musicCache = {
-    key: config.cacheKey,
-    expiresAt: now + musicCacheTtlMs,
-    songs,
-  };
-
   return songs;
+}
+
+function isMusicSong(value: unknown): value is MusicSong {
+  if (!value || typeof value !== "object") return false;
+  const song = value as Partial<MusicSong>;
+  return [song.id, song.title, song.artist, song.cover, song.src, song.lrcUrl].every(
+    (field) => typeof field === "string",
+  ) && Boolean(song.src);
+}
+
+function readPersistentMusicCache(cacheKey: string) {
+  if (!existsSync(musicCachePath)) return null;
+
+  try {
+    const parsed = JSON.parse(readFileSync(musicCachePath, "utf8")) as Partial<PersistentMusicCache>;
+    if (parsed.key !== cacheKey || !Number.isFinite(parsed.savedAt) || !Array.isArray(parsed.songs)) {
+      return null;
+    }
+
+    const songs = parsed.songs.filter(isMusicSong);
+    if (!songs.length) return null;
+
+    return {
+      key: cacheKey,
+      savedAt: Number(parsed.savedAt),
+      songs,
+    } satisfies PersistentMusicCache;
+  } catch {
+    return null;
+  }
+}
+
+function persistMusicCache(cache: PersistentMusicCache) {
+  try {
+    writeFileSync(musicCachePath, JSON.stringify(cache), "utf8");
+  } catch (error) {
+    console.warn("Failed to persist music cache", error);
+  }
+}
+
+function refreshMusicSongs(config: ReturnType<typeof getMusicConfig>) {
+  if (musicRefreshPromise) return musicRefreshPromise;
+
+  musicRefreshPromise = fetchMusicSongs(config)
+    .then((songs) => {
+      const savedAt = Date.now();
+      musicCache = {
+        key: config.cacheKey,
+        expiresAt: savedAt + musicCacheTtlMs,
+        songs,
+      };
+      if (songs.length) {
+        persistMusicCache({ key: config.cacheKey, savedAt, songs });
+      }
+      return songs;
+    })
+    .finally(() => {
+      musicRefreshPromise = null;
+    });
+
+  return musicRefreshPromise;
+}
+
+async function loadMusicSongs() {
+  const config = getMusicConfig();
+  if (!config.playlistId && config.ids.length === 0) return [];
+
+  const now = Date.now();
+  if (musicCache?.key === config.cacheKey && musicCache.expiresAt > now) {
+    return musicCache.songs;
+  }
+
+  const persistentCache = readPersistentMusicCache(config.cacheKey);
+  const staleSongs = musicCache?.key === config.cacheKey
+    ? musicCache.songs
+    : persistentCache?.songs;
+  const savedAt = persistentCache?.savedAt ?? (musicCache?.expiresAt ?? 0) - musicCacheTtlMs;
+
+  if (staleSongs?.length && now - savedAt <= musicCacheMaxStaleMs) {
+    musicCache = {
+      key: config.cacheKey,
+      expiresAt: Math.max(now, savedAt + musicCacheTtlMs),
+      songs: staleSongs,
+    };
+    void refreshMusicSongs(config).catch((error) => {
+      console.warn("Failed to refresh stale music cache", error);
+    });
+    return staleSongs;
+  }
+
+  try {
+    return await refreshMusicSongs(config);
+  } catch (error) {
+    if (staleSongs?.length) return staleSongs;
+    throw error;
+  }
 }
 
 async function handleMusic(request: IncomingMessage, response: ServerResponse) {
@@ -1576,7 +1681,7 @@ async function handleMusic(request: IncomingMessage, response: ServerResponse) {
   try {
     const songs = await loadMusicSongs();
     return json({ data: songs }, response, 200, {
-      "cache-control": "public, max-age=120",
+      "cache-control": "public, max-age=120, stale-while-revalidate=600",
     });
   } catch (error) {
     console.error("Failed to load music data", error);

@@ -33,11 +33,11 @@
       document.addEventListener("astro:before-swap", () => controller.abort(), { once: true, signal });
 
       const animations = {
-        idle: { file: "/pet-clean/idle.png", frames: 8, fps: 8, loop: true },
-        happy: { file: "/pet-clean/happy.png", frames: 8, fps: 11, loop: false, next: "idle" },
-        sleep: { file: "/pet-clean/sleep.png", frames: 8, fps: 6, loop: true },
-        tap: { file: "/pet-clean/tap.png", frames: 6, fps: 12, loop: false, next: "idle" },
-        wake: { file: "/pet-clean/wake.png", frames: 6, fps: 10, loop: false, next: "idle" },
+        idle: { file: "/pet-clean/idle.webp", frames: 8, fps: 8, loop: true },
+        happy: { file: "/pet-clean/happy.webp", frames: 8, fps: 11, loop: false, next: "idle" },
+        sleep: { file: "/pet-clean/sleep.webp", frames: 8, fps: 6, loop: true },
+        tap: { file: "/pet-clean/tap.webp", frames: 6, fps: 12, loop: false, next: "idle" },
+        wake: { file: "/pet-clean/wake.webp", frames: 6, fps: 10, loop: false, next: "idle" },
       };
       const messages = [
         "我在。",
@@ -55,6 +55,7 @@
       let clickIndex = 0;
       let sleepTimer = 0;
       let bubbleTimer = 0;
+      let animationFrame = 0;
 
       function setFrame(frame) {
         const animation = animations[currentAnimation];
@@ -78,7 +79,8 @@
       }
 
       function animate(now) {
-        if (signal.aborted || !pet.isConnected) return;
+        animationFrame = 0;
+        if (signal.aborted || !pet.isConnected || document.hidden) return;
 
         const animation = animations[currentAnimation];
         const frameDuration = 1000 / animation.fps;
@@ -94,7 +96,7 @@
             } else {
               const nextAnimation = animation.next ?? "idle";
               setAnimation(nextAnimation);
-              window.requestAnimationFrame(animate);
+              animationFrame = window.requestAnimationFrame(animate);
               return;
             }
           }
@@ -102,7 +104,14 @@
           setFrame(currentFrame);
         }
 
-        window.requestAnimationFrame(animate);
+        animationFrame = window.requestAnimationFrame(animate);
+      }
+
+      function resumeAnimation() {
+        if (!animationFrame && !document.hidden) {
+          lastFrameAt = performance.now();
+          animationFrame = window.requestAnimationFrame(animate);
+        }
       }
 
       function scheduleSleep() {
@@ -143,9 +152,11 @@
       pet.dataset.bubble = "hidden";
       setAnimation("idle");
       scheduleSleep();
-      window.requestAnimationFrame(animate);
+      animationFrame = window.requestAnimationFrame(animate);
+      document.addEventListener("visibilitychange", resumeAnimation, { signal });
 
       signal.addEventListener("abort", () => {
+        window.cancelAnimationFrame(animationFrame);
         window.clearTimeout(sleepTimer);
         window.clearTimeout(bubbleTimer);
       }, { once: true });
@@ -253,7 +264,7 @@
     display: block;
     width: 100%;
     height: 100%;
-    background-image: url("/pet-clean/idle.png");
+    background-image: url("/pet-clean/idle.webp");
     background-position: 0 0;
     background-repeat: no-repeat;
     background-size: 800% 100%;

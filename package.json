@@ -11,6 +11,7 @@
     "server:dev": "cross-env ASTRO_TELEMETRY_DISABLED=1 tsx watch server/index.ts",
     "server:start": "cross-env ASTRO_TELEMETRY_DISABLED=1 tsx server/index.ts",
     "server:import-posts": "tsx server/import-posts.ts",
+    "assets:pet": "node scripts/optimize-pet-assets.mjs",
     "astro": "cross-env ASTRO_TELEMETRY_DISABLED=1 astro"
   },
   "dependencies": {
@@ -31,6 +32,7 @@
     "@playwright/test": "^1.61.1",
     "@types/better-sqlite3": "^7.6.13",
     "cross-env": "^10.1.0",
+    "sharp": "^0.35.3",
     "tsx": "^4.23.0",
     "typescript": "^6.0.3"
   }

@@ -32,6 +32,7 @@
         },
         motes: [],
       };
+      let animationFrame = 0;
 
       function getTheme() {
         return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
@@ -176,7 +177,8 @@
       }
 
       function animate(now) {
-        if (signal.aborted || !ambientCanvas.isConnected) return;
+        animationFrame = 0;
+        if (signal.aborted || !ambientCanvas.isConnected || document.hidden) return;
 
         const elapsed = now - state.startedAt;
         const theme = getTheme();
@@ -191,7 +193,13 @@
         drawMotes(theme, elapsed);
 
         if (!prefersReducedMotion) {
-          window.requestAnimationFrame(animate);
+          animationFrame = window.requestAnimationFrame(animate);
+        }
+      }
+
+      function resumeAnimation() {
+        if (!animationFrame && !document.hidden && !prefersReducedMotion) {
+          animationFrame = window.requestAnimationFrame(animate);
         }
       }
 
@@ -209,6 +217,8 @@
         state.lastScrollY = window.scrollY;
         state.scrollEnergy = Math.min(1, state.scrollEnergy + delta / 520);
       }, { passive: true, signal });
+      document.addEventListener("visibilitychange", resumeAnimation, { signal });
+      signal.addEventListener("abort", () => window.cancelAnimationFrame(animationFrame), { once: true });
 
       resize();
       animate(performance.now());

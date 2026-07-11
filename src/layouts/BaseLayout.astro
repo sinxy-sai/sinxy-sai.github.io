@@ -64,6 +64,7 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={imageUrl} />
     <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="preload" href="/pet-clean/idle.webp" as="image" type="image/webp" />
     <link rel="alternate" type="application/rss+xml" title={siteTitle} href={rssUrl} />
     <title>{pageTitle}</title>
     <ClientRouter />
@@ -174,6 +175,12 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
       const themeToggle = document.querySelector("[data-theme-toggle]");
       const themeToggleText = document.querySelector("[data-theme-toggle-text]");
       const themeColorMeta = document.querySelector("#theme-color-meta");
+
+      document.querySelectorAll(".prose img").forEach((image) => {
+        if (!(image instanceof HTMLImageElement)) return;
+        image.loading = "lazy";
+        image.decoding = "async";
+      });
 
       function setSiteTheme(theme, shouldStore = true) {
         const isDark = theme === "dark";
@@ -499,9 +506,8 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
           const id = link.getAttribute("href")?.slice(1);
           return id ? document.getElementById(id) : null;
         })
-        .filter(Boolean);
+        .filter((heading) => heading instanceof HTMLElement);
       let activeTocId = "";
-      let tocTicking = false;
 
       function keepActiveTocLinkVisible(link) {
         const toc = link.closest(".article-toc");
@@ -535,12 +541,8 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
         });
       }
 
-      function updateActiveToc() {
-        if (!tocHeadings.length) {
-          tocTicking = false;
-          return;
-        }
-
+      function setInitialActiveToc() {
+        if (!tocHeadings.length) return;
         const readingLine = window.innerHeight * 0.32;
         let currentHeading = tocHeadings[0];
 
@@ -551,22 +553,25 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
         });
 
         setActiveToc(currentHeading.id);
-        tocTicking = false;
       }
 
       if (tocHeadings.length) {
-        updateActiveToc();
-        window.addEventListener(
-          "scroll",
-          () => {
-            if (!tocTicking) {
-              window.requestAnimationFrame(updateActiveToc);
-              tocTicking = true;
+        setInitialActiveToc();
+        const tocObserver = new IntersectionObserver(
+          (entries) => {
+            const activeEntry = entries
+              .filter((entry) => entry.isIntersecting)
+              .sort((left, right) => left.boundingClientRect.top - right.boundingClientRect.top)[0];
+
+            if (activeEntry?.target instanceof HTMLElement) {
+              setActiveToc(activeEntry.target.id);
             }
           },
-          { passive: true, signal: baseLayoutSignal },
+          { rootMargin: "-20% 0px -70% 0px", threshold: 0 },
         );
-        window.addEventListener("resize", updateActiveToc, { signal: baseLayoutSignal });
+
+        tocHeadings.forEach((heading) => tocObserver.observe(heading));
+        baseLayoutSignal.addEventListener("abort", () => tocObserver.disconnect(), { once: true });
       }
 
       const articleTocToggle = document.querySelector("[data-article-toc-toggle]");
@@ -1862,6 +1867,11 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
     background: var(--surface-control);
   }
 
+  .prose .deferred-table {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 360px;
+  }
+
   .prose table {
     width: 100%;
     min-width: 560px;
@@ -1892,6 +1902,12 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
     overflow-x: auto;
     overflow-y: hidden;
     padding: 4px 0;
+  }
+
+  .prose .katex-display,
+  .prose mjx-container[display="true"] {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 140px;
   }
 
   .prose code {
