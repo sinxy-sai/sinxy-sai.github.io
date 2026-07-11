@@ -505,7 +505,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
                   <Code2 size={16} aria-hidden="true" />
                   <ChevronDown size={13} aria-hidden="true" />
                 </button>
-                <div class="toolbar-menu-list wide" data-menu-list hidden>
+                <div class="toolbar-menu-list wide code-languages" data-menu-list hidden>
                   <button type="button" data-code-language="text">纯文本</button>
                   <button type="button" data-code-language="javascript">JavaScript</button>
                   <button type="button" data-code-language="typescript">TypeScript</button>
@@ -513,6 +513,19 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
                   <button type="button" data-code-language="css">CSS</button>
                   <button type="button" data-code-language="bash">Bash</button>
                   <button type="button" data-code-language="python">Python</button>
+                  <button type="button" data-code-language="c">C</button>
+                  <button type="button" data-code-language="cpp">C++</button>
+                  <button type="button" data-code-language="java">Java</button>
+                  <button type="button" data-code-language="csharp">C#</button>
+                  <button type="button" data-code-language="go">Go</button>
+                  <button type="button" data-code-language="rust">Rust</button>
+                  <button type="button" data-code-language="php">PHP</button>
+                  <button type="button" data-code-language="kotlin">Kotlin</button>
+                  <button type="button" data-code-language="swift">Swift</button>
+                  <button type="button" data-code-language="sql">SQL</button>
+                  <button type="button" data-code-language="json">JSON</button>
+                  <button type="button" data-code-language="yaml">YAML</button>
+                  <button type="button" data-code-language="markdown">Markdown</button>
                 </div>
               </div>
               <button class="tool-button" type="button" data-open-link-dialog title="链接">
@@ -3533,6 +3546,13 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 
     .toolbar-menu-list.wide {
       min-width: 156px;
+    }
+
+    .toolbar-menu-list.code-languages {
+      width: 286px;
+      max-height: min(420px, calc(100vh - 180px));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      overflow-y: auto;
     }
 
     .toolbar-menu-list button {
