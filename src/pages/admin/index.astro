@@ -34,7 +34,7 @@ import {
   Strikethrough,
   Sun,
   Sigma,
-  Table2,
+  TableProperties,
   Trash2,
   TriangleAlert,
   Upload,
@@ -532,7 +532,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
                 </div>
               </div>
               <button class="tool-button" type="button" data-insert-table title="插入表格" aria-label="插入表格">
-                <Table2 size={16} aria-hidden="true" />
+                <TableProperties size={16} aria-hidden="true" />
               </button>
               <div class="toolbar-menu" data-toolbar-menu>
                 <button class="toolbar-menu-trigger" type="button" data-menu-trigger aria-haspopup="true" aria-expanded="false" title="插入公式" aria-label="插入公式">
@@ -592,6 +592,34 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
               <div class="dialog-actions">
                 <button class="admin-button ghost" type="button" data-close-dialog>取消</button>
                 <button class="admin-button primary" type="button" data-insert-link>插入链接</button>
+              </div>
+            </dialog>
+
+            <dialog class="editor-dialog table-dialog" data-table-dialog aria-label="表格属性">
+              <div class="dialog-head">
+                <div>
+                  <p class="section-kicker">Table</p>
+                  <h3>表格属性</h3>
+                </div>
+                <button class="icon-button" type="button" data-close-dialog aria-label="关闭表格属性">×</button>
+              </div>
+              <div class="dialog-grid table-dialog-grid">
+                <label>
+                  <span>行数</span>
+                  <input data-table-rows type="number" min="2" max="20" value="3" inputmode="numeric" />
+                </label>
+                <label>
+                  <span>列数</span>
+                  <input data-table-columns type="number" min="1" max="12" value="3" inputmode="numeric" />
+                </label>
+                <label class="table-title-field">
+                  <span>标题</span>
+                  <input data-table-title type="text" maxlength="120" placeholder="可选，例如：实验结果对比" />
+                </label>
+              </div>
+              <div class="dialog-actions">
+                <button class="admin-button ghost" type="button" data-close-dialog>取消</button>
+                <button class="admin-button primary" type="button" data-confirm-table>插入表格</button>
               </div>
             </dialog>
 
@@ -753,6 +781,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     const openTocButtons = app?.querySelectorAll("[data-open-toc]") || [];
     const closeTocButton = app?.querySelector("[data-close-toc]");
     const linkDialog = app?.querySelector("[data-link-dialog]");
+    const tableDialog = app?.querySelector("[data-table-dialog]");
     const imageDialog = app?.querySelector("[data-image-dialog]");
     const adminThemeButtons = app?.querySelectorAll("[data-admin-theme-toggle]") || [];
     const adminThemeTexts = app?.querySelectorAll("[data-admin-theme-text]") || [];
@@ -1975,13 +2004,37 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       replaceSelection((selected) => `\`\`\`${lang}\n${selected || "代码内容"}\n\`\`\``);
     }
 
+    function openTableDialog() {
+      if (!(tableDialog instanceof HTMLDialogElement)) return;
+      const rowsInput = tableDialog.querySelector("[data-table-rows]");
+      tableDialog.showModal();
+      if (rowsInput instanceof HTMLInputElement) rowsInput.focus();
+    }
+
     function insertMarkdownTable() {
-      insertMarkdown([
-        "| 列 1 | 列 2 | 列 3 |",
-        "| --- | --- | --- |",
-        "| 内容 | 内容 | 内容 |",
-        "| 内容 | 内容 | 内容 |",
-      ].join("\n"));
+      if (!(tableDialog instanceof HTMLDialogElement)) return;
+      const rowsInput = tableDialog.querySelector("[data-table-rows]");
+      const columnsInput = tableDialog.querySelector("[data-table-columns]");
+      const titleInput = tableDialog.querySelector("[data-table-title]");
+      const rows = Math.min(20, Math.max(2, Number(rowsInput?.value) || 3));
+      const columns = Math.min(12, Math.max(1, Number(columnsInput?.value) || 3));
+      const title = String(titleInput?.value || "").replace(/[\r\n|]/g, " ").trim();
+      const header = Array.from({ length: columns }, (_, index) => `列 ${index + 1}`);
+      const divider = Array.from({ length: columns }, () => "---");
+      const body = Array.from(
+        { length: rows - 1 },
+        () => `| ${Array.from({ length: columns }, () => "内容").join(" | ")} |`,
+      );
+      const markdown = [
+        title ? `**${title}**` : "",
+        `| ${header.join(" | ")} |`,
+        `| ${divider.join(" | ")} |`,
+        ...body,
+      ].filter(Boolean).join("\n");
+
+      insertMarkdown(markdown);
+      closeEditorDialog(tableDialog);
+      setStatus(`已插入 ${rows} 行 ${columns} 列表格。`, "success");
     }
 
     function applyFormula(type) {
@@ -2332,7 +2385,8 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         closeToolbarMenus();
       });
     });
-    app?.querySelector("[data-insert-table]")?.addEventListener("click", insertMarkdownTable);
+    app?.querySelector("[data-insert-table]")?.addEventListener("click", openTableDialog);
+    app?.querySelector("[data-confirm-table]")?.addEventListener("click", insertMarkdownTable);
     app?.querySelectorAll("[data-formula-type]").forEach((button) => {
       button.addEventListener("click", () => {
         applyFormula(button.dataset.formulaType);
@@ -3752,6 +3806,18 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       display: grid;
       gap: 12px;
       margin-top: 14px;
+    }
+
+    .table-dialog {
+      width: min(520px, calc(100vw - 32px));
+    }
+
+    .table-dialog-grid {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .table-title-field {
+      grid-column: 1 / -1;
     }
 
     .dialog-grid label,
