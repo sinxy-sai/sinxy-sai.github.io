@@ -1,5 +1,5 @@
 ---
-import { Archive, Home, Moon, Rss, Search, Sun, Tags, User } from "lucide-astro";
+import { Archive, Check, Copy, Home, Moon, Rss, Search, Sun, Tags, User } from "lucide-astro";
 import { ClientRouter } from "astro:transitions";
 import AmbientFlow from "../components/AmbientFlow.astro";
 import CornerPet from "../components/CornerPet.astro";
@@ -92,6 +92,12 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
     <CornerPet />
     <FloatingMusicPlayer />
     <RadialNav />
+    <template data-code-copy-template>
+      <button class="code-copy-button" type="button" aria-label="复制代码" title="复制代码">
+        <Copy class="code-copy-icon" size={15} aria-hidden="true" />
+        <Check class="code-copy-success-icon" size={15} aria-hidden="true" />
+      </button>
+    </template>
 
     <header class="site-header">
       <a class="brand" href="/" aria-label="返回首页">
@@ -181,6 +187,62 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
         image.loading = "lazy";
         image.decoding = "async";
       });
+
+      async function copyCodeText(value) {
+        if (navigator.clipboard && window.isSecureContext) {
+          try {
+            await navigator.clipboard.writeText(value);
+            return;
+          } catch {
+            // Fall back for browsers that expose Clipboard API but deny write permission.
+          }
+        }
+
+        const textarea = document.createElement("textarea");
+        textarea.value = value;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.append(textarea);
+        textarea.select();
+        const copied = document.execCommand("copy");
+        textarea.remove();
+        if (!copied) throw new Error("Copy failed");
+      }
+
+      function enhanceCodeBlocks() {
+        const template = document.querySelector("[data-code-copy-template]");
+        if (!(template instanceof HTMLTemplateElement)) return;
+
+        document.querySelectorAll(".prose pre").forEach((block) => {
+          if (!(block instanceof HTMLElement) || block.querySelector("[data-code-copy]")) return;
+          const code = block.querySelector("code");
+          if (!(code instanceof HTMLElement)) return;
+
+          const fragment = template.content.cloneNode(true);
+          const button = fragment.querySelector("button");
+          if (!(button instanceof HTMLButtonElement)) return;
+          button.dataset.codeCopy = "";
+          button.addEventListener("click", async () => {
+            try {
+              await copyCodeText(code.textContent || "");
+              button.dataset.copied = "true";
+              button.setAttribute("aria-label", "已复制代码");
+              button.title = "已复制";
+              window.setTimeout(() => {
+                button.dataset.copied = "false";
+                button.setAttribute("aria-label", "复制代码");
+                button.title = "复制代码";
+              }, 1600);
+            } catch {
+              button.dataset.copied = "false";
+              button.setAttribute("aria-label", "复制失败");
+              button.title = "复制失败";
+            }
+          }, { signal: baseLayoutSignal });
+          block.append(fragment);
+        });
+      }
 
       function setSiteTheme(theme, shouldStore = true) {
         const isDark = theme === "dark";
@@ -804,6 +866,7 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
       }
 
       function enhanceD1Content() {
+        enhanceCodeBlocks();
         loadD1Posts()
           .then((posts) => {
             insertD1Posts(posts);
@@ -816,7 +879,9 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
       }
 
       enhanceD1Content();
-      document.addEventListener("astro:page-load", enhanceD1Content, { signal: baseLayoutSignal });
+      document.addEventListener("astro:page-load", () => {
+        enhanceD1Content();
+      }, { signal: baseLayoutSignal });
       }
     </script>
   </body>
@@ -1881,6 +1946,40 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
     font-weight: 760;
     line-height: 1;
     padding: 0 18px;
+  }
+
+  .code-copy-button {
+    position: absolute;
+    top: 5px;
+    right: 8px;
+    z-index: 2;
+    display: inline-grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line));
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0;
+    transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+  }
+
+  .code-copy-button:hover,
+  .code-copy-button:focus-visible {
+    border-color: color-mix(in srgb, var(--accent) 62%, var(--line));
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+  }
+
+  .code-copy-success-icon,
+  .code-copy-button[data-copied="true"] .code-copy-icon {
+    display: none;
+  }
+
+  .code-copy-button[data-copied="true"] .code-copy-success-icon {
+    display: block;
   }
 
   .prose .shiki {

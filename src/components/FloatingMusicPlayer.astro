@@ -464,7 +464,7 @@ import {
 <style>
   .music-player {
     position: fixed;
-    right: max(18px, env(safe-area-inset-right));
+    right: 0;
     bottom: max(22px, env(safe-area-inset-bottom));
     z-index: 35;
     display: grid;
@@ -507,16 +507,28 @@ import {
     color: var(--accent-strong);
     cursor: pointer;
     padding: 0;
+    transform: translateX(30px);
     transition:
       transform 180ms ease,
       border-color 180ms ease,
       box-shadow 180ms ease;
   }
 
-  .music-player-orb:hover {
-    transform: translateY(-2px) scale(1.03);
+  .music-player:hover .music-player-orb,
+  .music-player:focus-within .music-player-orb,
+  .music-player[data-expanded="true"] .music-player-orb {
+    transform: translateX(0);
+  }
+
+  .music-player-orb:hover,
+  .music-player-orb:focus-visible {
+    transform: translateX(0) translateY(-2px) scale(1.03);
     border-color: rgba(117, 201, 165, 0.58);
     box-shadow: 0 22px 54px rgba(74, 116, 98, 0.2);
+  }
+
+  :global(body:has([data-admin-app])) .music-player {
+    bottom: calc(116px + env(safe-area-inset-bottom));
   }
 
   .music-cover-shell,
@@ -798,8 +810,12 @@ import {
 
   @media (max-width: 760px) {
     .music-player {
-      right: max(12px, env(safe-area-inset-right));
+      right: 0;
       bottom: max(14px, env(safe-area-inset-bottom));
+    }
+
+    :global(body:has([data-admin-app])) .music-player {
+      bottom: calc(116px + env(safe-area-inset-bottom));
     }
 
     .music-panel {
@@ -808,6 +824,12 @@ import {
 
     .music-controls {
       flex-wrap: wrap;
+    }
+  }
+
+  @media (max-width: 720px) {
+    :global(body:has([data-admin-app])) .music-player {
+      bottom: calc(300px + env(safe-area-inset-bottom));
     }
   }
 </style>
