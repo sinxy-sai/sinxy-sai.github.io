@@ -70,19 +70,37 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
     <ClientRouter />
     <script is:inline>
       (() => {
-        try {
+        const restoreStoredTheme = () => {
+          let theme = "light";
+          try {
           const storedTheme = localStorage.getItem("sinxy-theme");
           const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-          const theme = storedTheme === "light" || storedTheme === "dark"
+          theme = storedTheme === "light" || storedTheme === "dark"
             ? storedTheme
             : prefersDark
               ? "dark"
               : "light";
+          } catch {
+            theme = "light";
+          }
 
+          const isDark = theme === "dark";
           document.documentElement.dataset.theme = theme;
           document.documentElement.style.colorScheme = theme;
-        } catch {
-          document.documentElement.dataset.theme = "light";
+          document.querySelector("#theme-color-meta")?.setAttribute("content", isDark ? "#101815" : "#f6fbf5");
+          document.querySelectorAll("[data-theme-toggle]").forEach((toggle) => {
+            toggle.setAttribute("aria-pressed", String(isDark));
+            toggle.setAttribute("aria-label", isDark ? "切换到白天模式" : "切换到夜间模式");
+          });
+          document.querySelectorAll("[data-theme-toggle-text]").forEach((label) => {
+            label.textContent = isDark ? "白天" : "夜间";
+          });
+        };
+
+        restoreStoredTheme();
+        if (!window.__sinxyThemeRestoreRegistered) {
+          window.__sinxyThemeRestoreRegistered = true;
+          document.addEventListener("astro:after-swap", restoreStoredTheme);
         }
       })();
     </script>
@@ -267,7 +285,13 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
         }
       }
 
-      const initialTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+      let initialTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+      try {
+        const storedTheme = localStorage.getItem("sinxy-theme");
+        if (storedTheme === "light" || storedTheme === "dark") initialTheme = storedTheme;
+      } catch {
+        // Keep the theme restored by the inline bootstrap script when storage is unavailable.
+      }
       setSiteTheme(initialTheme, false);
 
       themeToggle?.addEventListener("click", () => {

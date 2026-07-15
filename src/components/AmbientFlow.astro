@@ -1,4 +1,4 @@
-<div class="ambient-flow" data-galaxy-container aria-hidden="true"></div>
+<div class="ambient-flow" data-galaxy-container transition:persist="ambient-flow" aria-hidden="true"></div>
 
 <script>
   // React Bits Galaxy shader and defaults, adapted only for Astro's page lifecycle.
@@ -173,7 +173,6 @@
 
       const controller = new AbortController();
       const { signal } = controller;
-      document.addEventListener("astro:before-swap", () => controller.abort(), { once: true, signal });
 
       const start = async () => {
         const { Renderer, Program, Mesh, Color, Triangle } = await import("ogl");
