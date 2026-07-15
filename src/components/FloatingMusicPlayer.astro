@@ -87,6 +87,7 @@ import {
 
 <script>
   const playbackStorageKey = "sinxy-music-playback";
+  const maxStoredSongs = 80;
   const player = document.querySelector("[data-music-player]");
 
   if (player instanceof HTMLElement && player.dataset.musicInitialized !== "true") {
@@ -169,6 +170,46 @@ import {
         return `${minutes}:${rest}`;
       };
 
+      const normalizeSong = (song) => {
+        if (!song || typeof song !== "object") return null;
+        const id = String(song.id || song.src || "").trim();
+        const src = String(song.src || "").trim();
+        if (!id || !src) return null;
+
+        return {
+          id,
+          title: String(song.title || "未知歌曲"),
+          artist: String(song.artist || "未知歌手"),
+          cover: String(song.cover || ""),
+          src,
+          lrcUrl: String(song.lrcUrl || ""),
+        };
+      };
+
+      const normalizeSongList = (songs) => {
+        if (!Array.isArray(songs)) return [];
+        const seen = new Set();
+        return songs
+          .map(normalizeSong)
+          .filter((song) => {
+            if (!song || seen.has(song.id)) return false;
+            seen.add(song.id);
+            return true;
+          })
+          .slice(0, maxStoredSongs);
+      };
+
+      const mergeSongLists = (primarySongs, fallbackSongs) => {
+        const seen = new Set();
+        return [...normalizeSongList(primarySongs), ...normalizeSongList(fallbackSongs)]
+          .filter((song) => {
+            if (seen.has(song.id)) return false;
+            seen.add(song.id);
+            return true;
+          })
+          .slice(0, maxStoredSongs);
+      };
+
       const readPlaybackState = () => {
         try {
           const raw = sessionStorage.getItem(playbackStorageKey);
@@ -182,6 +223,7 @@ import {
             muted: Boolean(saved.muted),
             mode: saved.mode === "random" ? "random" : "loop",
             wasPlaying: Boolean(saved.wasPlaying),
+            songs: normalizeSongList(saved.songs),
           };
         } catch {
           return null;
@@ -204,6 +246,7 @@ import {
             muted: audio.muted,
             mode: state.mode,
             wasPlaying: !audio.paused,
+            songs: state.songs.map(normalizeSong).filter(Boolean).slice(0, maxStoredSongs),
           }));
         } catch {
           // Storage can be unavailable in private browsing modes.
@@ -371,8 +414,8 @@ import {
 
       const playNext = () => {
         const nextIndex =
-          state.mode === "random"
-            ? Math.floor(Math.random() * state.songs.length)
+          state.mode === "random" && state.songs.length > 1
+            ? (state.index + 1 + Math.floor(Math.random() * (state.songs.length - 1))) % state.songs.length
             : state.index + 1;
         setSong(nextIndex, true);
       };
@@ -395,9 +438,14 @@ import {
       fetch("/api/music", { headers: { accept: "application/json" } })
         .then((response) => (response.ok ? response.json() : null))
         .then((payload) => {
-          state.songs = Array.isArray(payload?.data) ? payload.data.filter((song) => song?.src) : [];
-          if (!state.songs.length) throw new Error("Music playlist is empty.");
           const restoredPlayback = readPlaybackState();
+          const fetchedSongs = normalizeSongList(payload?.data);
+          const restoredSongs = restoredPlayback?.songs ?? [];
+          state.songs =
+            restoredSongs.length > fetchedSongs.length
+              ? mergeSongLists(restoredSongs, fetchedSongs)
+              : mergeSongLists(fetchedSongs, restoredSongs);
+          if (!state.songs.length) throw new Error("Music playlist is empty.");
           setPlayerReady(true);
           audio.volume = restoredPlayback?.volume ?? Number(volumeInput.value);
           audio.muted = restoredPlayback?.muted ?? false;
