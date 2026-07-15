@@ -1,6 +1,7 @@
 ---
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import GiscusComments from "../../components/GiscusComments.astro";
+import { Focus } from "lucide-astro";
 ---
 
 <BaseLayout
@@ -22,6 +23,19 @@ import GiscusComments from "../../components/GiscusComments.astro";
           __D1_POST_UPDATED__
         </div>
         <div class="tag-list">__D1_POST_TAGS__</div>
+        <div class="article-header-actions">
+          <button
+            class="article-immersive-toggle"
+            type="button"
+            data-immersive-reading-toggle
+            aria-label="进入沉浸阅读"
+            aria-pressed="false"
+            title="进入沉浸阅读"
+          >
+            <Focus size={16} aria-hidden="true" />
+            <span data-immersive-reading-label>沉浸阅读</span>
+          </button>
+        </div>
       </header>
       <div class="prose">__D1_POST_CONTENT__</div>
       __D1_POST_CREATION_STATEMENT__

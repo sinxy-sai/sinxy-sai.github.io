@@ -685,6 +685,42 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
         );
       }
 
+      const immersiveReadingToggle = document.querySelector("[data-immersive-reading-toggle]");
+      const immersiveReadingLabel = document.querySelector("[data-immersive-reading-label]");
+
+      document.documentElement.classList.remove("is-immersive-reading");
+
+      function setImmersiveReading(active) {
+        document.documentElement.classList.toggle("is-immersive-reading", active);
+        if (immersiveReadingToggle instanceof HTMLElement) {
+          immersiveReadingToggle.setAttribute("aria-pressed", String(active));
+          immersiveReadingToggle.setAttribute("aria-label", active ? "退出沉浸阅读" : "进入沉浸阅读");
+          immersiveReadingToggle.setAttribute("title", active ? "退出沉浸阅读" : "进入沉浸阅读");
+        }
+        if (immersiveReadingLabel instanceof HTMLElement) {
+          immersiveReadingLabel.textContent = active ? "退出阅读" : "沉浸阅读";
+        }
+        if (active) setArticleTocOpen(false);
+      }
+
+      if (immersiveReadingToggle instanceof HTMLButtonElement) {
+        immersiveReadingToggle.addEventListener(
+          "click",
+          () => setImmersiveReading(!document.documentElement.classList.contains("is-immersive-reading")),
+          { signal: baseLayoutSignal },
+        );
+
+        window.addEventListener(
+          "keydown",
+          (event) => {
+            if (event.key === "Escape" && document.documentElement.classList.contains("is-immersive-reading")) {
+              setImmersiveReading(false);
+            }
+          },
+          { signal: baseLayoutSignal },
+        );
+      }
+
       const normalizeUrlPath = (url) => {
         try {
           return new URL(url, window.location.origin).pathname;
@@ -1864,6 +1900,69 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
   .article-header {
     padding-bottom: 28px;
     border-bottom: 1px solid var(--line);
+  }
+
+  .article-header-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 16px;
+  }
+
+  .article-immersive-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 36px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface-control);
+    color: var(--muted);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 800;
+    padding: 0 12px;
+    transition: background 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+  }
+
+  .article-immersive-toggle:hover,
+  .article-immersive-toggle:focus-visible {
+    border-color: color-mix(in srgb, var(--accent) 62%, var(--line));
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+    transform: translateY(-1px);
+  }
+
+  html.is-immersive-reading .site-header,
+  html.is-immersive-reading .article-toc,
+  html.is-immersive-reading .article-toc-toggle,
+  html.is-immersive-reading .article-toc-backdrop {
+    display: none !important;
+  }
+
+  html.is-immersive-reading .article-layout {
+    grid-template-columns: minmax(0, 900px);
+    margin-top: 0;
+  }
+
+  html.is-immersive-reading .article {
+    max-width: 900px;
+  }
+
+  html.is-immersive-reading .article-immersive-toggle {
+    position: fixed;
+    top: max(16px, env(safe-area-inset-top));
+    right: max(16px, env(safe-area-inset-right));
+    z-index: 90;
+    width: 40px;
+    min-height: 40px;
+    border-radius: 999px;
+    padding: 0;
+  }
+
+  html.is-immersive-reading .article-immersive-toggle span {
+    display: none;
   }
 
   .article-title {
