@@ -86,6 +86,7 @@ import {
 </aside>
 
 <script>
+  const playbackStorageKey = "sinxy-music-playback";
   const player = document.querySelector("[data-music-player]");
 
   if (player instanceof HTMLElement && player.dataset.musicInitialized !== "true") {
@@ -142,6 +143,7 @@ import {
         mode: "loop",
         isSeeking: false,
       };
+      let lastPlaybackPersistAt = 0;
       const playbackControls = [
         toggleButton,
         prevButton,
@@ -165,6 +167,47 @@ import {
         const minutes = Math.floor(seconds / 60);
         const rest = Math.floor(seconds % 60).toString().padStart(2, "0");
         return `${minutes}:${rest}`;
+      };
+
+      const readPlaybackState = () => {
+        try {
+          const raw = sessionStorage.getItem(playbackStorageKey);
+          if (!raw) return null;
+          const saved = JSON.parse(raw);
+          if (!saved || typeof saved.songId !== "string") return null;
+          return {
+            songId: saved.songId,
+            currentTime: Number.isFinite(saved.currentTime) ? Math.max(0, saved.currentTime) : 0,
+            volume: Number.isFinite(saved.volume) ? Math.min(1, Math.max(0, saved.volume)) : null,
+            muted: Boolean(saved.muted),
+            mode: saved.mode === "random" ? "random" : "loop",
+            wasPlaying: Boolean(saved.wasPlaying),
+          };
+        } catch {
+          return null;
+        }
+      };
+
+      const persistPlaybackState = (force = false) => {
+        const song = state.songs[state.index];
+        if (!song) return;
+
+        const now = Date.now();
+        if (!force && now - lastPlaybackPersistAt < 1000) return;
+        lastPlaybackPersistAt = now;
+
+        try {
+          sessionStorage.setItem(playbackStorageKey, JSON.stringify({
+            songId: String(song.id),
+            currentTime: Number.isFinite(audio.currentTime) ? audio.currentTime : 0,
+            volume: audio.volume,
+            muted: audio.muted,
+            mode: state.mode,
+            wasPlaying: !audio.paused,
+          }));
+        } catch {
+          // Storage can be unavailable in private browsing modes.
+        }
       };
 
       const escapeHtml = (value) =>
@@ -267,7 +310,7 @@ import {
           .join("");
       };
 
-      const setSong = async (index, shouldPlay = false) => {
+      const setSong = async (index, shouldPlay = false, resumeTime = 0) => {
         if (!state.songs.length) return;
         state.index = (index + state.songs.length) % state.songs.length;
         const song = state.songs[state.index];
@@ -283,6 +326,7 @@ import {
         state.lyrics = [];
         renderList();
         updatePanelState();
+        persistPlaybackState(true);
 
         if (song.lrcUrl) {
           fetch(song.lrcUrl)
@@ -295,13 +339,33 @@ import {
             });
         }
 
-        if (shouldPlay) {
+        const restorePositionAndPlayback = async () => {
+          if (resumeTime > 0 && Number.isFinite(audio.duration) && audio.duration > 0) {
+            audio.currentTime = Math.min(resumeTime, Math.max(0, audio.duration - 0.25));
+          }
+
+          if (!shouldPlay) {
+            updatePanelState();
+            persistPlaybackState(true);
+            return;
+          }
           try {
             await audio.play();
           } catch {
-            // Browsers can reject play until the next direct user gesture.
+            // A full page reload may require another user gesture before playback can resume.
           }
           updatePanelState();
+          persistPlaybackState(true);
+        };
+
+        if (resumeTime > 0) {
+          if (audio.readyState >= HTMLMediaElement.HAVE_METADATA) {
+            void restorePositionAndPlayback();
+          } else {
+            audio.addEventListener("loadedmetadata", restorePositionAndPlayback, { once: true });
+          }
+        } else if (shouldPlay) {
+          void restorePositionAndPlayback();
         }
       };
 
@@ -333,9 +397,19 @@ import {
         .then((payload) => {
           state.songs = Array.isArray(payload?.data) ? payload.data.filter((song) => song?.src) : [];
           if (!state.songs.length) throw new Error("Music playlist is empty.");
+          const restoredPlayback = readPlaybackState();
           setPlayerReady(true);
-          audio.volume = Number(volumeInput.value);
-          setSong(0, false);
+          audio.volume = restoredPlayback?.volume ?? Number(volumeInput.value);
+          audio.muted = restoredPlayback?.muted ?? false;
+          state.mode = restoredPlayback?.mode ?? "loop";
+          const restoredIndex = restoredPlayback
+            ? state.songs.findIndex((song) => String(song.id) === restoredPlayback.songId)
+            : -1;
+          setSong(
+            restoredIndex >= 0 ? restoredIndex : 0,
+            restoredIndex >= 0 && Boolean(restoredPlayback?.wasPlaying),
+            restoredIndex >= 0 ? restoredPlayback?.currentTime ?? 0 : 0,
+          );
         })
         .catch(() => {
           setPlayerReady(false);
@@ -368,11 +442,13 @@ import {
       modeButton.addEventListener("click", () => {
         state.mode = state.mode === "loop" ? "random" : "loop";
         updatePanelState();
+        persistPlaybackState(true);
       });
 
       muteButton.addEventListener("click", () => {
         audio.muted = !audio.muted;
         updatePanelState();
+        persistPlaybackState(true);
       });
 
       listButton.addEventListener("click", () => {
@@ -431,12 +507,19 @@ import {
         audio.volume = Number(volumeInput.value);
         audio.muted = audio.volume === 0;
         updatePanelState();
+        persistPlaybackState(true);
       });
 
       document.addEventListener("astro:page-load", updateHomePlayers);
 
-      audio.addEventListener("play", updatePanelState);
-      audio.addEventListener("pause", updatePanelState);
+      audio.addEventListener("play", () => {
+        updatePanelState();
+        persistPlaybackState(true);
+      });
+      audio.addEventListener("pause", () => {
+        updatePanelState();
+        persistPlaybackState(true);
+      });
       audio.addEventListener("ended", playNext);
       audio.addEventListener("loadedmetadata", () => {
         durationEl.textContent = formatTime(audio.duration);
@@ -456,7 +539,9 @@ import {
         }
 
         updateHomePlayers();
+        persistPlaybackState();
       });
+      window.addEventListener("pagehide", () => persistPlaybackState(true));
     }
   }
 </script>
