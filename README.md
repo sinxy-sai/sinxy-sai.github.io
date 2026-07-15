@@ -1,14 +1,19 @@
-# Sinxy Sai Blog
+<div align="center">
+  <h1>Sinxy Sai Blog</h1>
+  <p><strong>面向个人写作、技术记录与前端实验的全栈博客系统</strong></p>
+  <p>Astro 构建前端界面，Node.js + SQLite 提供动态内容与管理 API，Nginx 反向代理部署于 VPS。</p>
+  <p>
+    <img src="https://img.shields.io/badge/Astro-7-ff5d01?logo=astro&logoColor=white" alt="Astro 7" />
+    <img src="https://img.shields.io/badge/TypeScript-6-3178c6?logo=typescript&logoColor=white" alt="TypeScript 6" />
+    <img src="https://img.shields.io/badge/Node.js-22-5fa04e?logo=nodedotjs&logoColor=white" alt="Node.js 22" />
+    <img src="https://img.shields.io/badge/SQLite-3-003b57?logo=sqlite&logoColor=white" alt="SQLite" />
+    <img src="https://img.shields.io/badge/Nginx-Reverse%20Proxy-009639?logo=nginx&logoColor=white" alt="Nginx" />
+    <img src="https://img.shields.io/badge/GitHub%20Actions-CI%2FCD-2088ff?logo=githubactions&logoColor=white" alt="GitHub Actions" />
+    <img src="https://img.shields.io/badge/License-MIT-blue" alt="MIT License" />
+  </p>
+</div>
 
-一个面向个人写作、技术笔记与前端实验的全栈博客。前台由 Astro 构建，生产环境以 Node.js + SQLite 提供文章、媒体、统计和动态渲染能力，并部署在 VPS 上，由 Nginx 对外提供静态资源与反向代理。
-
-![Astro](https://img.shields.io/badge/Astro-7.0-ff5d01?logo=astro&logoColor=white)
-![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178c6?logo=typescript&logoColor=white)
-![Node.js](https://img.shields.io/badge/Node.js-22-5fa04e?logo=nodedotjs&logoColor=white)
-![SQLite](https://img.shields.io/badge/SQLite-3-003b57?logo=sqlite&logoColor=white)
-![Nginx](https://img.shields.io/badge/Nginx-Reverse%20Proxy-009639?logo=nginx&logoColor=white)
-![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-CI%2FCD-2088ff?logo=githubactions&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-blue)
+---
 
 ## 项目特性
 
