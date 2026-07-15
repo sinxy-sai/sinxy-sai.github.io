@@ -95,6 +95,7 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
           document.querySelectorAll("[data-theme-toggle-text]").forEach((label) => {
             label.textContent = isDark ? "白天" : "夜间";
           });
+          document.dispatchEvent(new CustomEvent("sinxy:theme-change", { detail: { theme } }));
         };
 
         restoreStoredTheme();
@@ -283,6 +284,7 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
         if (shouldStore) {
           localStorage.setItem("sinxy-theme", theme);
         }
+        document.dispatchEvent(new CustomEvent("sinxy:theme-change", { detail: { theme } }));
       }
 
       let initialTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";

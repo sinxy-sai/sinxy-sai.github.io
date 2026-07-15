@@ -168,11 +168,17 @@
 
   function initGalaxyBackgrounds() {
     document.querySelectorAll("[data-galaxy-container]").forEach((container) => {
-      if (!(container instanceof HTMLDivElement) || container.dataset.galaxyInitialized === "true") return;
+      if (!(container instanceof HTMLDivElement)) return;
+      if (document.documentElement.dataset.theme !== "dark") return;
+      if (container.dataset.galaxyInitialized === "true") return;
       container.dataset.galaxyInitialized = "true";
 
       const controller = new AbortController();
       const { signal } = controller;
+      signal.addEventListener("abort", () => {
+        delete container.dataset.galaxyInitialized;
+        container.replaceChildren();
+      }, { once: true });
 
       const start = async () => {
         const { Renderer, Program, Mesh, Color, Triangle } = await import("ogl");
@@ -286,13 +292,13 @@
             if (!event.relatedTarget) handleMouseLeave();
           }, { signal });
         }
+        container.addEventListener("sinxy:galaxy-stop", () => controller.abort(), { once: true, signal });
         const themeObserver = new MutationObserver(updateStarTint);
         themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
         signal.addEventListener("abort", () => {
           window.cancelAnimationFrame(animationFrame);
           themeObserver.disconnect();
           gl.getExtension("WEBGL_lose_context")?.loseContext();
-          container.replaceChildren();
         }, { once: true });
 
         updateStarTint();
@@ -309,6 +315,17 @@
 
   initGalaxyBackgrounds();
   document.addEventListener("astro:page-load", initGalaxyBackgrounds);
+  document.addEventListener("sinxy:theme-change", (event) => {
+    const theme = event instanceof CustomEvent ? event.detail?.theme : document.documentElement.dataset.theme;
+    if (theme === "dark") {
+      initGalaxyBackgrounds();
+      return;
+    }
+
+    document.querySelectorAll("[data-galaxy-container]").forEach((container) => {
+      container.dispatchEvent(new CustomEvent("sinxy:galaxy-stop"));
+    });
+  });
 </script>
 
 <style>
