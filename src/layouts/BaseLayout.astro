@@ -554,6 +554,16 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
         }
       }, { signal: baseLayoutSignal });
 
+      const siteHeader = document.querySelector(".site-header");
+
+      function focusSiteSearchFromShortcut() {
+        if (!(siteSearchInput instanceof HTMLInputElement)) return;
+        siteHeader?.classList.remove("is-hidden");
+        siteHeader?.classList.add("is-floating");
+        siteSearchInput.focus({ preventScroll: true });
+        siteSearchInput.select();
+      }
+
       document.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
           closeSiteSearch();
@@ -569,18 +579,12 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
 
         if (event.key === "/" && !event.ctrlKey && !event.metaKey && !event.altKey && !isTypingTarget) {
           event.preventDefault();
-          if (siteSearchInput instanceof HTMLInputElement) {
-            siteSearchInput.focus();
-            siteSearchInput.select();
-            siteHeader?.classList.remove("is-hidden");
-            siteHeader?.classList.add("is-floating");
-          }
+          focusSiteSearchFromShortcut();
         }
       }, { signal: baseLayoutSignal });
 
       syncSiteSearchPlaceholder();
 
-      const siteHeader = document.querySelector(".site-header");
       let lastScrollY = window.scrollY;
       let ticking = false;
 
