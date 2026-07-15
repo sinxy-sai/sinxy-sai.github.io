@@ -130,6 +130,30 @@ npm run dev
 ADMIN_TOKEN="replace-with-a-long-random-token" npm run server:start
 ```
 
+### 真实文章页集成测试
+
+`npm run dev` 适合快速查看 Astro 静态页面。真实文章页、后台 API、媒体资源和沉浸阅读需要 Node 后端与 Nginx 同时工作；仓库提供了本地 Docker Nginx 配置，要求本机已启动 Docker Desktop。
+
+终端一：构建页面并启动本地后端。Windows PowerShell 可以直接从被忽略的 `Admin_TOKEN` 文件读取 Token：
+
+```powershell
+npm run local:test:prepare
+$env:ADMIN_TOKEN = (Get-Content .\Admin_TOKEN -Raw).Trim()
+npm run local:test:backend
+```
+
+终端二：启动本地 Nginx 代理：
+
+```powershell
+npm run local:test:proxy
+```
+
+访问 `http://127.0.0.1:8080/`。真实文章通过 `http://127.0.0.1:8080/blog/<slug>/` 打开；可先访问 `http://127.0.0.1:8080/api/posts` 查看本地文章的 `slug`。完成后按 `Ctrl+C` 停止后端，再运行：
+
+```powershell
+npm run local:test:stop
+```
+
 常用检查：
 
 ```bash
@@ -219,6 +243,10 @@ bash scripts/vps/restore.sh ~/sinxy-blog-data-YYYYMMDDTHHMMSSZ.tar.gz
 | `npm run server:dev` | 以 watch 模式启动 Node 后端 |
 | `npm run server:start` | 启动 Node 后端 |
 | `npm run server:import-posts` | 从 JSON 导入文章 |
+| `npm run local:test:prepare` | 构建本地集成测试所需的静态文件 |
+| `npm run local:test:backend` | 启动本地集成测试后端，需先设置 `ADMIN_TOKEN` |
+| `npm run local:test:proxy` | 使用 Docker Nginx 启动本地代理，默认端口 `8080` |
+| `npm run local:test:stop` | 关闭本地 Nginx 代理 |
 | `npm run deploy:worker` | 构建并部署 Cloudflare Worker |
 
 ## License

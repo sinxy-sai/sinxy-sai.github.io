@@ -11,6 +11,10 @@
     "server:dev": "cross-env ASTRO_TELEMETRY_DISABLED=1 tsx watch server/index.ts",
     "server:start": "cross-env ASTRO_TELEMETRY_DISABLED=1 tsx server/index.ts",
     "server:import-posts": "tsx server/import-posts.ts",
+    "local:test:prepare": "npm run build",
+    "local:test:backend": "npm run server:start",
+    "local:test:proxy": "docker compose -f docker-compose.local.yml up --remove-orphans",
+    "local:test:stop": "docker compose -f docker-compose.local.yml down",
     "assets:pet": "node scripts/optimize-pet-assets.mjs",
     "astro": "cross-env ASTRO_TELEMETRY_DISABLED=1 astro"
   },
