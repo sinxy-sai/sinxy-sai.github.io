@@ -25,7 +25,7 @@
 - **发布控制**：文章可设置原创/转载/翻译、创作声明、公开或仅自己可见、封面和标签。
 - **媒体资源管理**：图片上传、资源列表、复制可直接访问的完整 URL，并可用作封面或正文插图。
 - **互动体验**：主题切换、Tab 圆盘导航、桌宠、首页时间组件、欢迎区 Canvas 动效。
-- **Galaxy 背景**：基于 OGL 的 WebGL 银色星光背景，仅在夜间模式创建和运行，支持鼠标交互与减少动态效果偏好。
+- **主题背景**：白天模式使用 Three.js 实现 React Bits 风格的 Floating Lines 浅色流光背景，夜间模式使用 OGL 实现 Galaxy 银色星光背景，并支持鼠标交互与减少动态效果偏好。
 - **音乐播放**：从网易云歌单或歌曲 ID 获取播放列表；提供首页卡片播放器和跨路由持续播放的悬浮播放器。同一标签页刷新后会恢复播放队列、歌曲、进度、音量与播放模式，并尝试续播。
 - **评论系统**：文章页接入 Giscus，评论由 GitHub Discussions 保存和管理。
 - **统计面板**：后台可查看访问量、热门页面、接口延迟、Web Vitals 与最近错误。
@@ -39,7 +39,7 @@
 | 图标与界面 | lucide-astro、原生 CSS、响应式布局 |
 | Markdown | remark-gfm、remark-math、rehype-katex、KaTeX |
 | 代码高亮 | Shiki（服务端渲染，GitHub Light / GitHub Dark） |
-| 视觉动效 | OGL、Three.js、Canvas、CSS Motion |
+| 视觉动效 | OGL、Three.js、WebGL Shader、Canvas、CSS Motion |
 | 后端运行时 | Node.js 22、tsx |
 | 数据库 | SQLite、better-sqlite3 |
 | 音乐 | @meting/core、网易云音乐 |
@@ -94,7 +94,7 @@
 │   ├── index.ts                   # Node.js + SQLite API 与动态文章渲染
 │   └── import-posts.ts            # 文章导入脚本
 ├── src/
-│   ├── components/                # Galaxy、音乐、桌宠、评论、圆盘导航等组件
+│   ├── components/                # 主题背景、音乐、桌宠、评论、圆盘导航等组件
 │   ├── layouts/BaseLayout.astro   # 全站布局、主题、阅读与统计脚本
 │   ├── pages/                     # Astro 页面
 │   └── worker/                    # Cloudflare Worker 适配实现
