@@ -132,11 +132,16 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
         <label class="header-search-label" for="site-search-input">搜索文章</label>
         <div class="header-search-field">
           <Search size={18} aria-hidden="true" />
+          <span class="header-search-placeholder" aria-hidden="true">
+            <span>Type</span>
+            <kbd>/</kbd>
+            <span>to search</span>
+          </span>
           <input
             id="site-search-input"
             class="header-search-input"
             type="search"
-            placeholder="搜索 DCP、维纳滤波..."
+            placeholder=""
             autocomplete="off"
           />
         </div>
@@ -457,6 +462,7 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
       const siteSearchPanel = document.querySelector("#site-search-panel");
       const siteSearchStatus = document.querySelector("#site-search-status");
       const siteSearchResults = document.querySelector("#site-search-results");
+      const siteSearchPlaceholder = document.querySelector(".header-search-placeholder");
 
       const escapeSearchHtml = (value) =>
         value.replace(/[&<>"']/g, (char) => ({
@@ -468,6 +474,11 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
         })[char]);
 
       let siteSearchRequestId = 0;
+
+      function syncSiteSearchPlaceholder() {
+        if (!(siteSearchInput instanceof HTMLInputElement) || !(siteSearchPlaceholder instanceof HTMLElement)) return;
+        siteSearchPlaceholder.hidden = Boolean(siteSearchInput.value);
+      }
 
       function closeSiteSearch() {
         if (siteSearchPanel) siteSearchPanel.hidden = true;
@@ -525,6 +536,7 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
       }
 
       siteSearchInput?.addEventListener("input", (event) => {
+        syncSiteSearchPlaceholder();
         runArticleSearch(event.target.value);
       }, { signal: baseLayoutSignal });
 
@@ -547,7 +559,26 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
           closeSiteSearch();
           siteSearchInput?.blur();
         }
+
+        const target = event.target;
+        const isTypingTarget =
+          target instanceof HTMLInputElement ||
+          target instanceof HTMLTextAreaElement ||
+          target instanceof HTMLSelectElement ||
+          (target instanceof HTMLElement && target.isContentEditable);
+
+        if (event.key === "/" && !event.ctrlKey && !event.metaKey && !event.altKey && !isTypingTarget) {
+          event.preventDefault();
+          if (siteSearchInput instanceof HTMLInputElement) {
+            siteSearchInput.focus();
+            siteSearchInput.select();
+            siteHeader?.classList.remove("is-hidden");
+            siteHeader?.classList.add("is-floating");
+          }
+        }
       }, { signal: baseLayoutSignal });
+
+      syncSiteSearchPlaceholder();
 
       const siteHeader = document.querySelector(".site-header");
       let lastScrollY = window.scrollY;
@@ -1201,10 +1232,43 @@ const rssUrl = "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/rss.xml";
     position: absolute;
     left: 14px;
     z-index: 1;
-    color: var(--accent-strong);
-    opacity: 0.82;
+    color: var(--muted);
+    opacity: 0.9;
     pointer-events: none;
     stroke-width: 2.2;
+  }
+
+  .header-search-placeholder {
+    position: absolute;
+    left: 46px;
+    z-index: 1;
+    display: inline-flex;
+    max-width: calc(100% - 62px);
+    align-items: center;
+    gap: 7px;
+    color: var(--muted);
+    font-size: 0.92rem;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  .header-search-placeholder[hidden] {
+    display: none;
+  }
+
+  .header-search-placeholder kbd {
+    display: inline-grid;
+    min-width: 22px;
+    height: 26px;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--muted) 46%, transparent);
+    border-radius: 5px;
+    background: color-mix(in srgb, var(--surface-control) 78%, transparent);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.82rem;
+    line-height: 1;
+    box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--muted) 18%, transparent);
   }
 
   .header-search-input {
