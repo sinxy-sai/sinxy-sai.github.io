@@ -30,6 +30,8 @@ const items = [
 </div>
 
 <script>
+  import { navigate } from "astro:transitions/client";
+
   function initRadialNav() {
     const nav = document.querySelector("[data-radial-nav]");
     if (!(nav instanceof HTMLElement) || nav.dataset.radialInitialized === "true") return;
@@ -143,7 +145,9 @@ const items = [
       }, 140);
 
       if (shouldNavigate && selected instanceof HTMLAnchorElement) {
-        window.location.href = selected.href;
+        navigate(selected.href).catch(() => {
+          window.location.href = selected.href;
+        });
       }
     }
 
