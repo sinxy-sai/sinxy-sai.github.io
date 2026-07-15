@@ -218,23 +218,26 @@
     uniform vec3 gradientMid;
     uniform vec3 gradientEnd;
 
-    const vec3 BLACK = vec3(0.0);
-    const vec3 PINK = vec3(233.0, 71.0, 245.0) / 255.0;
-    const vec3 BLUE = vec3(47.0, 75.0, 162.0) / 255.0;
+    const vec3 DAY_BG_TOP = vec3(249.0, 253.0, 252.0) / 255.0;
+    const vec3 DAY_BG_MID = vec3(255.0, 255.0, 250.0) / 255.0;
+    const vec3 DAY_BG_BOTTOM = vec3(242.0, 252.0, 251.0) / 255.0;
+    const vec3 DAY_AIR_BLUE = vec3(178.0, 236.0, 241.0) / 255.0;
+    const vec3 DAY_AIR_GOLD = vec3(255.0, 239.0, 168.0) / 255.0;
 
     mat2 rotate(float r) {
       return mat2(cos(r), sin(r), -sin(r), cos(r));
     }
 
     vec3 background_color(vec2 uv) {
-      vec3 col = vec3(0.0);
+      vec3 col = mix(DAY_BG_BOTTOM, DAY_BG_TOP, smoothstep(-1.05, 1.1, uv.y));
+      col = mix(col, DAY_BG_MID, 0.34);
 
       float y = sin(uv.x - 0.2) * 0.3 - 0.1;
       float m = uv.y - y;
 
-      col += mix(BLUE, BLACK, smoothstep(0.0, 1.0, abs(m)));
-      col += mix(PINK, BLACK, smoothstep(0.0, 1.0, abs(m - 0.8)));
-      return col * 0.5;
+      col += DAY_AIR_BLUE * (1.0 - smoothstep(0.0, 1.0, abs(m))) * 0.045;
+      col += DAY_AIR_GOLD * (1.0 - smoothstep(0.0, 1.0, abs(m - 0.8))) * 0.035;
+      return clamp(col, 0.0, 1.0);
     }
 
     vec3 getLineColor(float t, vec3 baseColor) {
@@ -247,7 +250,7 @@
         ? mix(gradientStart, gradientMid, clampedT * 2.0)
         : mix(gradientMid, gradientEnd, (clampedT - 0.5) * 2.0);
 
-      return gradientColor * 1.9;
+      return gradientColor * 3.45;
     }
 
     float wave(vec2 uv, float offset, vec2 screenUv, vec2 mouseUv, bool shouldBend) {
@@ -277,8 +280,9 @@
       }
 
       vec2 mouseUv = vec2(0.0);
+      vec3 bg = background_color(baseUv);
       vec3 col = vec3(0.0);
-      vec3 b = lineGradientCount > 0 ? vec3(0.0) : background_color(baseUv);
+      vec3 b = lineGradientCount > 0 ? vec3(0.0) : bg;
 
       if (interactive) {
         mouseUv = (2.0 * iMouse - iResolution.xy) / iResolution.y;
@@ -340,10 +344,11 @@
         }
       }
 
-      vec3 toneMapped = col / (1.0 + col);
-      float brightness = max(max(toneMapped.r, toneMapped.g), toneMapped.b);
-      float alpha = clamp(brightness * 1.08, 0.0, 0.76);
-      fragColor = vec4(toneMapped, alpha);
+      float lineValue = max(max(col.r, col.g), col.b);
+      vec3 lineColor = lineValue > 0.001 ? col / lineValue : vec3(0.0);
+      float lineMask = clamp(pow(lineValue / (1.0 + lineValue * 0.5), 0.7) * 0.56, 0.0, 0.72);
+      vec3 finalColor = mix(bg, lineColor, lineMask);
+      fragColor = vec4(finalColor, 1.0);
     }
 
     void main() {
@@ -407,18 +412,18 @@
         camera.position.z = 1;
 
         const renderer = new WebGLRenderer({
-          alpha: true,
+          alpha: false,
           antialias: true,
           powerPreference: "low-power",
         });
-        renderer.setClearColor(0x000000, 0);
+        renderer.setClearColor(0xf8fdfb, 1);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
         renderer.domElement.className = "floating-lines-canvas";
         renderer.domElement.style.width = "100%";
         renderer.domElement.style.height = "100%";
         container.appendChild(renderer.domElement);
 
-        const lineGradient = ["#1fe4d0", "#2fd9ff", "#fff06f"];
+        const lineGradient = ["#28dfd0", "#36caff", "#f6df58"];
         const [gradientStart, gradientMid, gradientEnd] = lineGradient.map(hexToRgbVector);
         const gradientVectors = Array.from({ length: maxFloatingLineGradientStops }, (_, index) => {
           const color = hexToRgbVector(lineGradient[index] || "#ffffff");
@@ -432,12 +437,12 @@
           enableTop: { value: true },
           enableMiddle: { value: true },
           enableBottom: { value: true },
-          topLineCount: { value: 7 },
-          middleLineCount: { value: 7 },
-          bottomLineCount: { value: 7 },
-          topLineDistance: { value: 0.105 },
-          middleLineDistance: { value: 0.105 },
-          bottomLineDistance: { value: 0.105 },
+          topLineCount: { value: 8 },
+          middleLineCount: { value: 8 },
+          bottomLineCount: { value: 8 },
+          topLineDistance: { value: 0.6 },
+          middleLineDistance: { value: 0.6 },
+          bottomLineDistance: { value: 0.6 },
           topWavePosition: { value: new Vector3(10.0, 0.5, -0.4) },
           middleWavePosition: { value: new Vector3(5.0, 0.0, 0.2) },
           bottomWavePosition: { value: new Vector3(2.0, -0.7, -1.0) },
@@ -459,7 +464,7 @@
           uniforms,
           vertexShader: floatingLinesVertexShader,
           fragmentShader: floatingLinesFragmentShader,
-          transparent: true,
+          transparent: false,
           depthTest: false,
           depthWrite: false,
         });
@@ -728,10 +733,7 @@
     z-index: 0;
     overflow: hidden;
     pointer-events: none;
-    background:
-      radial-gradient(circle at 18% 10%, rgba(128, 224, 225, 0.08), transparent 34%),
-      radial-gradient(circle at 86% 24%, rgba(255, 229, 137, 0.07), transparent 36%),
-      linear-gradient(135deg, rgba(249, 253, 252, 0.94), rgba(255, 255, 250, 0.72) 44%, rgba(243, 253, 252, 0.9));
+    background: linear-gradient(135deg, #f9fdfc, #fffffa 44%, #f2fcfb);
   }
 
   .ambient-flow :global(canvas) {
@@ -742,7 +744,7 @@
   }
 
   .ambient-flow :global(.floating-lines-canvas) {
-    filter: saturate(1.42) contrast(1.12) brightness(1.12);
+    filter: saturate(1.28) contrast(1.05) brightness(1.03);
     opacity: 1;
     mix-blend-mode: normal;
   }
