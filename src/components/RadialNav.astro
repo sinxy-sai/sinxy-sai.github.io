@@ -48,13 +48,28 @@ const items = [
     let isOpen = false;
     let selectedIndex = -1;
 
-    function isEditableTarget(target) {
+    function isTextEntryTarget(target) {
       if (!(target instanceof Element)) return false;
-      return Boolean(
-        target.closest(
-          'input, textarea, select, button, a, [contenteditable="true"], [data-admin-app], [data-radial-nav]',
-        ),
-      );
+      if (target.closest("[data-admin-app], [data-radial-nav]")) return true;
+      if (target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return true;
+      if (target instanceof HTMLElement && target.isContentEditable) return true;
+      if (!(target instanceof HTMLInputElement)) return false;
+      const textEntryTypes = new Set([
+        "",
+        "date",
+        "datetime-local",
+        "email",
+        "month",
+        "number",
+        "password",
+        "search",
+        "tel",
+        "text",
+        "time",
+        "url",
+        "week",
+      ]);
+      return textEntryTypes.has(target.type);
     }
 
     function normalizeAngle(degrees) {
@@ -143,17 +158,18 @@ const items = [
         event.preventDefault();
         return;
       }
-      if (event.repeat || isEditableTarget(event.target)) return;
+      if (event.repeat || isTextEntryTarget(event.target)) return;
       event.preventDefault();
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
       openNav();
-    }, { signal });
+    }, { capture: true, signal });
 
     window.addEventListener("keyup", (event) => {
       if (event.key !== "Tab") return;
       if (!isOpen) return;
       event.preventDefault();
       closeNav(selectedIndex >= 0);
-    }, { signal });
+    }, { capture: true, signal });
 
     window.addEventListener("keydown", (event) => {
       if (event.key === "Escape") closeNav(false);
