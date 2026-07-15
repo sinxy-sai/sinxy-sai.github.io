@@ -214,6 +214,9 @@
 
     uniform vec3 lineGradient[8];
     uniform int lineGradientCount;
+    uniform vec3 gradientStart;
+    uniform vec3 gradientMid;
+    uniform vec3 gradientEnd;
 
     const vec3 BLACK = vec3(0.0);
     const vec3 PINK = vec3(233.0, 71.0, 245.0) / 255.0;
@@ -239,24 +242,12 @@
         return baseColor;
       }
 
-      vec3 gradientColor;
+      float clampedT = clamp(t, 0.0, 1.0);
+      vec3 gradientColor = clampedT < 0.5
+        ? mix(gradientStart, gradientMid, clampedT * 2.0)
+        : mix(gradientMid, gradientEnd, (clampedT - 0.5) * 2.0);
 
-      if (lineGradientCount == 1) {
-        gradientColor = lineGradient[0];
-      } else {
-        float clampedT = clamp(t, 0.0, 0.9999);
-        float scaled = clampedT * float(lineGradientCount - 1);
-        int idx = int(floor(scaled));
-        float f = fract(scaled);
-        int idx2 = min(idx + 1, lineGradientCount - 1);
-
-        vec3 c1 = lineGradient[idx];
-        vec3 c2 = lineGradient[idx2];
-
-        gradientColor = mix(c1, c2, f);
-      }
-
-      return gradientColor * 0.5;
+      return gradientColor * 0.92;
     }
 
     float wave(vec2 uv, float offset, vec2 screenUv, vec2 mouseUv, bool shouldBend) {
@@ -274,7 +265,7 @@
       }
 
       float m = uv.y - y;
-      return 0.0175 / max(abs(m) + 0.01, 1e-3) + 0.01;
+      return 0.010 / max(abs(m) + 0.016, 1e-3) + 0.004;
     }
 
     void mainImage(out vec4 fragColor, in vec2 fragCoord) {
@@ -308,7 +299,7 @@
             baseUv,
             mouseUv,
             interactive
-          ) * 0.2;
+          ) * 0.12;
         }
       }
 
@@ -326,7 +317,7 @@
             baseUv,
             mouseUv,
             interactive
-          );
+          ) * 0.44;
         }
       }
 
@@ -345,11 +336,14 @@
             baseUv,
             mouseUv,
             interactive
-          ) * 0.1;
+          ) * 0.08;
         }
       }
 
-      fragColor = vec4(col, 1.0);
+      vec3 toneMapped = col / (1.0 + col);
+      float brightness = max(max(toneMapped.r, toneMapped.g), toneMapped.b);
+      float alpha = clamp(brightness * 0.72, 0.0, 0.52);
+      fragColor = vec4(toneMapped, alpha);
     }
 
     void main() {
@@ -413,17 +407,19 @@
         camera.position.z = 1;
 
         const renderer = new WebGLRenderer({
-          alpha: false,
+          alpha: true,
           antialias: true,
           powerPreference: "low-power",
         });
+        renderer.setClearColor(0x000000, 0);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
         renderer.domElement.className = "floating-lines-canvas";
         renderer.domElement.style.width = "100%";
         renderer.domElement.style.height = "100%";
         container.appendChild(renderer.domElement);
 
-        const lineGradient = [];
+        const lineGradient = ["#16a394", "#2db3dc", "#d7ba45"];
+        const [gradientStart, gradientMid, gradientEnd] = lineGradient.map(hexToRgbVector);
         const gradientVectors = Array.from({ length: maxFloatingLineGradientStops }, (_, index) => {
           const color = hexToRgbVector(lineGradient[index] || "#ffffff");
           return new Vector3(color[0], color[1], color[2]);
@@ -436,12 +432,12 @@
           enableTop: { value: true },
           enableMiddle: { value: true },
           enableBottom: { value: true },
-          topLineCount: { value: 6 },
-          middleLineCount: { value: 6 },
-          bottomLineCount: { value: 6 },
-          topLineDistance: { value: 0.045 },
-          middleLineDistance: { value: 0.001 },
-          bottomLineDistance: { value: 0.001 },
+          topLineCount: { value: 7 },
+          middleLineCount: { value: 7 },
+          bottomLineCount: { value: 7 },
+          topLineDistance: { value: 0.105 },
+          middleLineDistance: { value: 0.105 },
+          bottomLineDistance: { value: 0.105 },
           topWavePosition: { value: new Vector3(10.0, 0.5, -0.4) },
           middleWavePosition: { value: new Vector3(5.0, 0.0, 0.2) },
           bottomWavePosition: { value: new Vector3(2.0, -0.7, -1.0) },
@@ -454,6 +450,9 @@
           parallaxOffset: { value: new Vector2(0, 0) },
           lineGradient: { value: gradientVectors },
           lineGradientCount: { value: lineGradient.length },
+          gradientStart: { value: new Vector3(gradientStart[0], gradientStart[1], gradientStart[2]) },
+          gradientMid: { value: new Vector3(gradientMid[0], gradientMid[1], gradientMid[2]) },
+          gradientEnd: { value: new Vector3(gradientEnd[0], gradientEnd[1], gradientEnd[2]) },
         };
 
         const material = new ShaderMaterial({
@@ -729,6 +728,10 @@
     z-index: 0;
     overflow: hidden;
     pointer-events: none;
+    background:
+      radial-gradient(circle at 18% 10%, rgba(93, 190, 190, 0.08), transparent 34%),
+      radial-gradient(circle at 86% 24%, rgba(237, 195, 91, 0.06), transparent 36%),
+      linear-gradient(135deg, rgba(243, 250, 247, 0.84), rgba(255, 254, 246, 0.56) 44%, rgba(234, 247, 245, 0.72));
   }
 
   .ambient-flow :global(canvas) {
@@ -739,8 +742,13 @@
   }
 
   .ambient-flow :global(.floating-lines-canvas) {
-    opacity: 1;
-    mix-blend-mode: screen;
+    filter: saturate(1.22) contrast(1.06);
+    opacity: 0.88;
+    mix-blend-mode: normal;
+  }
+
+  :global(html[data-theme="dark"]) .ambient-flow {
+    background: transparent;
   }
 
   :global(html[data-theme="dark"]) .ambient-flow :global(canvas) {
