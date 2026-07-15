@@ -182,7 +182,7 @@
         const focal = [0.5, 0.5];
         const rotation = [1.0, 0.0];
         const starSpeed = 0.5;
-        const density = 1;
+        const density = 0.3;
         const hueShift = 185;
         const disableAnimation = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         const speed = 1.0;
@@ -190,7 +190,7 @@
         const glowIntensity = 0.3;
         const saturation = 0.65;
         const mouseRepulsion = true;
-        const repulsionStrength = 2;
+        const repulsionStrength = 0.7;
         const twinkleIntensity = 0.3;
         const rotationSpeed = 0.1;
         const autoCenterRepulsion = 0;
@@ -239,6 +239,13 @@
         const mesh = new Mesh(gl, { geometry, program });
         let animationFrame = 0;
 
+        function updateStarTint() {
+          const darkTheme = document.documentElement.dataset.theme === "dark";
+          program.uniforms.uStarTint.value = darkTheme
+            ? new Color(0.82, 0.86, 0.9)
+            : new Color(0.48, 0.68, 0.92);
+        }
+
         function resize() {
           renderer.setSize(container.offsetWidth, container.offsetHeight);
           program.uniforms.uResolution.value = new Color(gl.canvas.width, gl.canvas.height, gl.canvas.width / gl.canvas.height);
@@ -280,12 +287,16 @@
             if (!event.relatedTarget) handleMouseLeave();
           }, { signal });
         }
+        const themeObserver = new MutationObserver(updateStarTint);
+        themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
         signal.addEventListener("abort", () => {
           window.cancelAnimationFrame(animationFrame);
+          themeObserver.disconnect();
           gl.getExtension("WEBGL_lose_context")?.loseContext();
           container.replaceChildren();
         }, { once: true });
 
+        updateStarTint();
         resize();
         container.appendChild(gl.canvas);
         animationFrame = window.requestAnimationFrame(update);
