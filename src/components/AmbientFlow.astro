@@ -247,7 +247,7 @@
         ? mix(gradientStart, gradientMid, clampedT * 2.0)
         : mix(gradientMid, gradientEnd, (clampedT - 0.5) * 2.0);
 
-      return gradientColor * 0.92;
+      return gradientColor * 1.9;
     }
 
     float wave(vec2 uv, float offset, vec2 screenUv, vec2 mouseUv, bool shouldBend) {
@@ -342,7 +342,7 @@
 
       vec3 toneMapped = col / (1.0 + col);
       float brightness = max(max(toneMapped.r, toneMapped.g), toneMapped.b);
-      float alpha = clamp(brightness * 0.72, 0.0, 0.52);
+      float alpha = clamp(brightness * 1.08, 0.0, 0.76);
       fragColor = vec4(toneMapped, alpha);
     }
 
@@ -418,7 +418,7 @@
         renderer.domElement.style.height = "100%";
         container.appendChild(renderer.domElement);
 
-        const lineGradient = ["#16a394", "#2db3dc", "#d7ba45"];
+        const lineGradient = ["#1fe4d0", "#2fd9ff", "#fff06f"];
         const [gradientStart, gradientMid, gradientEnd] = lineGradient.map(hexToRgbVector);
         const gradientVectors = Array.from({ length: maxFloatingLineGradientStops }, (_, index) => {
           const color = hexToRgbVector(lineGradient[index] || "#ffffff");
@@ -729,9 +729,9 @@
     overflow: hidden;
     pointer-events: none;
     background:
-      radial-gradient(circle at 18% 10%, rgba(93, 190, 190, 0.08), transparent 34%),
-      radial-gradient(circle at 86% 24%, rgba(237, 195, 91, 0.06), transparent 36%),
-      linear-gradient(135deg, rgba(243, 250, 247, 0.84), rgba(255, 254, 246, 0.56) 44%, rgba(234, 247, 245, 0.72));
+      radial-gradient(circle at 18% 10%, rgba(128, 224, 225, 0.08), transparent 34%),
+      radial-gradient(circle at 86% 24%, rgba(255, 229, 137, 0.07), transparent 36%),
+      linear-gradient(135deg, rgba(249, 253, 252, 0.94), rgba(255, 255, 250, 0.72) 44%, rgba(243, 253, 252, 0.9));
   }
 
   .ambient-flow :global(canvas) {
@@ -742,8 +742,8 @@
   }
 
   .ambient-flow :global(.floating-lines-canvas) {
-    filter: saturate(1.22) contrast(1.06);
-    opacity: 0.88;
+    filter: saturate(1.42) contrast(1.12) brightness(1.12);
+    opacity: 1;
     mix-blend-mode: normal;
   }
 
