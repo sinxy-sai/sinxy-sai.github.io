@@ -1,233 +1,296 @@
 <div class="ambient-flow" aria-hidden="true">
-  <canvas data-ambient-flow></canvas>
+  <canvas data-galaxy-background></canvas>
 </div>
 
 <script>
-  function initAmbientFlowCanvases() {
-    document.querySelectorAll("[data-ambient-flow]").forEach((ambientCanvas) => {
-      if (!(ambientCanvas instanceof HTMLCanvasElement) || ambientCanvas.dataset.ambientFlowInitialized === "true") return;
+  const galaxyVertexShader = `
+    attribute vec2 uv;
+    attribute vec2 position;
+    varying vec2 vUv;
 
-      ambientCanvas.dataset.ambientFlowInitialized = "true";
+    void main() {
+      vUv = uv;
+      gl_Position = vec4(position, 0.0, 1.0);
+    }
+  `;
+
+  const galaxyFragmentShader = `
+    precision highp float;
+
+    uniform float uTime;
+    uniform vec3 uResolution;
+    uniform vec2 uFocal;
+    uniform vec2 uRotation;
+    uniform float uStarSpeed;
+    uniform float uDensity;
+    uniform float uHueShift;
+    uniform float uSpeed;
+    uniform vec2 uMouse;
+    uniform float uGlowIntensity;
+    uniform float uSaturation;
+    uniform bool uMouseRepulsion;
+    uniform float uTwinkleIntensity;
+    uniform float uRotationSpeed;
+    uniform float uRepulsionStrength;
+    uniform float uMouseActiveFactor;
+    uniform bool uTransparent;
+
+    varying vec2 vUv;
+
+    #define NUM_LAYER 4.0
+    #define STAR_COLOR_CUTOFF 0.2
+    #define MAT45 mat2(0.7071, -0.7071, 0.7071, 0.7071)
+    #define PERIOD 3.0
+
+    float hash21(vec2 p) {
+      p = fract(p * vec2(123.34, 456.21));
+      p += dot(p, p + 45.32);
+      return fract(p.x * p.y);
+    }
+
+    float tri(float x) {
+      return abs(fract(x) * 2.0 - 1.0);
+    }
+
+    float tris(float x) {
+      float t = fract(x);
+      return 1.0 - smoothstep(0.0, 1.0, abs(2.0 * t - 1.0));
+    }
+
+    float trisn(float x) {
+      float t = fract(x);
+      return 2.0 * (1.0 - smoothstep(0.0, 1.0, abs(2.0 * t - 1.0))) - 1.0;
+    }
+
+    vec3 hsv2rgb(vec3 c) {
+      vec4 k = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+      vec3 p = abs(fract(c.xxx + k.xyz) * 6.0 - k.www);
+      return c.z * mix(k.xxx, clamp(p - k.xxx, 0.0, 1.0), c.y);
+    }
+
+    float star(vec2 uv, float flare) {
+      float d = max(length(uv), 0.001);
+      float value = (0.05 * uGlowIntensity) / d;
+      float rays = smoothstep(0.0, 1.0, 1.0 - abs(uv.x * uv.y * 1000.0));
+      value += rays * flare * uGlowIntensity;
+      uv *= MAT45;
+      rays = smoothstep(0.0, 1.0, 1.0 - abs(uv.x * uv.y * 1000.0));
+      value += rays * 0.3 * flare * uGlowIntensity;
+      value *= smoothstep(1.0, 0.2, d);
+      return value;
+    }
+
+    vec3 starLayer(vec2 uv) {
+      vec3 color = vec3(0.0);
+      vec2 grid = fract(uv) - 0.5;
+      vec2 id = floor(uv);
+
+      for (int y = -1; y <= 1; y++) {
+        for (int x = -1; x <= 1; x++) {
+          vec2 offset = vec2(float(x), float(y));
+          vec2 cell = id + offset;
+          float seed = hash21(cell);
+          float size = fract(seed * 345.32);
+          float gloss = tri(uStarSpeed / (PERIOD * seed + 1.0));
+          float flare = smoothstep(0.9, 1.0, size) * gloss;
+
+          float hue = fract(uHueShift / 360.0 + (seed - 0.5) * 0.12);
+          float saturation = mix(0.08, uSaturation, 0.7 + seed * 0.3);
+          vec3 base = hsv2rgb(vec3(hue, saturation, 0.94));
+
+          vec2 drift = vec2(
+            tris(seed * 34.0 + uTime * uSpeed / 10.0),
+            tris(seed * 38.0 + uTime * uSpeed / 30.0)
+          ) - 0.5;
+
+          float point = star(grid - offset - drift, flare);
+          float twinkle = trisn(uTime * uSpeed + seed * 6.2831) * 0.5 + 1.0;
+          point *= mix(1.0, twinkle, uTwinkleIntensity);
+          color += point * size * base;
+        }
+      }
+
+      return color;
+    }
+
+    void main() {
+      vec2 focalPx = uFocal * uResolution.xy;
+      vec2 uv = (vUv * uResolution.xy - focalPx) / uResolution.y;
+      vec2 mousePos = (uMouse * uResolution.xy - focalPx) / uResolution.y;
+
+      if (uMouseRepulsion) {
+        float mouseDistance = length(uv - mousePos);
+        vec2 repulsion = normalize(uv - mousePos) * (uRepulsionStrength / (mouseDistance + 0.1));
+        uv += repulsion * 0.05 * uMouseActiveFactor;
+      }
+
+      float rotationAngle = uTime * uRotationSpeed;
+      mat2 rotation = mat2(cos(rotationAngle), -sin(rotationAngle), sin(rotationAngle), cos(rotationAngle));
+      uv = rotation * uv;
+      uv = mat2(uRotation.x, -uRotation.y, uRotation.y, uRotation.x) * uv;
+
+      vec3 color = vec3(0.0);
+      for (float layer = 0.0; layer < 1.0; layer += 1.0 / NUM_LAYER) {
+        float depth = fract(layer + uStarSpeed * uSpeed);
+        float scale = mix(20.0 * uDensity, 0.5 * uDensity, depth);
+        float fade = depth * smoothstep(1.0, 0.9, depth);
+        color += starLayer(uv * scale + layer * 453.32) * fade;
+      }
+
+      float alpha = smoothstep(0.0, 0.3, length(color));
+      gl_FragColor = uTransparent ? vec4(color, min(alpha, 1.0)) : vec4(color, 1.0);
+    }
+  `;
+
+  function initGalaxyBackgrounds() {
+    document.querySelectorAll("[data-galaxy-background]").forEach((canvas) => {
+      if (!(canvas instanceof HTMLCanvasElement) || canvas.dataset.galaxyInitialized === "true") return;
+      canvas.dataset.galaxyInitialized = "true";
+
       const controller = new AbortController();
       const { signal } = controller;
       document.addEventListener("astro:before-swap", () => controller.abort(), { once: true, signal });
 
-      const context = ambientCanvas.getContext("2d", { alpha: true });
-      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const start = async () => {
+        const { Renderer, Program, Mesh, Color, Triangle } = await import("ogl");
+        if (signal.aborted || !canvas.isConnected) return;
 
-      if (context) {
-      const state = {
-        width: 0,
-        height: 0,
-        dpr: 1,
-        startedAt: performance.now(),
-        lastScrollY: window.scrollY,
-        scrollEnergy: 0,
-        pointer: {
-          x: window.innerWidth * 0.5,
-          y: window.innerHeight * 0.42,
-          targetX: window.innerWidth * 0.5,
-          targetY: window.innerHeight * 0.42,
-          active: false,
-        },
-        motes: [],
-      };
-      let animationFrame = 0;
+        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const compactViewport = window.matchMedia("(max-width: 760px)").matches;
+        const supportsFinePointer = window.matchMedia("(pointer: fine)").matches;
+        const renderer = new Renderer({ canvas, alpha: true, premultipliedAlpha: false });
+        const gl = renderer.gl;
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.clearColor(0, 0, 0, 0);
 
-      function getTheme() {
-        return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
-      }
-
-      function resize() {
-        state.width = window.innerWidth;
-        state.height = window.innerHeight;
-        state.dpr = Math.min(window.devicePixelRatio || 1, 2);
-        ambientCanvas.width = Math.floor(state.width * state.dpr);
-        ambientCanvas.height = Math.floor(state.height * state.dpr);
-        ambientCanvas.style.width = `${state.width}px`;
-        ambientCanvas.style.height = `${state.height}px`;
-        context.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
-
-        const moteCount = Math.max(28, Math.min(76, Math.floor((state.width * state.height) / 22000)));
-        state.motes = Array.from({ length: moteCount }, (_, index) => ({
-          x: Math.random() * state.width,
-          y: Math.random() * state.height,
-          size: 0.8 + Math.random() * 2.6,
-          drift: 0.18 + Math.random() * 0.55,
-          phase: index * 1.73 + Math.random() * 4,
-          hue: 165 + Math.random() * 58,
-        }));
-      }
-
-      function drawSoftWash(theme, elapsed) {
-        const centerX = state.width * (theme === "dark" ? 0.62 : 0.34);
-        const centerY = state.height * (theme === "dark" ? 0.34 : 0.22);
-        const radius = Math.max(state.width, state.height) * 0.82;
-        const wash = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
-
-        if (theme === "dark") {
-          wash.addColorStop(0, "rgba(87, 151, 137, 0.16)");
-          wash.addColorStop(0.36, "rgba(77, 120, 172, 0.07)");
-          wash.addColorStop(1, "rgba(11, 18, 16, 0)");
-        } else {
-          wash.addColorStop(0, "rgba(255, 220, 146, 0.24)");
-          wash.addColorStop(0.42, "rgba(118, 207, 194, 0.16)");
-          wash.addColorStop(1, "rgba(255, 255, 255, 0)");
-        }
-
-        context.fillStyle = wash;
-        context.fillRect(0, 0, state.width, state.height);
-
-        const drift = Math.sin(elapsed * 0.00018) * state.width * 0.06;
-        const sideGlow = context.createRadialGradient(
-          state.width * 0.86 + drift,
-          state.height * 0.22,
-          0,
-          state.width * 0.86 + drift,
-          state.height * 0.22,
-          state.width * 0.42,
-        );
-
-        sideGlow.addColorStop(0, theme === "dark" ? "rgba(136, 216, 184, 0.10)" : "rgba(246, 182, 200, 0.2)");
-        sideGlow.addColorStop(1, "rgba(255, 255, 255, 0)");
-        context.fillStyle = sideGlow;
-        context.fillRect(0, 0, state.width, state.height);
-      }
-
-      function drawRibbons(theme, elapsed) {
-        if (theme === "light") return;
-
-        const lineCount = Math.max(8, Math.min(15, Math.floor(state.height / 78)));
-        const speed = 1 + state.scrollEnergy * 0.55;
-        const pointerPull = state.pointer.active ? 1 : 0.45;
-
-        context.save();
-        context.globalCompositeOperation = theme === "dark" ? "screen" : "multiply";
-
-        for (let line = 0; line < lineCount; line += 1) {
-          const baseY = state.height * (0.16 + line * 0.075);
-          const phase = elapsed * 0.00013 * speed + line * 0.68;
-          const alpha = theme === "dark" ? 0.105 : 0.12;
-          const gradient = context.createLinearGradient(0, 0, state.width, 0);
-
-          if (theme === "dark") {
-            gradient.addColorStop(0, `rgba(112, 178, 219, 0)`);
-            gradient.addColorStop(0.28, `rgba(116, 210, 196, ${alpha})`);
-            gradient.addColorStop(0.68, `rgba(198, 178, 255, ${alpha * 0.62})`);
-            gradient.addColorStop(1, `rgba(112, 178, 219, 0)`);
-          } else {
-            gradient.addColorStop(0, `rgba(117, 201, 165, 0)`);
-            gradient.addColorStop(0.32, `rgba(80, 150, 139, ${alpha})`);
-            gradient.addColorStop(0.72, `rgba(237, 168, 190, ${alpha * 0.68})`);
-            gradient.addColorStop(1, `rgba(117, 201, 165, 0)`);
-          }
-
-          context.strokeStyle = gradient;
-          context.lineWidth = 1.1 + (line % 3) * 0.34;
-          context.beginPath();
-
-          const pointCount = 9;
-          for (let index = 0; index <= pointCount; index += 1) {
-            const ratio = index / pointCount;
-            const x = ratio * state.width;
-            const wave =
-              Math.sin(ratio * Math.PI * 2.4 + phase) * 17 +
-              Math.cos(ratio * Math.PI * 4.8 - phase * 1.7) * 8;
-            const pointerDistance = Math.hypot(x - state.pointer.x, baseY - state.pointer.y);
-            const pull = Math.max(0, 1 - pointerDistance / 430) * pointerPull * 22;
-            const y = baseY + wave - pull;
-
-            if (index === 0) {
-              context.moveTo(x, y);
-            } else {
-              context.lineTo(x, y);
-            }
-          }
-
-          context.stroke();
-        }
-
-        context.restore();
-      }
-
-      function drawMotes(theme, elapsed) {
-        context.save();
-        context.globalCompositeOperation = "screen";
-
-        state.motes.forEach((mote) => {
-          const speed = mote.drift * (1 + state.scrollEnergy * 0.8);
-          mote.x += speed;
-          mote.y += Math.sin(elapsed * 0.0007 + mote.phase) * 0.12;
-
-          if (mote.x > state.width + 20) {
-            mote.x = -20;
-            mote.y = Math.random() * state.height;
-          }
-
-          const pulse = 0.65 + Math.sin(elapsed * 0.0014 + mote.phase) * 0.35;
-          const alpha = (theme === "dark" ? 0.24 : 0.24) * pulse;
-
-          context.fillStyle = `hsla(${mote.hue}, 72%, ${theme === "dark" ? 72 : 42}%, ${alpha})`;
-          context.beginPath();
-          context.arc(mote.x, mote.y, mote.size * pulse, 0, Math.PI * 2);
-          context.fill();
+        const pointer = {
+          x: 0.5,
+          y: 0.5,
+          targetX: 0.5,
+          targetY: 0.5,
+          active: 0,
+          targetActive: 0,
+        };
+        const program = new Program(gl, {
+          vertex: galaxyVertexShader,
+          fragment: galaxyFragmentShader,
+          uniforms: {
+            uTime: { value: 0 },
+            uResolution: { value: new Color(1, 1, 1) },
+            uFocal: { value: new Float32Array([0.52, 0.42]) },
+            uRotation: { value: new Float32Array([1, 0]) },
+            uStarSpeed: { value: 0 },
+            uDensity: { value: 0.28 },
+            uHueShift: { value: 155 },
+            uSpeed: { value: 0.5 },
+            uMouse: { value: new Float32Array([0.5, 0.5]) },
+            uGlowIntensity: { value: 0.042 },
+            uSaturation: { value: 0.16 },
+            uMouseRepulsion: { value: supportsFinePointer && !reduceMotion },
+            uTwinkleIntensity: { value: 0.1 },
+            uRotationSpeed: { value: 0.025 },
+            uRepulsionStrength: { value: 0.72 },
+            uMouseActiveFactor: { value: 0 },
+            uTransparent: { value: true },
+          },
         });
+        const mesh = new Mesh(gl, { geometry: new Triangle(gl), program });
+        let animationFrame = 0;
+        let lastFrame = 0;
+        let isVisible = !document.hidden;
 
-        context.restore();
-      }
-
-      function animate(now) {
-        animationFrame = 0;
-        if (signal.aborted || !ambientCanvas.isConnected || document.hidden) return;
-
-        const elapsed = now - state.startedAt;
-        const theme = getTheme();
-
-        state.pointer.x += (state.pointer.targetX - state.pointer.x) * 0.055;
-        state.pointer.y += (state.pointer.targetY - state.pointer.y) * 0.055;
-        state.scrollEnergy *= 0.92;
-
-        context.clearRect(0, 0, state.width, state.height);
-        drawSoftWash(theme, elapsed);
-        drawRibbons(theme, elapsed);
-        drawMotes(theme, elapsed);
-
-        if (!prefersReducedMotion) {
-          animationFrame = window.requestAnimationFrame(animate);
+        function applyTheme() {
+          const dark = document.documentElement.dataset.theme === "dark";
+          program.uniforms.uDensity.value = compactViewport ? (dark ? 0.3 : 0.22) : (dark ? 0.42 : 0.28);
+          program.uniforms.uHueShift.value = dark ? 164 : 154;
+          program.uniforms.uGlowIntensity.value = dark ? 0.072 : 0.042;
+          program.uniforms.uSaturation.value = dark ? 0.22 : 0.16;
         }
-      }
 
-      function resumeAnimation() {
-        if (!animationFrame && !document.hidden && !prefersReducedMotion) {
-          animationFrame = window.requestAnimationFrame(animate);
+        function resize() {
+          const dpr = Math.min(window.devicePixelRatio || 1, compactViewport ? 1 : 1.25);
+          renderer.setSize(window.innerWidth * dpr, window.innerHeight * dpr);
+          canvas.style.width = `${window.innerWidth}px`;
+          canvas.style.height = `${window.innerHeight}px`;
+          program.uniforms.uResolution.value = new Color(gl.canvas.width, gl.canvas.height, gl.canvas.width / gl.canvas.height);
         }
-      }
 
-      window.addEventListener("resize", resize, { signal });
-      window.addEventListener("pointermove", (event) => {
-        state.pointer.targetX = event.clientX;
-        state.pointer.targetY = event.clientY;
-        state.pointer.active = true;
-      }, { signal });
-      window.addEventListener("pointerleave", () => {
-        state.pointer.active = false;
-      }, { signal });
-      window.addEventListener("scroll", () => {
-        const delta = Math.abs(window.scrollY - state.lastScrollY);
-        state.lastScrollY = window.scrollY;
-        state.scrollEnergy = Math.min(1, state.scrollEnergy + delta / 520);
-      }, { passive: true, signal });
-      document.addEventListener("visibilitychange", resumeAnimation, { signal });
-      signal.addEventListener("abort", () => window.cancelAnimationFrame(animationFrame), { once: true });
+        function draw(now) {
+          if (signal.aborted || !canvas.isConnected || !isVisible) return;
+          animationFrame = window.requestAnimationFrame(draw);
+          const interval = compactViewport ? 1000 / 30 : 1000 / 45;
+          if (now - lastFrame < interval) return;
+          lastFrame = now;
 
-      resize();
-      animate(performance.now());
+          pointer.x += (pointer.targetX - pointer.x) * 0.05;
+          pointer.y += (pointer.targetY - pointer.y) * 0.05;
+          pointer.active += (pointer.targetActive - pointer.active) * 0.05;
+          program.uniforms.uMouse.value[0] = pointer.x;
+          program.uniforms.uMouse.value[1] = pointer.y;
+          program.uniforms.uMouseActiveFactor.value = pointer.active;
+          program.uniforms.uTime.value = reduceMotion ? 0 : now * 0.001;
+          program.uniforms.uStarSpeed.value = reduceMotion ? 0 : (now * 0.001 * 0.48) / 10;
+          renderer.render({ scene: mesh });
+        }
+
+        function resume() {
+          isVisible = !document.hidden;
+          if (isVisible && !animationFrame && !signal.aborted) animationFrame = window.requestAnimationFrame(draw);
+        }
+
+        function updatePointer(event) {
+          if (!supportsFinePointer) return;
+          pointer.targetX = event.clientX / Math.max(window.innerWidth, 1);
+          pointer.targetY = 1 - event.clientY / Math.max(window.innerHeight, 1);
+          pointer.targetActive = 1;
+        }
+
+        function clearPointer() {
+          pointer.targetActive = 0;
+        }
+
+        const themeObserver = new MutationObserver(applyTheme);
+        themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+        window.addEventListener("resize", resize, { signal });
+        window.addEventListener("pointermove", updatePointer, { passive: true, signal });
+        window.addEventListener("pointerleave", clearPointer, { signal });
+        document.addEventListener("visibilitychange", () => {
+          if (document.hidden) {
+            isVisible = false;
+            window.cancelAnimationFrame(animationFrame);
+            animationFrame = 0;
+          } else {
+            resume();
+          }
+        }, { signal });
+        signal.addEventListener("abort", () => {
+          window.cancelAnimationFrame(animationFrame);
+          themeObserver.disconnect();
+          gl.getExtension("WEBGL_lose_context")?.loseContext();
+        }, { once: true });
+
+        applyTheme();
+        resize();
+        if (reduceMotion) {
+          renderer.render({ scene: mesh });
+        } else {
+          animationFrame = window.requestAnimationFrame(draw);
+        }
+      };
+
+      if ("requestIdleCallback" in window) {
+        const idleId = window.requestIdleCallback(start, { timeout: 700 });
+        signal.addEventListener("abort", () => window.cancelIdleCallback(idleId), { once: true });
+      } else {
+        const timeoutId = window.setTimeout(start, 180);
+        signal.addEventListener("abort", () => window.clearTimeout(timeoutId), { once: true });
       }
     });
   }
 
-  initAmbientFlowCanvases();
-  document.addEventListener("astro:page-load", initAmbientFlowCanvases);
+  initGalaxyBackgrounds();
+  document.addEventListener("astro:page-load", initGalaxyBackgrounds);
 </script>
 
 <style>
@@ -243,12 +306,26 @@
     display: block;
     width: 100%;
     height: 100%;
-    opacity: 0.95;
+    opacity: 0.26;
+  }
+
+  :global(html[data-theme="dark"]) .ambient-flow canvas {
+    opacity: 0.46;
+  }
+
+  @media (max-width: 760px) {
+    .ambient-flow canvas {
+      opacity: 0.2;
+    }
+
+    :global(html[data-theme="dark"]) .ambient-flow canvas {
+      opacity: 0.34;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {
     .ambient-flow canvas {
-      opacity: 0.62;
+      opacity: 0.16;
     }
   }
 </style>
