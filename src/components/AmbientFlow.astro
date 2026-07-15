@@ -1,11 +1,11 @@
-<div class="ambient-flow" aria-hidden="true">
-  <canvas data-galaxy-background></canvas>
-</div>
+<div class="ambient-flow" data-galaxy-container aria-hidden="true"></div>
 
 <script>
-  const galaxyVertexShader = `
+  // React Bits Galaxy shader and defaults, adapted only for Astro's page lifecycle.
+  const vertexShader = `
     attribute vec2 uv;
     attribute vec2 position;
+
     varying vec2 vUv;
 
     void main() {
@@ -14,7 +14,7 @@
     }
   `;
 
-  const galaxyFragmentShader = `
+  const fragmentShader = `
     precision highp float;
 
     uniform float uTime;
@@ -33,7 +33,9 @@
     uniform float uRotationSpeed;
     uniform float uRepulsionStrength;
     uniform float uMouseActiveFactor;
+    uniform float uAutoCenterRepulsion;
     uniform bool uTransparent;
+    uniform vec3 uStarTint;
 
     varying vec2 vUv;
 
@@ -42,7 +44,7 @@
     #define MAT45 mat2(0.7071, -0.7071, 0.7071, 0.7071)
     #define PERIOD 3.0
 
-    float hash21(vec2 p) {
+    float Hash21(vec2 p) {
       p = fract(p * vec2(123.34, 456.21));
       p += dot(p, p + 45.32);
       return fract(p.x * p.y);
@@ -63,89 +65,111 @@
     }
 
     vec3 hsv2rgb(vec3 c) {
-      vec4 k = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-      vec3 p = abs(fract(c.xxx + k.xyz) * 6.0 - k.www);
-      return c.z * mix(k.xxx, clamp(p - k.xxx, 0.0, 1.0), c.y);
+      vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+      vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+      return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
     }
 
-    float star(vec2 uv, float flare) {
-      float d = max(length(uv), 0.001);
-      float value = (0.05 * uGlowIntensity) / d;
+    float Star(vec2 uv, float flare) {
+      float d = length(uv);
+      float m = (0.05 * uGlowIntensity) / d;
       float rays = smoothstep(0.0, 1.0, 1.0 - abs(uv.x * uv.y * 1000.0));
-      value += rays * flare * uGlowIntensity;
+      m += rays * flare * uGlowIntensity;
       uv *= MAT45;
       rays = smoothstep(0.0, 1.0, 1.0 - abs(uv.x * uv.y * 1000.0));
-      value += rays * 0.3 * flare * uGlowIntensity;
-      value *= smoothstep(1.0, 0.2, d);
-      return value;
+      m += rays * 0.3 * flare * uGlowIntensity;
+      m *= smoothstep(1.0, 0.2, d);
+      return m;
     }
 
-    vec3 starLayer(vec2 uv) {
-      vec3 color = vec3(0.0);
-      vec2 grid = fract(uv) - 0.5;
+    vec3 StarLayer(vec2 uv) {
+      vec3 col = vec3(0.0);
+      vec2 gv = fract(uv) - 0.5;
       vec2 id = floor(uv);
 
       for (int y = -1; y <= 1; y++) {
         for (int x = -1; x <= 1; x++) {
           vec2 offset = vec2(float(x), float(y));
-          vec2 cell = id + offset;
-          float seed = hash21(cell);
+          vec2 si = id + vec2(float(x), float(y));
+          float seed = Hash21(si);
           float size = fract(seed * 345.32);
-          float gloss = tri(uStarSpeed / (PERIOD * seed + 1.0));
-          float flare = smoothstep(0.9, 1.0, size) * gloss;
+          float glossLocal = tri(uStarSpeed / (PERIOD * seed + 1.0));
+          float flareSize = smoothstep(0.9, 1.0, size) * glossLocal;
 
-          float hue = fract(uHueShift / 360.0 + (seed - 0.5) * 0.12);
-          float saturation = mix(0.08, uSaturation, 0.7 + seed * 0.3);
-          vec3 base = hsv2rgb(vec3(hue, saturation, 0.94));
+          float red = smoothstep(STAR_COLOR_CUTOFF, 1.0, Hash21(si + 1.0)) + STAR_COLOR_CUTOFF;
+          float blu = smoothstep(STAR_COLOR_CUTOFF, 1.0, Hash21(si + 3.0)) + STAR_COLOR_CUTOFF;
+          float grn = min(red, blu) * seed;
+          vec3 base = vec3(red, grn, blu);
 
-          vec2 drift = vec2(
+          float hue = atan(base.g - base.r, base.b - base.r) / (2.0 * 3.14159) + 0.5;
+          hue = fract(hue + uHueShift / 360.0);
+          float sat = length(base - vec3(dot(base, vec3(0.299, 0.587, 0.114)))) * uSaturation;
+          float val = max(max(base.r, base.g), base.b);
+          base = hsv2rgb(vec3(hue, sat, val));
+
+          vec2 pad = vec2(
             tris(seed * 34.0 + uTime * uSpeed / 10.0),
             tris(seed * 38.0 + uTime * uSpeed / 30.0)
           ) - 0.5;
 
-          float point = star(grid - offset - drift, flare);
+          float star = Star(gv - offset - pad, flareSize);
           float twinkle = trisn(uTime * uSpeed + seed * 6.2831) * 0.5 + 1.0;
-          point *= mix(1.0, twinkle, uTwinkleIntensity);
-          color += point * size * base;
+          star *= mix(1.0, twinkle, uTwinkleIntensity);
+          col += star * size * base;
         }
       }
 
-      return color;
+      return col;
     }
 
     void main() {
       vec2 focalPx = uFocal * uResolution.xy;
       vec2 uv = (vUv * uResolution.xy - focalPx) / uResolution.y;
-      vec2 mousePos = (uMouse * uResolution.xy - focalPx) / uResolution.y;
+      vec2 mouseNorm = uMouse - vec2(0.5);
 
-      if (uMouseRepulsion) {
-        float mouseDistance = length(uv - mousePos);
-        vec2 repulsion = normalize(uv - mousePos) * (uRepulsionStrength / (mouseDistance + 0.1));
+      if (uAutoCenterRepulsion > 0.0) {
+        vec2 centerUV = vec2(0.0, 0.0);
+        float centerDist = length(uv - centerUV);
+        vec2 repulsion = normalize(uv - centerUV) * (uAutoCenterRepulsion / (centerDist + 0.1));
+        uv += repulsion * 0.05;
+      } else if (uMouseRepulsion) {
+        vec2 mousePosUV = (uMouse * uResolution.xy - focalPx) / uResolution.y;
+        float mouseDist = length(uv - mousePosUV);
+        vec2 repulsion = normalize(uv - mousePosUV) * (uRepulsionStrength / (mouseDist + 0.1));
         uv += repulsion * 0.05 * uMouseActiveFactor;
+      } else {
+        vec2 mouseOffset = mouseNorm * 0.1 * uMouseActiveFactor;
+        uv += mouseOffset;
       }
 
-      float rotationAngle = uTime * uRotationSpeed;
-      mat2 rotation = mat2(cos(rotationAngle), -sin(rotationAngle), sin(rotationAngle), cos(rotationAngle));
-      uv = rotation * uv;
+      float autoRotAngle = uTime * uRotationSpeed;
+      mat2 autoRot = mat2(cos(autoRotAngle), -sin(autoRotAngle), sin(autoRotAngle), cos(autoRotAngle));
+      uv = autoRot * uv;
       uv = mat2(uRotation.x, -uRotation.y, uRotation.y, uRotation.x) * uv;
 
-      vec3 color = vec3(0.0);
-      for (float layer = 0.0; layer < 1.0; layer += 1.0 / NUM_LAYER) {
-        float depth = fract(layer + uStarSpeed * uSpeed);
+      vec3 col = vec3(0.0);
+      for (float i = 0.0; i < 1.0; i += 1.0 / NUM_LAYER) {
+        float depth = fract(i + uStarSpeed * uSpeed);
         float scale = mix(20.0 * uDensity, 0.5 * uDensity, depth);
         float fade = depth * smoothstep(1.0, 0.9, depth);
-        color += starLayer(uv * scale + layer * 453.32) * fade;
+        col += StarLayer(uv * scale + i * 453.32) * fade;
       }
 
-      float alpha = smoothstep(0.0, 0.3, length(color));
-      gl_FragColor = uTransparent ? vec4(color, min(alpha, 1.0)) : vec4(color, 1.0);
+      if (uTransparent) {
+        float alpha = smoothstep(0.0, 0.3, length(col));
+        // On a light page, using the source's dark per-star RGB values creates black halos.
+        // Keep its procedural brightness and movement, but render with the blog's single starlight tint.
+        gl_FragColor = vec4(uStarTint, min(alpha, 1.0));
+      } else {
+        gl_FragColor = vec4(col, 1.0);
+      }
     }
   `;
 
   function initGalaxyBackgrounds() {
-    document.querySelectorAll("[data-galaxy-background]").forEach((canvas) => {
-      if (!(canvas instanceof HTMLCanvasElement) || canvas.dataset.galaxyInitialized === "true") return;
-      canvas.dataset.galaxyInitialized = "true";
+    document.querySelectorAll("[data-galaxy-container]").forEach((container) => {
+      if (!(container instanceof HTMLDivElement) || container.dataset.galaxyInitialized === "true") return;
+      container.dataset.galaxyInitialized = "true";
 
       const controller = new AbortController();
       const { signal } = controller;
@@ -153,139 +177,123 @@
 
       const start = async () => {
         const { Renderer, Program, Mesh, Color, Triangle } = await import("ogl");
-        if (signal.aborted || !canvas.isConnected) return;
+        if (signal.aborted || !container.isConnected) return;
 
-        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        const compactViewport = window.matchMedia("(max-width: 760px)").matches;
-        const supportsFinePointer = window.matchMedia("(pointer: fine)").matches;
-        const renderer = new Renderer({ canvas, alpha: true, premultipliedAlpha: false });
+        const focal = [0.5, 0.5];
+        const rotation = [1.0, 0.0];
+        const starSpeed = 0.5;
+        const density = 1;
+        const hueShift = 185;
+        const disableAnimation = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const speed = 1.0;
+        const mouseInteraction = true;
+        const glowIntensity = 0.3;
+        const saturation = 0.65;
+        const mouseRepulsion = true;
+        const repulsionStrength = 2;
+        const twinkleIntensity = 0.3;
+        const rotationSpeed = 0.1;
+        const autoCenterRepulsion = 0;
+        const transparent = true;
+
+        const renderer = new Renderer({ alpha: transparent, premultipliedAlpha: false });
         const gl = renderer.gl;
-        gl.enable(gl.BLEND);
-        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-        gl.clearColor(0, 0, 0, 0);
-
-        const pointer = {
-          x: 0.5,
-          y: 0.5,
-          targetX: 0.5,
-          targetY: 0.5,
-          active: 0,
-          targetActive: 0,
-        };
-        const program = new Program(gl, {
-          vertex: galaxyVertexShader,
-          fragment: galaxyFragmentShader,
-          uniforms: {
-            uTime: { value: 0 },
-            uResolution: { value: new Color(1, 1, 1) },
-            uFocal: { value: new Float32Array([0.52, 0.42]) },
-            uRotation: { value: new Float32Array([1, 0]) },
-            uStarSpeed: { value: 0 },
-            uDensity: { value: 0.28 },
-            uHueShift: { value: 155 },
-            uSpeed: { value: 0.5 },
-            uMouse: { value: new Float32Array([0.5, 0.5]) },
-            uGlowIntensity: { value: 0.042 },
-            uSaturation: { value: 0.16 },
-            uMouseRepulsion: { value: supportsFinePointer && !reduceMotion },
-            uTwinkleIntensity: { value: 0.1 },
-            uRotationSpeed: { value: 0.025 },
-            uRepulsionStrength: { value: 0.72 },
-            uMouseActiveFactor: { value: 0 },
-            uTransparent: { value: true },
-          },
-        });
-        const mesh = new Mesh(gl, { geometry: new Triangle(gl), program });
-        let animationFrame = 0;
-        let lastFrame = 0;
-        let isVisible = !document.hidden;
-
-        function applyTheme() {
-          const dark = document.documentElement.dataset.theme === "dark";
-          program.uniforms.uDensity.value = compactViewport ? (dark ? 0.3 : 0.22) : (dark ? 0.42 : 0.28);
-          program.uniforms.uHueShift.value = dark ? 164 : 154;
-          program.uniforms.uGlowIntensity.value = dark ? 0.072 : 0.042;
-          program.uniforms.uSaturation.value = dark ? 0.22 : 0.16;
+        if (transparent) {
+          gl.enable(gl.BLEND);
+          gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+          gl.clearColor(0, 0, 0, 0);
+        } else {
+          gl.clearColor(0, 0, 0, 1);
         }
 
+        const targetMousePosition = { x: 0.5, y: 0.5 };
+        const smoothMousePosition = { x: 0.5, y: 0.5 };
+        let targetMouseActive = 0;
+        let smoothMouseActive = 0;
+        const geometry = new Triangle(gl);
+        const program = new Program(gl, {
+          vertex: vertexShader,
+          fragment: fragmentShader,
+          uniforms: {
+            uTime: { value: 0 },
+            uResolution: { value: new Color(gl.canvas.width, gl.canvas.height, gl.canvas.width / gl.canvas.height) },
+            uFocal: { value: new Float32Array(focal) },
+            uRotation: { value: new Float32Array(rotation) },
+            uStarSpeed: { value: starSpeed },
+            uDensity: { value: density },
+            uHueShift: { value: hueShift },
+            uSpeed: { value: speed },
+            uMouse: { value: new Float32Array([smoothMousePosition.x, smoothMousePosition.y]) },
+            uGlowIntensity: { value: glowIntensity },
+            uSaturation: { value: saturation },
+            uMouseRepulsion: { value: mouseRepulsion },
+            uTwinkleIntensity: { value: twinkleIntensity },
+            uRotationSpeed: { value: rotationSpeed },
+            uRepulsionStrength: { value: repulsionStrength },
+            uMouseActiveFactor: { value: 0.0 },
+            uAutoCenterRepulsion: { value: autoCenterRepulsion },
+            uTransparent: { value: transparent },
+            uStarTint: { value: new Color(0.24, 0.75, 0.78) },
+          },
+        });
+        const mesh = new Mesh(gl, { geometry, program });
+        let animationFrame = 0;
+
         function resize() {
-          const dpr = Math.min(window.devicePixelRatio || 1, compactViewport ? 1 : 1.25);
-          renderer.setSize(window.innerWidth * dpr, window.innerHeight * dpr);
-          canvas.style.width = `${window.innerWidth}px`;
-          canvas.style.height = `${window.innerHeight}px`;
+          renderer.setSize(container.offsetWidth, container.offsetHeight);
           program.uniforms.uResolution.value = new Color(gl.canvas.width, gl.canvas.height, gl.canvas.width / gl.canvas.height);
         }
 
-        function draw(now) {
-          if (signal.aborted || !canvas.isConnected || !isVisible) return;
-          animationFrame = window.requestAnimationFrame(draw);
-          const interval = compactViewport ? 1000 / 30 : 1000 / 45;
-          if (now - lastFrame < interval) return;
-          lastFrame = now;
+        function update(time) {
+          animationFrame = window.requestAnimationFrame(update);
+          if (!disableAnimation) {
+            program.uniforms.uTime.value = time * 0.001;
+            program.uniforms.uStarSpeed.value = (time * 0.001 * starSpeed) / 10.0;
+          }
 
-          pointer.x += (pointer.targetX - pointer.x) * 0.05;
-          pointer.y += (pointer.targetY - pointer.y) * 0.05;
-          pointer.active += (pointer.targetActive - pointer.active) * 0.05;
-          program.uniforms.uMouse.value[0] = pointer.x;
-          program.uniforms.uMouse.value[1] = pointer.y;
-          program.uniforms.uMouseActiveFactor.value = pointer.active;
-          program.uniforms.uTime.value = reduceMotion ? 0 : now * 0.001;
-          program.uniforms.uStarSpeed.value = reduceMotion ? 0 : (now * 0.001 * 0.48) / 10;
+          smoothMousePosition.x += (targetMousePosition.x - smoothMousePosition.x) * 0.05;
+          smoothMousePosition.y += (targetMousePosition.y - smoothMousePosition.y) * 0.05;
+          smoothMouseActive += (targetMouseActive - smoothMouseActive) * 0.05;
+          program.uniforms.uMouse.value[0] = smoothMousePosition.x;
+          program.uniforms.uMouse.value[1] = smoothMousePosition.y;
+          program.uniforms.uMouseActiveFactor.value = smoothMouseActive;
           renderer.render({ scene: mesh });
         }
 
-        function resume() {
-          isVisible = !document.hidden;
-          if (isVisible && !animationFrame && !signal.aborted) animationFrame = window.requestAnimationFrame(draw);
+        function handleMouseMove(event) {
+          const rect = container.getBoundingClientRect();
+          targetMousePosition.x = (event.clientX - rect.left) / rect.width;
+          targetMousePosition.y = 1.0 - (event.clientY - rect.top) / rect.height;
+          targetMouseActive = 1;
         }
 
-        function updatePointer(event) {
-          if (!supportsFinePointer) return;
-          pointer.targetX = event.clientX / Math.max(window.innerWidth, 1);
-          pointer.targetY = 1 - event.clientY / Math.max(window.innerHeight, 1);
-          pointer.targetActive = 1;
+        function handleMouseLeave() {
+          targetMouseActive = 0;
         }
 
-        function clearPointer() {
-          pointer.targetActive = 0;
-        }
-
-        const themeObserver = new MutationObserver(applyTheme);
-        themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
         window.addEventListener("resize", resize, { signal });
-        window.addEventListener("pointermove", updatePointer, { passive: true, signal });
-        window.addEventListener("pointerleave", clearPointer, { signal });
-        document.addEventListener("visibilitychange", () => {
-          if (document.hidden) {
-            isVisible = false;
-            window.cancelAnimationFrame(animationFrame);
-            animationFrame = 0;
-          } else {
-            resume();
-          }
-        }, { signal });
+        if (mouseInteraction) {
+          // The background deliberately ignores pointer events so it never blocks the page UI.
+          // Listen on the window instead, while still calculating the position from the canvas bounds.
+          window.addEventListener("mousemove", handleMouseMove, { passive: true, signal });
+          window.addEventListener("mouseout", (event) => {
+            if (!event.relatedTarget) handleMouseLeave();
+          }, { signal });
+        }
         signal.addEventListener("abort", () => {
           window.cancelAnimationFrame(animationFrame);
-          themeObserver.disconnect();
           gl.getExtension("WEBGL_lose_context")?.loseContext();
+          container.replaceChildren();
         }, { once: true });
 
-        applyTheme();
         resize();
-        if (reduceMotion) {
-          renderer.render({ scene: mesh });
-        } else {
-          animationFrame = window.requestAnimationFrame(draw);
-        }
+        container.appendChild(gl.canvas);
+        animationFrame = window.requestAnimationFrame(update);
       };
 
-      if ("requestIdleCallback" in window) {
-        const idleId = window.requestIdleCallback(start, { timeout: 700 });
-        signal.addEventListener("abort", () => window.cancelIdleCallback(idleId), { once: true });
-      } else {
-        const timeoutId = window.setTimeout(start, 180);
-        signal.addEventListener("abort", () => window.clearTimeout(timeoutId), { once: true });
-      }
+      start().catch(() => {
+        container.dataset.galaxyInitialized = "failed";
+      });
     });
   }
 
@@ -302,30 +310,14 @@
     pointer-events: none;
   }
 
-  .ambient-flow canvas {
+  .ambient-flow :global(canvas) {
     display: block;
     width: 100%;
     height: 100%;
-    opacity: 0.26;
+    opacity: 0.78;
   }
 
-  :global(html[data-theme="dark"]) .ambient-flow canvas {
-    opacity: 0.46;
-  }
-
-  @media (max-width: 760px) {
-    .ambient-flow canvas {
-      opacity: 0.2;
-    }
-
-    :global(html[data-theme="dark"]) .ambient-flow canvas {
-      opacity: 0.34;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .ambient-flow canvas {
-      opacity: 0.16;
-    }
+  :global(html[data-theme="dark"]) .ambient-flow :global(canvas) {
+    opacity: 0.9;
   }
 </style>
