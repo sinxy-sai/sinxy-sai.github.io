@@ -132,6 +132,13 @@ npm run dev
 
 `npm run dev` 适合调整静态页面和组件。要测试真实文章、后台 API、媒体上传、动态代码高亮、沉浸阅读和同源路由，需要同时启动 Node 后端与 Nginx 代理。
 
+当前 Docker 配置只用于本地 Nginx 反向代理，不是完整容器化部署。也就是说：
+
+- Node.js 后端运行在本机 `8787` 端口。
+- Docker 里的 Nginx 监听本机 `8080` 端口。
+- Nginx 读取本机 `dist/` 静态文件。
+- `/api/`、`/blog/`、`/media/` 和动态标签页会被代理到本机 Node 后端。
+
 终端一：构建并启动后端。Windows PowerShell 可从本地、被 Git 忽略的 `Admin_TOKEN` 文件读取令牌：
 
 ```powershell
@@ -147,6 +154,13 @@ npm run local:test:proxy
 ```
 
 访问 `http://127.0.0.1:8080/`。可先访问 `http://127.0.0.1:8080/api/posts` 查看文章列表，再通过 `/blog/<slug>/` 测试文章页。
+
+如需更换本地代理端口，可设置 `LOCAL_TEST_PORT`：
+
+```powershell
+$env:LOCAL_TEST_PORT = "8090"
+npm run local:test:proxy
+```
 
 测试结束后，停止后端进程，并关闭本地代理：
 
