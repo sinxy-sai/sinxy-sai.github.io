@@ -1,138 +1,109 @@
-# Blog Backend And Resource Plan
+# 后端资源规划
 
-This project stays static-first while adding Cloudflare backend capabilities.
+本文档说明博客后端当前的资源边界、数据存储方式和后续演进方向。当前项目以 VPS 版本作为主线，Cloudflare Worker 版本保留为备选适配。
 
-## Short-Term Architecture
-
-- Astro continues to build static pages into `dist/`.
-- Cloudflare Workers serves static assets and handles `/api/*`.
-- D1 will store post metadata, markdown content, tags, and asset references.
-- R2 will store uploaded images and downloadable resources.
-- Existing Markdown posts remain the source of truth until D1 import is ready.
-
-## API Contract
-
-All API responses use one of these shapes:
-
-```ts
-type ApiSuccess<T> = { data: T };
-
-type ApiFailure = {
-  error: {
-    code: string;
-    message: string;
-    details?: unknown;
-  };
-};
-```
-
-Planned endpoints:
-
-- `GET /api/health` checks the Worker runtime.
-- `GET /api/posts` lists published posts from D1.
-- `GET /api/posts/:slug` returns a single post from D1.
-- `GET /api/assets` lists uploaded asset metadata.
-- `GET /media/:key` serves an uploaded R2 asset.
-- `GET /api/admin/posts` lists all posts including drafts.
-- `POST /api/admin/posts` creates a post.
-- `GET /api/admin/posts/:id` returns one admin post.
-- `PATCH /api/admin/posts/:id` updates a post.
-- `POST /api/admin/assets` uploads an image to R2 and stores metadata in D1.
-
-Admin endpoints must be added only after authentication is in place.
-
-## Admin Asset Upload
-
-Set the admin token as a Cloudflare secret:
-
-```powershell
-npx wrangler secret put ADMIN_TOKEN
-```
-
-Use a long random value. Do not commit it to Git.
-
-Upload an image:
-
-```powershell
-curl.exe -X POST "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/admin/assets" `
-  -H "Authorization: Bearer YOUR_ADMIN_TOKEN" `
-  -F "file=@C:\path\to\image.png" `
-  -F "alt=Image description"
-```
-
-The response includes a public `url` like:
+## 当前主线架构
 
 ```text
-/media/uploads/2026/07/{asset-id}-image.png
+浏览器
+  |
+  v
+Nginx
+  |-- 静态资源 /、/_astro/、/assets/  -> /var/www/sinxy-blog
+  |-- API /api/*                     -> Node.js 后端
+  |-- 动态文章 /blog/:slug/          -> Node.js 后端
+  |-- 动态标签 /tags/:tag/           -> Node.js 后端
+  `-- 媒体资源 /media/*              -> Node.js 后端
+
+Node.js 后端
+  |-- SQLite: .data/blog.sqlite
+  `-- 媒体文件: .data/media/
 ```
 
-Current upload constraints:
+## 资源分类
 
-- Allowed types: JPEG, PNG, WebP, GIF.
-- Max file size: 5 MB.
-- Uploaded binary data lives in R2.
-- Asset metadata lives in D1.
+| 资源 | 当前实现 | 说明 |
+| --- | --- | --- |
+| 文章元数据 | SQLite `posts` | 标题、描述、slug、状态、可见性、日期等 |
+| Markdown 正文 | SQLite `posts.content_markdown` | 动态文章渲染时读取 |
+| 标签 | SQLite `tags`、`post_tags` | 多对多关联 |
+| 媒体文件 | 本地 `.data/media/` | 由 `/media/*` 对外提供访问 |
+| 媒体元数据 | SQLite `assets` | 文件名、类型、大小、alt、访问 key |
+| 访问统计 | SQLite `analytics_events` | 页面访问、Web Vitals、客户端错误、API 延迟 |
+| 音乐列表 | 网易云音乐 + `.data/music-cache.json` | 通过 `@meting/core` 获取，缓存短期直链 |
+| 评论 | Giscus / GitHub Discussions | 不写入本地数据库 |
 
-## Admin Post API
+## SQLite 数据表
 
-All admin post endpoints require the same bearer token:
+数据库 schema 位于 [db/schema.sql](../db/schema.sql)。
 
-```powershell
--H "Authorization: Bearer YOUR_ADMIN_TOKEN"
+核心表：
+
+- `posts`：文章主体。
+- `tags`：标签名称。
+- `post_tags`：文章与标签的关联。
+- `assets`：上传媒体元数据。
+- `post_assets`：文章与媒体的关联。
+- `analytics_events`：访问统计和性能事件。
+
+后端启动时会自动创建 schema。生产数据应定期备份：
+
+```bash
+bash scripts/vps/backup.sh
 ```
 
-Create a published post:
+## 媒体资源规则
 
-```powershell
-curl.exe --proxy "http://127.0.0.1:10794" --ssl-no-revoke -X POST "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/admin/posts" -H "Authorization: Bearer YOUR_ADMIN_TOKEN" -H "Content-Type: application/json" --data-raw "{\"title\":\"D1 发布测试\",\"description\":\"从后端发布的一篇文章。\",\"contentMarkdown\":\"# D1 发布测试\n\n这篇文章来自 Cloudflare D1。\",\"status\":\"PUBLISHED\",\"tags\":[\"Backend\",\"D1\"]}"
+上传文件会存放到：
+
+```text
+.data/media/uploads/YYYY/MM/{asset-id}-{safe-filename}
 ```
 
-Create a draft by omitting `status` or setting it to `DRAFT`.
+对外访问 URL 为：
 
-Update a post:
-
-```powershell
-curl.exe --proxy "http://127.0.0.1:10794" --ssl-no-revoke -X PATCH "https://sinxy-sai-blog.sinxy-sai.workers.dev/api/admin/posts/POST_ID" -H "Authorization: Bearer YOUR_ADMIN_TOKEN" -H "Content-Type: application/json" --data-raw "{\"status\":\"PUBLISHED\",\"tags\":[\"Backend\",\"Cloudflare\"]}"
+```text
+/media/uploads/YYYY/MM/{asset-id}-{safe-filename}
 ```
 
-Supported post fields:
+当前约束：
 
-- `title`: required on create.
-- `description`: required on create.
-- `contentMarkdown`: required on create.
-- `slug`: optional; generated from title when omitted.
-- `status`: `DRAFT` or `PUBLISHED`.
-- `pubDate`: optional ISO-compatible date; defaults to now.
-- `updatedDate`: optional ISO-compatible date or `null`.
-- `coverAssetId`: optional asset id or `null`.
-- `tags`: optional string array.
+- 允许类型：JPEG、PNG、WebP、GIF。
+- 单文件最大：5 MB。
+- 文件名会被转成安全字符。
+- 删除媒体时会同步删除数据库记录和本地文件。
 
-## Resource Rules
+## 后台权限
 
-- R2 keys should be stable and human-readable:
-  - `posts/{postSlug}/{yyyyMMdd}-{safeFilename}`
-  - `avatars/{safeFilename}`
-  - `site/{safeFilename}`
-- Store asset metadata in D1 even though the binary file lives in R2.
-- Markdown content should reference images by public URL or by asset id resolved at render time.
-- Keep old local `public/` assets supported while migrating.
+后台管理 API 使用单一 `ADMIN_TOKEN`：
 
-## Migration Order
+```http
+Authorization: Bearer <ADMIN_TOKEN>
+```
 
-1. Add Worker API shell.
-2. Create D1 database and run `db/schema.sql`.
-3. Create R2 bucket for blog media.
-4. Add D1 and R2 bindings to `wrangler.jsonc`.
-5. Implement read-only post API.
-6. Build a private admin editor and upload flow.
-7. Import existing Markdown posts into D1.
-8. Switch the public blog listing/detail pages to backend data.
+该项目暂时不是多用户 CMS，不区分角色和用户。`ADMIN_TOKEN` 泄露等同于后台管理权限泄露，应立即轮换。
 
-## Cloudflare Resources
+## Cloudflare 备选适配
 
-Suggested names:
+仓库仍保留 Cloudflare Worker 适配代码和 `wrangler.jsonc`。早期规划是：
 
-- D1 database: `sinxy-sai-blog-db`
-- R2 bucket: `sinxy-sai-blog-media`
+- D1 存储文章、标签和媒体元数据。
+- R2 存储上传文件。
+- Worker 处理 `/api/*`。
 
-Do not commit secrets. Admin auth configuration should use Cloudflare secrets or Access policies.
+但当前主线已经迁到 VPS：
+
+- SQLite 替代 D1。
+- 本地 `.data/media/` 替代 R2。
+- Node.js 后端替代 Worker 动态 API。
+- GitHub Actions 负责自动部署到 VPS。
+
+如果未来重新启用 Cloudflare 版本，应单独更新 Worker API、D1/R2 绑定和安全策略，不应直接假设它与 VPS 版本完全等价。
+
+## 后续改进方向
+
+- 增加后台 API 的速率限制。
+- 给上传图片补充尺寸识别和缩略图生成。
+- 给访问统计增加数据清理任务。
+- 给音乐直链失效增加更细的观测日志。
+- 如果后台需要多人使用，再引入用户、会话和权限模型。

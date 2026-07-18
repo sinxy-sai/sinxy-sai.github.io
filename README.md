@@ -233,8 +233,12 @@ Nginx
 
 新服务器初始化、Nginx 配置、systemd 服务、数据迁移、备份与恢复，请参阅：
 
+- [文档索引](docs/README.md)
 - [VPS 后端部署与迁移](docs/vps-backend.md)
 - [后端资源规划](docs/backend-resource-plan.md)
+- [API 文档](docs/api.md)
+- [音乐系统](docs/music-system.md)
+- [前端组件说明](docs/frontend-components.md)
 
 ## 数据备份与迁移
 
