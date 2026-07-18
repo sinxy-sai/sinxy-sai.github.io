@@ -284,7 +284,7 @@ bash scripts/vps/restore.sh ~/sinxy-blog-data-YYYYMMDDTHHMMSSZ.tar.gz
 - SSH 建议关闭密码登录，仅保留权限受限的密钥登录；执行前应先在新的终端确认密钥能够登录。
 - Giscus 配置值可公开，但 GitHub 仓库权限和 Discussions 设置应按实际需要配置。
 
-更多漏洞报告方式、密钥处理原则和生产环境安全建议，请查看 [SECURITY.md](SECURITY.md)。
+更多漏洞报告方式、密钥处理原则和生产环境安全建议，请查看 [Security Policy](SECURITY.md)。
 
 ## License
 
