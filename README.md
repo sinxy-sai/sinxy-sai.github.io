@@ -77,7 +77,11 @@
 ├── db/
 │   └── schema.sql                 # SQLite 数据表定义
 ├── docs/
+│   ├── README.md                  # 文档索引
+│   ├── api.md                     # API 接口说明
 │   ├── backend-resource-plan.md   # 后端资源规划
+│   ├── frontend-components.md     # 前端组件说明
+│   ├── music-system.md            # 音乐系统说明
 │   └── vps-backend.md             # VPS 部署、备份与迁移说明
 ├── nginx/
 │   └── local.conf                 # 本地 Docker Nginx 代理配置
@@ -128,6 +132,9 @@ npm run dev
 
 打开终端输出的本地地址，通常是 `http://127.0.0.1:4321/`。
 
+> [!TIP]
+> `npm run dev` 适合调页面、组件和样式；如果要测试真实文章数据、后台 API、媒体上传或动态文章页，应使用下面的完整集成测试流程。
+
 ### 完整集成测试
 
 `npm run dev` 适合调整静态页面和组件。要测试真实文章、后台 API、媒体上传、动态代码高亮、沉浸阅读和同源路由，需要同时启动 Node 后端与 Nginx 代理。
@@ -138,6 +145,9 @@ npm run dev
 - Docker 里的 Nginx 监听本机 `8080` 端口。
 - Nginx 读取本机 `dist/` 静态文件。
 - `/api/`、`/blog/`、`/media/` 和动态标签页会被代理到本机 Node 后端。
+
+> [!NOTE]
+> 完整集成测试不需要再运行 `npm run dev`。访问入口是 Docker Nginx 暴露的 `http://127.0.0.1:8080/`，不是 Astro dev server 的 `4321` 端口。
 
 终端一：构建并启动后端。Windows PowerShell 可从本地、被 Git 忽略的 `Admin_TOKEN` 文件读取令牌：
 
@@ -206,6 +216,12 @@ openssl rand -hex 32
 
 不要提交 `ADMIN_TOKEN`、`.env`、SSH 私钥、数据库文件或备份文件。
 
+> [!WARNING]
+> `ADMIN_TOKEN` 泄露等同于后台管理权限泄露。如果 token 曾经被提交、截图、发到聊天窗口或推送到远端，应立即重新生成并替换 VPS 环境变量。
+
+> [!NOTE]
+> 网易云音乐的 `src` 是临时直链，可能过期或返回 403。音乐播放故障排查见 [音乐系统](docs/music-system.md)。
+
 ## VPS 部署
 
 生产架构：
@@ -230,6 +246,9 @@ Nginx
 | `VPS_HOST` | VPS IP 或域名 |
 | `VPS_USER` | 部署用户，例如 `ubuntu` |
 | `VPS_SSH_KEY` | 仅用于自动部署的 SSH 私钥 |
+
+> [!WARNING]
+> `VPS_SSH_KEY` 必须只放在 GitHub Secrets 中，不要提交到仓库。更换服务器、泄露私钥或更换部署用户后，应重新生成部署密钥。
 
 新服务器初始化、Nginx 配置、systemd 服务、数据迁移、备份与恢复，请参阅：
 
@@ -263,6 +282,9 @@ bash scripts/vps/restore.sh ~/sinxy-blog-data-YYYYMMDDTHHMMSSZ.tar.gz
 
 迁移服务器时，先完成数据库与媒体备份，在新 VPS 运行 `scripts/vps/bootstrap.sh`，恢复备份后再设置环境变量和 GitHub Actions Secrets。
 
+> [!TIP]
+> 迁移或重装 VPS 前，至少备份 `.data/blog.sqlite` 和 `.data/media/`。代码可以从 GitHub 重新拉取，但数据库和上传媒体是生产数据。
+
 ## 常用命令
 
 | 命令 | 说明 |
@@ -289,6 +311,9 @@ bash scripts/vps/restore.sh ~/sinxy-blog-data-YYYYMMDDTHHMMSSZ.tar.gz
 - Giscus 配置值可公开，但 GitHub 仓库权限和 Discussions 设置应按实际需要配置。
 
 更多漏洞报告方式、密钥处理原则和生产环境安全建议，请查看 [Security Policy](SECURITY.md)。
+
+> [!NOTE]
+> 这个项目目前没有多用户账号系统，后台权限由单一 `ADMIN_TOKEN` 控制；前端的 token 输入页只是使用体验，不是安全边界。
 
 ## License
 
