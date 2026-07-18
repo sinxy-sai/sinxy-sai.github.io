@@ -175,7 +175,7 @@ const mediaDir = resolve(process.env.BLOG_MEDIA_DIR || join(dataDir, "media"));
 const distDir = resolve(process.env.BLOG_DIST_DIR || join(rootDir, "dist"));
 const port = Number(process.env.PORT || 8787);
 const musicCacheTtlMs = 10 * 60 * 1000;
-const musicCacheMaxStaleMs = 24 * 60 * 60 * 1000;
+const musicCacheMaxStaleMs = 30 * 60 * 1000;
 const musicCachePath = join(dataDir, "music-cache.json");
 const analyticsEventTypes = new Set<AnalyticsEventType>(["pageview", "web_vital", "client_error", "api"]);
 const highlightedLanguages: BundledLanguage[] = [
@@ -1756,12 +1756,12 @@ function refreshMusicSongs(config: ReturnType<typeof getMusicConfig>) {
   return musicRefreshPromise;
 }
 
-async function loadMusicSongs() {
+async function loadMusicSongs(options: { forceRefresh?: boolean } = {}) {
   const config = getMusicConfig();
   if (!config.playlistId && config.ids.length === 0) return [];
 
   const now = Date.now();
-  if (musicCache?.key === config.cacheKey && musicCache.expiresAt > now) {
+  if (!options.forceRefresh && musicCache?.key === config.cacheKey && musicCache.expiresAt > now) {
     return musicCache.songs;
   }
 
@@ -1771,7 +1771,7 @@ async function loadMusicSongs() {
     : persistentCache?.songs;
   const savedAt = persistentCache?.savedAt ?? (musicCache?.expiresAt ?? 0) - musicCacheTtlMs;
 
-  if (staleSongs?.length && now - savedAt <= musicCacheMaxStaleMs) {
+  if (!options.forceRefresh && staleSongs?.length && now - savedAt <= musicCacheMaxStaleMs) {
     musicCache = {
       key: config.cacheKey,
       expiresAt: Math.max(now, savedAt + musicCacheTtlMs),
@@ -1786,18 +1786,22 @@ async function loadMusicSongs() {
   try {
     return await refreshMusicSongs(config);
   } catch (error) {
-    if (staleSongs?.length) return staleSongs;
+    if (!options.forceRefresh && staleSongs?.length) return staleSongs;
     throw error;
   }
 }
 
-async function handleMusic(request: IncomingMessage, response: ServerResponse) {
+async function handleMusic(request: IncomingMessage, response: ServerResponse, url: URL) {
   if (request.method !== "GET") return methodNotAllowed(response, ["GET"]);
 
+  const forceRefresh =
+    url.searchParams.get("refresh") === "1" ||
+    String(request.headers["cache-control"] || "").includes("no-cache");
+
   try {
-    const songs = await loadMusicSongs();
+    const songs = await loadMusicSongs({ forceRefresh });
     return json({ data: songs }, response, 200, {
-      "cache-control": "public, max-age=120, stale-while-revalidate=600",
+      "cache-control": forceRefresh ? "no-store" : "public, max-age=120, stale-while-revalidate=600",
     });
   } catch (error) {
     console.error("Failed to load music data", error);
@@ -2513,7 +2517,7 @@ function handleRequest(request: IncomingMessage, response: ServerResponse) {
     if (url.pathname === "/api/posts") return handlePosts(request, response);
     if (url.pathname === "/api/search") return handleSearch(request, response, url);
     if (url.pathname === "/api/assets") return handleAssets(request, response);
-    if (url.pathname === "/api/music") return handleMusic(request, response);
+    if (url.pathname === "/api/music") return handleMusic(request, response, url);
     if (url.pathname === "/api/analytics/event") return handleAnalyticsEvent(request, response);
     if (url.pathname === "/api/admin/analytics") return handleAdminAnalytics(request, response, url);
     if (url.pathname === "/api/admin/assets" || url.pathname.startsWith("/api/admin/assets/")) {

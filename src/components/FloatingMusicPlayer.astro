@@ -145,6 +145,8 @@ import {
         isSeeking: false,
       };
       let lastPlaybackPersistAt = 0;
+      let desiredPlaying = false;
+      let isRefreshingSongsAfterError = false;
       const playbackControls = [
         toggleButton,
         prevButton,
@@ -208,6 +210,20 @@ import {
             return true;
           })
           .slice(0, maxStoredSongs);
+      };
+
+      const fetchMusicSongsFromApi = async (forceRefresh = false) => {
+        const endpoint = forceRefresh ? `/api/music?refresh=1&t=${Date.now()}` : "/api/music";
+        const response = await fetch(endpoint, {
+          cache: forceRefresh ? "no-store" : "default",
+          headers: {
+            accept: "application/json",
+            ...(forceRefresh ? { "cache-control": "no-cache" } : {}),
+          },
+        });
+        if (!response.ok) return [];
+        const payload = await response.json();
+        return normalizeSongList(payload?.data);
       };
 
       const readPlaybackState = () => {
@@ -355,6 +371,7 @@ import {
 
       const setSong = async (index, shouldPlay = false, resumeTime = 0) => {
         if (!state.songs.length) return;
+        desiredPlaying = Boolean(shouldPlay);
         state.index = (index + state.songs.length) % state.songs.length;
         const song = state.songs[state.index];
 
@@ -424,27 +441,46 @@ import {
 
       const togglePlayback = async () => {
         if (audio.paused) {
+          desiredPlaying = true;
           try {
             await audio.play();
           } catch {
             return;
           }
         } else {
+          desiredPlaying = false;
           audio.pause();
         }
         updatePanelState();
       };
 
-      fetch("/api/music", { headers: { accept: "application/json" } })
-        .then((response) => (response.ok ? response.json() : null))
-        .then((payload) => {
+      const refreshSongsFromApi = async (forceRefresh = false) => {
+        if (isRefreshingSongsAfterError) return false;
+        isRefreshingSongsAfterError = true;
+
+        try {
+          const currentSong = state.songs[state.index];
+          const currentSongId = currentSong ? String(currentSong.id) : "";
+          const resumeTime = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+          const fetchedSongs = await fetchMusicSongsFromApi(forceRefresh);
+          if (!fetchedSongs.length) return false;
+
+          state.songs = mergeSongLists(fetchedSongs, state.songs);
+          const refreshedIndex = state.songs.findIndex((song) => String(song.id) === currentSongId);
+          await setSong(refreshedIndex >= 0 ? refreshedIndex : state.index, desiredPlaying, resumeTime);
+          return true;
+        } finally {
+          isRefreshingSongsAfterError = false;
+        }
+      };
+
+      fetchMusicSongsFromApi()
+        .then((fetchedSongs) => {
           const restoredPlayback = readPlaybackState();
-          const fetchedSongs = normalizeSongList(payload?.data);
           const restoredSongs = restoredPlayback?.songs ?? [];
-          state.songs =
-            restoredSongs.length > fetchedSongs.length
-              ? mergeSongLists(restoredSongs, fetchedSongs)
-              : mergeSongLists(fetchedSongs, restoredSongs);
+          state.songs = fetchedSongs.length
+            ? mergeSongLists(fetchedSongs, restoredSongs)
+            : restoredSongs;
           if (!state.songs.length) throw new Error("Music playlist is empty.");
           setPlayerReady(true);
           audio.volume = restoredPlayback?.volume ?? Number(volumeInput.value);
@@ -561,12 +597,22 @@ import {
       document.addEventListener("astro:page-load", updateHomePlayers);
 
       audio.addEventListener("play", () => {
+        desiredPlaying = true;
         updatePanelState();
         persistPlaybackState(true);
       });
       audio.addEventListener("pause", () => {
+        if (!audio.error) desiredPlaying = false;
         updatePanelState();
         persistPlaybackState(true);
+      });
+      audio.addEventListener("error", () => {
+        if (!state.songs.length) return;
+        void refreshSongsFromApi(true).catch(() => {
+          setPlayerReady(false);
+          titleEl.textContent = "音乐暂不可用";
+          artistEl.textContent = "请稍后重试";
+        });
       });
       audio.addEventListener("ended", playNext);
       audio.addEventListener("loadedmetadata", () => {
